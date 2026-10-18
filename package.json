@@ -1,0 +1,9 @@
+{
+  "name": "orbis-charge-report",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker webapp to download EV charger sessions (Orbis) and split costs per RFID card, month and year",
+  "license": "AGPL-3.0-or-later",
+  "private": false,
+  "scripts": { "dev": "wrangler dev", "deploy": "wrangler deploy" },
+  "devDependencies": { "wrangler": "^4" }
+}

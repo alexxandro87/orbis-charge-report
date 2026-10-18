@@ -1,0 +1,26 @@
+name = "orbis-charge-report"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# Optional custom domain (the domain must be on your Cloudflare account)
+# routes = [{ pattern = "charge.example.com", custom_domain = true }]
+
+# Everything about the charger, the site title, time zone, currency and email
+# is entered in the web page on first start (and later in the Settings tab).
+# You may also pre-set defaults here; values saved in the web page win.
+# [vars]
+# CHARGER_URL = "http://your-charger.example.com"
+# SITE_TITLE  = "EV Charger - My Building"
+# TIMEZONE    = "Europe/Rome"
+# CURRENCY    = "EUR"
+# MAIL_FROM   = "EV Charger <charge@example.com>"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ricariche"
+database_id = "PUT-YOUR-D1-DATABASE-ID-HERE"
+
+# Automatic download from the charger every 6 hours
+# (can be switched off in the Settings tab; the schedule itself is set here)
+[triggers]
+crons = ["0 */6 * * *"]
