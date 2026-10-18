@@ -9,6 +9,7 @@ A small, free web app that downloads the session history from an **Orbis** EV ch
 ## Contents
 
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [Tested hardware](#tested-hardware)
 - [Requirements](#requirements)
 - [Install](#install)
@@ -40,6 +41,30 @@ A small, free web app that downloads the session history from an **Orbis** EV ch
 - **Everything configurable from the web page**: charger URL, credentials, URL paths, response format and column numbers, time zone, currency, tax label, site title, email.
 - **English and Italian interface** with a language switch (also on the sign-in page, invitations and emails).
 - Optional import of the per-card CSV exports of the Viaris desktop program.
+
+## Screenshots
+
+All screenshots use made-up demo data.
+
+**Monthly report** - per-card totals, single sessions on click, app sessions in their own section:
+
+<img src="monthly-report.png" alt="Monthly report">
+
+| Yearly history | All sessions |
+|---|---|
+| <img src="yearly-history.png" alt="Yearly history"> | <img src="all-sessions.png" alt="All sessions"> |
+
+| Users and permissions | A charger user sees only their own card |
+|---|---|
+| <img src="users.png" alt="Users"> | <img src="my-charging.png" alt="My charging"> |
+
+| First-run setup with connection test | Settings |
+|---|---|
+| <img src="setup.png" alt="First-run setup"> | <img src="settings.png" alt="Settings"> |
+
+| Italian interface | Sign-in |
+|---|---|
+| <img src="monthly-report-it.png" alt="Italian interface"> | <img src="login.png" alt="Sign-in"> |
 
 ## Tested hardware
 
