@@ -48,23 +48,23 @@ Tutte le schermate usano dati dimostrativi inventati.
 
 **Report mensile** - totali per tessera, singole ricariche al clic, ricariche da app in una sezione a parte:
 
-<img src="monthly-report-it.png" alt="Report mensile">
+<img src="docs/monthly-report-it.png" alt="Report mensile">
 
 | Storico annuale | Tutte le sessioni |
 |---|---|
-| <img src="yearly-history.png" alt="Storico annuale"> | <img src="all-sessions.png" alt="Tutte le sessioni"> |
+| <img src="docs/yearly-history.png" alt="Storico annuale"> | <img src="docs/all-sessions.png" alt="Tutte le sessioni"> |
 
 | Utenti e permessi | Un utente della colonnina vede solo la sua tessera |
 |---|---|
-| <img src="users.png" alt="Utenti"> | <img src="my-charging.png" alt="Le mie ricariche"> |
+| <img src="docs/users.png" alt="Utenti"> | <img src="docs/my-charging.png" alt="Le mie ricariche"> |
 
 | Prima configurazione con prova di connessione | Impostazioni |
 |---|---|
-| <img src="setup.png" alt="Prima configurazione"> | <img src="settings.png" alt="Impostazioni"> |
+| <img src="docs/setup.png" alt="Prima configurazione"> | <img src="docs/settings.png" alt="Impostazioni"> |
 
 | Interfaccia in inglese | Accesso |
 |---|---|
-| <img src="monthly-report.png" alt="Interfaccia in inglese"> | <img src="login.png" alt="Accesso"> |
+| <img src="docs/monthly-report.png" alt="Interfaccia in inglese"> | <img src="docs/login.png" alt="Accesso"> |
 
 ## Hardware provato
 
