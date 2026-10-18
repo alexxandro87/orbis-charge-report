@@ -9,6 +9,7 @@ Una piccola webapp gratuita che scarica lo storico delle sessioni da una colonni
 ## Indice
 
 - [Funzioni](#funzioni)
+- [Schermate](#schermate)
 - [Hardware provato](#hardware-provato)
 - [Requisiti](#requisiti)
 - [Installazione](#installazione)
@@ -40,6 +41,30 @@ Una piccola webapp gratuita che scarica lo storico delle sessioni da una colonni
 - **Tutto configurabile dalla pagina web**: indirizzo della colonnina, credenziali, percorsi, formato della risposta e numeri di colonna, fuso orario, valuta, nome dell'imposta, titolo del sito, email.
 - **Interfaccia in italiano e in inglese** con selettore della lingua (anche nella pagina di accesso, negli inviti e nelle email).
 - Importazione facoltativa dei CSV per tessera esportati dal programma Viaris per desktop.
+
+## Schermate
+
+Tutte le schermate usano dati dimostrativi inventati.
+
+**Report mensile** - totali per tessera, singole ricariche al clic, ricariche da app in una sezione a parte:
+
+<img src="monthly-report-it.png" alt="Report mensile">
+
+| Storico annuale | Tutte le sessioni |
+|---|---|
+| <img src="yearly-history.png" alt="Storico annuale"> | <img src="all-sessions.png" alt="Tutte le sessioni"> |
+
+| Utenti e permessi | Un utente della colonnina vede solo la sua tessera |
+|---|---|
+| <img src="users.png" alt="Utenti"> | <img src="my-charging.png" alt="Le mie ricariche"> |
+
+| Prima configurazione con prova di connessione | Impostazioni |
+|---|---|
+| <img src="setup.png" alt="Prima configurazione"> | <img src="settings.png" alt="Impostazioni"> |
+
+| Interfaccia in inglese | Accesso |
+|---|---|
+| <img src="monthly-report.png" alt="Interfaccia in inglese"> | <img src="login.png" alt="Accesso"> |
 
 ## Hardware provato
 
