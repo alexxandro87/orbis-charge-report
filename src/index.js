@@ -8,6 +8,10 @@ let TITOLO = "EV Charger";            // site title (from settings)
 let TZ = "Europe/Rome";                // time zone used for months, reports and the price lock (from settings)
 const MESI = ["January", "February", "March", "April", "May", "June", "July",
   "August", "September", "October", "November", "December"];
+const MESI_IT = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio",
+  "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
+const lingua = (l) => (l === "it" ? "it" : "en");
+const nomeMese = (m, l) => (lingua(l) === "it" ? MESI_IT : MESI)[m - 1];
 
 // ------------------------------------------------------------ local time (any IANA time zone)
 const tzFmt = new Map();
@@ -175,10 +179,11 @@ const CFG_DEFAULTS = {
   tags_sep: ";", tags_skip: 1, tags_c_tag: 0, tags_c_name: 2,
   tz: "Europe/Rome", currency: "€", tax_label: "",
   resend_key: "", mail_from: "",          // invitation emails via Resend (optional)
+  report_to: "", report_cc: "",            // who receives the monthly report when a price is saved (comma-separated)
 };
 const CFG_NUM = ["timeout", "hist_skip", "c_start", "c_tag", "c_type", "c_cont_ini", "c_end", "c_cont_fin", "tags_skip", "tags_c_tag", "tags_c_name"];
 const CFG_STR = ["title", "url", "user", "password", "header_name", "header_value", "history_path", "tags_path",
-  "hist_json_field", "hist_sep", "tags_sep", "tz", "currency", "tax_label", "resend_key", "mail_from"];
+  "hist_json_field", "hist_sep", "tags_sep", "tz", "currency", "tax_label", "resend_key", "mail_from", "report_to", "report_cc"];
 
 async function leggiConfig(env) {
   const c = { ...CFG_DEFAULTS };
@@ -208,6 +213,11 @@ function pulisciConfig(inp, base) {                      // validate what the ad
     out[k] = n;
   }
   if (inp.auto !== undefined) out.auto = !!inp.auto;
+  for (const k of ["report_to", "report_cc"]) {
+    const l = listaEmail(out[k]);
+    if (!l.every((x) => EMAIL_OK.test(x))) throw Object.assign(new Error("Invalid email address"), { codice: "bad_email" });
+    out[k] = l.join(", ");
+  }
   if (out.url && !/^https?:\/\/[^\s]+$/i.test(out.url)) throw Object.assign(new Error("The charger URL must start with http:// or https://"), { codice: "bad_url" });
   try { new Intl.DateTimeFormat("en-US", { timeZone: out.tz }); }
   catch (_) { throw Object.assign(new Error("Unknown time zone"), { codice: "bad_tz" }); }
@@ -415,6 +425,7 @@ async function preparaTabelle(env) {
   await env.DB.batch([
     env.DB.prepare("CREATE TABLE IF NOT EXISTS utenti (nome TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL, ruolo TEXT NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS tentativi (nome TEXT NOT NULL, ts INTEGER NOT NULL)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS revocati (sig TEXT PRIMARY KEY, exp INTEGER NOT NULL)"),   // sessions closed with "Log out"
   ]);
   const col = (await env.DB.prepare("PRAGMA table_info(utenti)").all()).results.map((c) => c.name);
   for (const [nome, tipo] of [["permessi", "TEXT"], ["invito_hash", "TEXT"], ["invito_exp", "INTEGER"], ["tessera", "TEXT"]])
@@ -439,26 +450,30 @@ async function firma(env, testo) {
 // il token e' legato all'hash della password: cambiare password o cancellare l'utente chiude le sue sessioni
 async function creaToken(env, u) {
   const exp = Math.floor(Date.now() / 1000) + DURATA_SESSIONE;
-  return `${u.nome}~${exp}~${await firma(env, `${u.nome}|${exp}|${u.hash.slice(0, 16)}`)}`;
+  const nonce = hex(crypto.getRandomValues(new Uint8Array(8)));          // every sign-in gets a different token
+  return `${u.nome}~${exp}~${nonce}~${await firma(env, `${u.nome}|${exp}|${nonce}|${u.hash.slice(0, 16)}`)}`;
 }
+const leggiToken = (req) => {                // [name, exp, nonce, signature] from the session cookie, or []
+  const ck = /(?:^|;\s*)sess=([^;]+)/.exec(req.headers.get("cookie") || "");
+  let val = "";
+  try { val = ck ? decodeURIComponent(ck[1]) : ""; } catch (_) { /* malformed cookie */ }
+  return (/^(.+)~(\d+)~([0-9a-f]{16})~([0-9a-f]{64})$/.exec(val) || []).slice(1);
+};
 const cookie = (v, età) => `sess=${encodeURIComponent(v)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${età}`;
 
 async function utenteCorrente(req, env) {
   await preparaTabelle(env);
-  const ck = /(?:^|;\s*)sess=([^;]+)/.exec(req.headers.get("cookie") || "");
-  if (ck) {
-    let val = "";
-    try { val = decodeURIComponent(ck[1]); } catch (_) { /* cookie malformato */ }
-    const p = (/^(.+)~(\d+)~([0-9a-f]{64})$/.exec(val) || []).slice(1);
-    if (p.length === 3 && +p[1] > Date.now() / 1000) {
-      const u = await env.DB.prepare("SELECT nome, hash, ruolo, permessi, tessera FROM utenti WHERE nome=?").bind(p[0]).first();
-      if (u && u.hash && uguali(p[2], await firma(env, `${u.nome}|${p[1]}|${u.hash.slice(0, 16)}`)))
-        return { nome: u.nome, ruolo: u.ruolo, perm: permessiDi(u), tessera: u.tessera || null };
+  const p = leggiToken(req);
+  if (p.length === 4 && +p[1] > Date.now() / 1000) {
+    const u = await env.DB.prepare("SELECT nome, hash, ruolo, permessi, tessera FROM utenti WHERE nome=?").bind(p[0]).first();
+    if (u && u.hash && uguali(p[3], await firma(env, `${u.nome}|${p[1]}|${p[2]}|${u.hash.slice(0, 16)}`))) {
+      const rev = await env.DB.prepare("SELECT 1 FROM revocati WHERE sig=?").bind(p[3]).first();
+      if (!rev) return { nome: u.nome, ruolo: u.ruolo, perm: permessiDi(u), tessera: u.tessera || null };
     }
   }
-  // accesso con Basic (per gli script, es. --invia)
+  // HTTP Basic: only for scripts that push data (/api/ingest), never for the pages
   const h = req.headers.get("authorization") || "";
-  if (h.startsWith("Basic ")) {
+  if (h.startsWith("Basic ") && new URL(req.url).pathname === "/api/ingest") {
     try {
       const [n, ...r] = atob(h.slice(6)).split(":");
       const u = await verificaLogin(env, n.toLowerCase(), r.join(":"));
@@ -505,13 +520,16 @@ async function login(req, env) {
 const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const sha256 = async (t) => hex(await crypto.subtle.digest("SHA-256", enc(t)));
 
-async function inviaMail(cfg, a, oggetto, html) {
+async function inviaMail(cfg, a, oggetto, html, cc, allegati) {
   if (!cfg.resend_key || !cfg.mail_from) return "not_configured";
   try {
+    const corpo = { from: cfg.mail_from, to: [].concat(a), subject: oggetto, html };
+    if (cc && cc.length) corpo.cc = cc;
+    if (allegati && allegati.length) corpo.attachments = allegati;
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: "Bearer " + cfg.resend_key, "content-type": "application/json" },
-      body: JSON.stringify({ from: cfg.mail_from, to: [a], subject: oggetto, html }),
+      body: JSON.stringify(corpo),
     });
     return r.ok ? "sent" : "error " + r.status + ": " + (await r.text()).slice(0, 200);
   } catch (e) { return "error: " + (e.message || e); }
@@ -526,6 +544,215 @@ const MAILT = {
     pick: "Per iniziare scegli la tua password dal pulsante qui sotto. Il link e' personale, monouso e vale 48 ore.",
     btn: "Scegli la password", user: (n) => `Il tuo nome utente e' ${n}. Se il pulsante non funziona copia questo indirizzo nel browser:` },
 };
+
+// -------------------------------------------------------------- report email and PDF (EN/IT)
+const listaEmail = (t) => [...new Set(String(t || "").split(/[,;\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean))];
+const numL = (x, l, d = 2) => x === null || x === undefined ? "-"
+  : x.toLocaleString(lingua(l) === "it" ? "it-IT" : "en-GB", { minimumFractionDigits: d, maximumFractionDigits: d });
+const dataL = (s, l) => {                     // "DD/MM/YYYY HH:MM" -> "YYYY-MM-DD HH:MM" in English
+  if (lingua(l) === "it" || !s) return s;
+  const m = /^(\d\d)\/(\d\d)\/(\d{4}) (.*)$/.exec(s);
+  return m ? `${m[3]}-${m[2]}-${m[1]} ${m[4]}` : s;
+};
+const REPT = {
+  en: { sub: "Charging cost sharing", hello: "Hello,", intro: (t) => `the energy price for ${t} has been entered. Here is the split per card.`,
+    price: "Price", card: "Card", user: "User", sess: "Sess.", kwh: "kWh", net: "Net", total: "Total", none: "No card charging sessions this month.",
+    foot: (o) => `The detail of every session is in the attached PDF and on the page: ${o}`,
+    noreply: "This mailbox does not receive email: please do not reply to this message.",
+    subj: (t) => `Charging cost sharing ${t}`, page: (i, n) => `Page ${i} of ${n}`, summary: "Summary per card", detail: "Session detail",
+    amounts: (c) => `Amounts in ${c}`, mine: "My charging", cardw: "card", year: "Year", month: "Month", charges: "Sessions",
+    permonth: "Summary per month", noprice: "Price for this month not entered yet: no amounts.", nothing: "No charging sessions in the selected period." },
+  it: { sub: "Ripartizione costi di ricarica", hello: "Buongiorno,", intro: (t) => `e' stato inserito il prezzo dell'energia di ${t}. Di seguito la ripartizione per tessera.`,
+    price: "Prezzo", card: "Tessera", user: "Utente", sess: "Sess.", kwh: "kWh", net: "Imponibile", total: "Totale", none: "Nessuna ricarica con tessera in questo mese.",
+    foot: (o) => `Il dettaglio di tutte le sessioni e' nel PDF allegato ed e' consultabile anche nella pagina: ${o}`,
+    noreply: "Questa casella non riceve email: si prega di non rispondere a questo messaggio.",
+    subj: (t) => `Ripartizione ricariche ${t}`, page: (i, n) => `Pagina ${i} di ${n}`, summary: "Riepilogo per tessera", detail: "Dettaglio delle sessioni",
+    amounts: (c) => `Importi in ${c}`, mine: "Le mie ricariche", cardw: "tessera", year: "Anno", month: "Mese", charges: "Ricariche",
+    permonth: "Riepilogo per mese", noprice: "Prezzo del mese non ancora inserito: importi non disponibili.", nothing: "Nessuna ricarica nel periodo selezionato." },
+};
+const taxL = (cfg, l) => cfg.tax_label || (lingua(l) === "it" ? "IVA" : "VAT");
+
+// Minimal PDF writer (text only, Helvetica, A4, no libraries)
+function creaPdf(l) {
+  const pagine = [];
+  let cur = null, y = 0;
+  const nuova = () => { cur = []; pagine.push(cur); y = 800; };
+  nuova();
+  const W = (t, sz) => [...String(t)].reduce((s, c) => s + (c === "," || c === "." || c === " " ? 278 : c === "-" ? 333 : 556), 0) * sz / 1000;
+  const codifica = (t) => String(t).replace(/€/g, "\x80").replace(/[^\x20-\x7e\xa0-\xff\x80]/g, "?").replace(/([()\\])/g, "\\$1");
+  const testo = (x, t, sz = 9, bold = false, destra = false) => {
+    const xx = destra ? x - W(t, sz) : x;
+    cur.push(`BT /F${bold ? 2 : 1} ${sz} Tf ${xx.toFixed(1)} ${y.toFixed(1)} Td (${codifica(t)}) Tj ET`);
+  };
+  const filetto = (x1, x2, sp = 0.5) => cur.push(`${sp} w ${x1} ${(y - 3).toFixed(1)} m ${x2} ${(y - 3).toFixed(1)} l S`);
+  const giu = (n = 1, h = 13) => { y -= n * h; };
+  const serve = (righe) => { if (y - righe * 13 < 50) nuova(); };
+  const build = () => {
+    pagine.forEach((c, i) => { y = 25; cur = c; testo(555, REPT[lingua(l)].page(i + 1, pagine.length), 8, false, true); });
+    let out = "%PDF-1.4\n";
+    const off = [];
+    const add = (n, body) => { off[n] = out.length; out += `${n} 0 obj\n${body}\nendobj\n`; };
+    const np = pagine.length;
+    add(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    add(2, `<< /Type /Pages /Count ${np} /Kids [${pagine.map((_, i) => `${5 + i * 2} 0 R`).join(" ")}] >>`);
+    add(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+    add(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+    pagine.forEach((c, i) => {
+      const flusso = c.join("\n");
+      add(5 + i * 2, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${6 + i * 2} 0 R >>`);
+      add(6 + i * 2, `<< /Length ${flusso.length} >>\nstream\n${flusso}\nendstream`);
+    });
+    const n = 4 + np * 2, x0 = out.length;
+    out += `xref\n0 ${n + 1}\n0000000000 65535 f \n`;
+    for (let i = 1; i <= n; i++) out += String(off[i]).padStart(10, "0") + " 00000 n \n";
+    out += `trailer\n<< /Size ${n + 1} /Root 1 0 R >>\nstartxref\n${x0}\n%%EOF\n`;
+    return out;                                   // "binary" string: one character = one byte
+  };
+  return { testo, filetto, giu, serve, build };
+}
+const pdfBytes = (bin) => Uint8Array.from(bin, (c) => c.charCodeAt(0));
+
+function pdfReportMese(r, cfg, l) {
+  const T = REPT[lingua(l)], P = creaPdf(l), N = (x, d = 2) => numL(x, l, d), tx = taxL(cfg, l);
+  const titolo = `${nomeMese(r.mese, l)} ${r.anno}`;
+  P.testo(40, TITOLO, 13, true); P.giu(1.4);
+  P.testo(40, `${T.sub} - ${titolo}`, 11, true); P.giu(1.3);
+  P.testo(40, `${T.price} ${N(r.prezzo, 4)} ${cfg.currency}/kWh   ${tx} ${N(r.iva_pct, 1)}%   ${T.amounts(cfg.currency)}`, 9); P.giu(2);
+  P.testo(40, T.summary, 10, true); P.giu(1.3);
+  P.testo(40, T.card, 9, true); P.testo(110, T.user, 9, true);
+  P.testo(330, T.sess, 9, true, true); P.testo(385, T.kwh, 9, true, true); P.testo(450, T.net, 9, true, true);
+  P.testo(505, tx, 9, true, true); P.testo(555, T.total, 9, true, true); P.filetto(40, 555, 0.8); P.giu();
+  for (const t of r.tessere) {
+    P.serve(2);
+    P.testo(40, t.tag); P.testo(110, t.nome.slice(0, 40));
+    P.testo(330, String(t.n), 9, false, true); P.testo(385, N(t.kwh), 9, false, true); P.testo(450, N(t.imp), 9, false, true);
+    P.testo(505, N(t.iva), 9, false, true); P.testo(555, N(t.tot), 9, false, true); P.giu();
+  }
+  P.filetto(40, 555); P.giu(1.1);
+  P.testo(110, T.total, 9, true);
+  P.testo(330, String(r.tessere.reduce((x, t) => x + t.n, 0)), 9, true, true); P.testo(385, N(r.kwh_tessere), 9, true, true);
+  P.testo(450, N(r.imp_tessere), 9, true, true); P.testo(505, N(r.iva_tessere), 9, true, true); P.testo(555, N(r.tot_tessere), 9, true, true);
+  P.giu(2.5);
+  P.serve(4); P.testo(40, T.detail, 10, true); P.giu(1.6);
+  for (const t of r.tessere) {
+    P.serve(Math.min(t.sess.length, 3) + 3);
+    P.testo(40, `${t.tag} - ${t.nome}`.slice(0, 60), 10, true);
+    P.testo(330, `${t.n} ${T.sess}`, 9, true, true); P.testo(385, N(t.kwh), 9, true, true); P.testo(450, N(t.imp), 9, true, true);
+    P.testo(505, N(t.iva), 9, true, true); P.testo(555, N(t.tot), 9, true, true); P.filetto(40, 555, 0.8); P.giu();
+    for (const x of t.sess) {
+      P.serve(2);
+      P.testo(55, dataL(x.inizio, l)); P.testo(150, dataL(x.fine, l));
+      P.testo(385, N(x.kwh), 9, false, true); P.testo(450, N(x.imp), 9, false, true);
+      P.testo(505, N(x.iva), 9, false, true); P.testo(555, N(x.tot), 9, false, true); P.giu();
+    }
+    P.giu(0.8);
+  }
+  return P.build();
+}
+
+async function mieRicariche(env, tag, anno) {
+  const out = [];
+  for (let m = 1; m <= 12; m++) {
+    const r = await reportMese(env, anno, m, false);
+    const t = r.tessere.find((x) => x.tag === tag);
+    out.push({ mese: m, nome: MESI[m - 1], prezzo: r.prezzo, iva_pct: r.iva_pct, n: t ? t.n : 0,
+      kwh: t ? t.kwh : 0, imp: t ? t.imp : null, iva: t ? t.iva : null, tot: t ? t.tot : null, sess: t ? t.sess : [] });
+  }
+  return out;
+}
+
+function pdfMieRicariche(nome, tag, anno, mese, lista, cfg, l) {
+  const T = REPT[lingua(l)], P = creaPdf(l), N = (x, d = 2) => numL(x, l, d), tx = taxL(cfg, l);
+  const sel = mese ? lista.filter((x) => x.mese === mese) : lista;
+  P.testo(40, TITOLO, 13, true); P.giu(1.4);
+  P.testo(40, `${T.mine} - ${nome ? nome + " - " : ""}${T.cardw} ${tag}`, 11, true); P.giu(1.3);
+  P.testo(40, mese ? `${nomeMese(mese, l)} ${anno}` : `${T.year} ${anno}`, 9); P.giu(2);
+  if (!mese) {
+    P.testo(40, T.permonth, 10, true); P.giu(1.3);
+    P.testo(40, T.month, 9, true); P.testo(220, T.charges, 9, true, true); P.testo(285, T.kwh, 9, true, true);
+    P.testo(345, `${cfg.currency}/kWh`, 9, true, true); P.testo(420, T.net, 9, true, true); P.testo(485, tx, 9, true, true);
+    P.testo(555, T.total, 9, true, true); P.filetto(40, 555, 0.8); P.giu();
+    let k = 0, tt = 0, ok = false, nn = 0;
+    for (const x of sel) {
+      P.serve(2);
+      P.testo(40, nomeMese(x.mese, l)); P.testo(220, String(x.n), 9, false, true); P.testo(285, N(x.kwh), 9, false, true);
+      P.testo(345, x.prezzo === null ? "-" : N(x.prezzo, 4), 9, false, true);
+      P.testo(420, N(x.imp), 9, false, true); P.testo(485, N(x.iva), 9, false, true); P.testo(555, N(x.tot), 9, false, true);
+      P.giu(); k += x.kwh; nn += x.n; if (x.tot !== null) { tt += x.tot; ok = true; }
+    }
+    P.filetto(40, 555); P.giu(1.1);
+    P.testo(40, T.total, 9, true); P.testo(220, String(nn), 9, true, true); P.testo(285, N(k), 9, true, true);
+    P.testo(555, ok ? N(Math.round(tt * 100) / 100) : "-", 9, true, true);
+    P.giu(2.5);
+  }
+  P.serve(4); P.testo(40, T.detail, 10, true); P.giu(1.6);
+  let nessuna = true;
+  for (const x of sel) {
+    if (!x.n) continue;
+    nessuna = false;
+    P.serve(Math.min(x.sess.length, 3) + 3);
+    P.testo(40, `${nomeMese(x.mese, l)} ${anno}`, 10, true);
+    P.testo(330, `${x.n} ${T.sess}`, 9, true, true); P.testo(385, N(x.kwh), 9, true, true); P.testo(450, N(x.imp), 9, true, true);
+    P.testo(505, N(x.iva), 9, true, true); P.testo(555, N(x.tot), 9, true, true); P.filetto(40, 555, 0.8); P.giu();
+    for (const s of x.sess) {
+      P.serve(2);
+      P.testo(55, dataL(s.inizio, l)); P.testo(150, dataL(s.fine, l));
+      P.testo(385, N(s.kwh), 9, false, true); P.testo(450, N(s.imp), 9, false, true);
+      P.testo(505, N(s.iva), 9, false, true); P.testo(555, N(s.tot), 9, false, true); P.giu();
+    }
+    P.testo(55, x.prezzo === null ? T.noprice : `${T.price} ${N(x.prezzo, 4)} ${cfg.currency}/kWh - ${tx} ${N(x.iva_pct, 1)}%`, 8); P.giu();
+    P.giu(0.8);
+  }
+  if (nessuna) { P.testo(40, T.nothing, 9); P.giu(); }
+  return P.build();
+}
+
+// Email the monthly split (with the PDF) to the report recipients set in Settings
+async function inviaReportPrezzo(env, cfg, anno, mese, origin, l) {
+  const a = listaEmail(cfg.report_to), cc = listaEmail(cfg.report_cc);
+  if (!a.length) return "no_recipients";
+  const T = REPT[lingua(l)], tx = taxL(cfg, l), N = (x, d = 2) => numL(x, l, d);
+  const r = await reportMese(env, anno, mese, false);
+  const titolo = `${nomeMese(mese, l)} ${anno}`;
+  const td = (v, n) => `<td style="padding:5px 8px;border-bottom:1px solid #ddd;${n ? "text-align:right;white-space:nowrap" : ""}">${v}</td>`;
+  const th = (v, n) => `<th style="padding:5px 8px;border-bottom:2px solid #333;text-align:${n ? "right" : "left"}">${v}</th>`;
+  let righe = "";
+  for (const t of r.tessere)
+    righe += `<tr>${td(esc(t.tag))}${td(esc(t.nome))}${td(t.n, 1)}${td(N(t.kwh), 1)}${td(N(t.imp), 1)}${td(N(t.iva), 1)}${td(N(t.tot), 1)}</tr>`;
+  if (!r.tessere.length) righe = `<tr><td colspan="7" style="padding:8px"><i>${T.none}</i></td></tr>`;
+  const n = r.tessere.reduce((x, t) => x + t.n, 0);
+  const html = `<div style="font-family:Arial,sans-serif;max-width:720px">` +
+    `<h2 style="margin:0 0 4px">${esc(TITOLO)}</h2>` +
+    `<p style="color:#555;margin:0 0 16px">${T.sub} - ${esc(titolo)}</p>` +
+    `<p>${T.hello}<br>${T.intro(esc(titolo))}</p>` +
+    `<p>${T.price}: <b>${N(r.prezzo, 4)} ${esc(cfg.currency)}/kWh</b> - ${esc(tx)}: <b>${N(r.iva_pct, 1)}%</b></p>` +
+    `<table style="border-collapse:collapse;width:100%;font-size:14px"><tr>${th(T.card)}${th(T.user)}${th(T.sess, 1)}${th(T.kwh, 1)}${th(T.net, 1)}${th(esc(tx), 1)}${th(T.total, 1)}</tr>${righe}` +
+    `<tr style="font-weight:bold">${td("")}${td(T.total)}${td(n, 1)}${td(N(r.kwh_tessere), 1)}${td(N(r.imp_tessere), 1)}${td(N(r.iva_tessere), 1)}${td(N(r.tot_tessere), 1)}</tr></table>` +
+    `<p style="color:#555;font-size:13px">${T.amounts(esc(cfg.currency))}. ${T.foot(esc(origin))}</p>` +
+    `<p style="color:#555;font-size:13px"><b>${T.noreply}</b></p></div>`;
+  let allegati;
+  try { allegati = [{ filename: `charging_${anno}-${p2(mese)}.pdf`, content: btoa(pdfReportMese(r, cfg, l)) }]; }
+  catch (_) { allegati = undefined; }          // if the PDF fails, the email is sent anyway
+  return inviaMail(cfg, a, `${T.subj(titolo)} - ${TITOLO}`, html, cc, allegati);
+}
+
+// Full SQL dump of the database (admin only). Restore: npx wrangler d1 execute <db> --remote --file=<file>
+async function backupSql(env) {
+  const q1 = (v) => v === null || v === undefined ? "NULL" : typeof v === "number" ? String(v) : "'" + String(v).replace(/'/g, "''") + "'";
+  let out = `-- Backup ${TITOLO} - ${new Date().toISOString()}\n-- Contains saved secrets (charger password, Resend key): keep it private.\n` +
+    "-- Restore: npx wrangler d1 execute <database> --remote --file=<this file>\n";
+  for (const t of ["sessioni", "tessere", "prezzi", "meta", "utenti"]) {
+    const def = await env.DB.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").bind(t).first();
+    if (!def) continue;
+    out += def.sql.replace(/^CREATE TABLE\s+(IF NOT EXISTS\s+)?/i, "CREATE TABLE IF NOT EXISTS ") + ";\n";
+    for (const r of (await env.DB.prepare("SELECT * FROM " + t).all()).results) {
+      if (t === "meta" && r.chiave === "chiave_sessioni") continue;   // regenerated automatically
+      const cols = Object.keys(r);
+      out += `INSERT OR REPLACE INTO ${t} (${cols.join(", ")}) VALUES (${cols.map((c) => q1(r[c])).join(", ")});\n`;
+    }
+  }
+  return out;
+}
 
 function leggiPermessi(b) {
   return JSON.stringify(Object.fromEntries(PERMESSI.map((k) => [k, b && b[k] ? 1 : 0])));
@@ -631,7 +858,23 @@ const escHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<":
 const pagina = (h) => h.replaceAll("__I18N__", () => I18N).replaceAll("__TITLE__", () => escHtml(TITOLO));
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
+    const u = new URL(req.url);
+    if (u.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(u.hostname)) {
+      u.protocol = "https:";
+      return Response.redirect(u.toString(), 301);
+    }
+    const r = await this.gestisci(req, env, ctx);
+    const out = new Response(r.body, r);
+    if (u.protocol === "https:") out.headers.set("strict-transport-security", "max-age=31536000");
+    out.headers.set("x-frame-options", "DENY");                       // never inside someone else's iframe
+    out.headers.set("content-security-policy", "frame-ancestors 'none'");
+    out.headers.set("x-content-type-options", "nosniff");
+    out.headers.set("referrer-policy", "no-referrer");               // invitation links never leak through Referer
+    return out;
+  },
+
+  async gestisci(req, env) {
     const url = new URL(req.url);
     const q = url.searchParams;
     try {
@@ -661,8 +904,13 @@ export default {
       const P = me.perm, ris = P.app;               // ricariche senza tessera: solo con il permesso "app" (l'admin ce l'ha)
       const nega = () => err("forbidden", "You do not have permission for this operation", 403);
       if (url.pathname === "/api/logout" && req.method === "POST") {
+        // the session is also cancelled on the server, not only by deleting the cookie
+        const pp = leggiToken(req);
+        await env.DB.prepare("DELETE FROM revocati WHERE exp < ?").bind(Math.floor(Date.now() / 1000)).run();
+        if (pp.length === 4) await env.DB.prepare("INSERT OR REPLACE INTO revocati (sig, exp) VALUES (?, ?)").bind(pp[3], +pp[1]).run();
         const r = json({ ok: true });
-        r.headers.append("set-cookie", cookie("", 0));
+        r.headers.append("set-cookie", cookie("", 0) + "; Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+        r.headers.set("clear-site-data", '"cookies"');
         return r;
       }
       if (url.pathname === "/api/me") {
@@ -701,15 +949,30 @@ export default {
       }
       if (url.pathname === "/api/mie") {                 // le ricariche dell'utente della colonnina (solo la sua tessera)
         if (!me.tessera) return nega();
+        return json(await mieRicariche(env, me.tessera, +q.get("anno") || new Date().getUTCFullYear()));
+      }
+      if (url.pathname === "/api/mie.pdf") {             // PDF of the user's own sessions (one month or the whole year)
+        if (!me.tessera) return nega();
         const anno = +q.get("anno") || new Date().getUTCFullYear();
-        const out = [];
-        for (let m = 1; m <= 12; m++) {
-          const r = await reportMese(env, anno, m, false);
-          const t = r.tessere.find((x) => x.tag === me.tessera);
-          out.push({ mese: m, nome: MESI[m - 1], prezzo: r.prezzo, iva_pct: r.iva_pct, n: t ? t.n : 0,
-            kwh: t ? t.kwh : 0, imp: t ? t.imp : null, iva: t ? t.iva : null, tot: t ? t.tot : null, sess: t ? t.sess : [] });
-        }
-        return json(out);
+        const mese = Math.min(12, Math.max(0, +q.get("mese") || 0));
+        const l = q.get("lang");
+        const t = await env.DB.prepare("SELECT nome FROM tessere WHERE tag=?").bind(me.tessera).first();
+        const bin = pdfMieRicariche(t ? t.nome : "", me.tessera, anno, mese, await mieRicariche(env, me.tessera, anno), cfg, l);
+        return new Response(pdfBytes(bin), { headers: { "content-type": "application/pdf", "cache-control": "no-store",
+          "content-disposition": `attachment; filename="charging_${me.tessera}_${anno}${mese ? "-" + p2(mese) : ""}.pdf"` } });
+      }
+      if (url.pathname === "/api/backup") {
+        if (me.ruolo !== "admin") return err("unauthorized", "Not authorized", 403);
+        return new Response(await backupSql(env), { headers: { "content-type": "application/sql; charset=utf-8", "cache-control": "no-store",
+          "content-disposition": `attachment; filename="backup_${new Date().toISOString().slice(0, 10)}.sql"` } });
+      }
+      if (url.pathname === "/api/reinvia" && req.method === "POST") {   // send the monthly report email again
+        if (me.ruolo !== "admin") return err("unauthorized", "Not authorized", 403);
+        const b = await req.json();
+        const anno = +b.anno, mese = +b.mese;
+        const es = await env.DB.prepare("SELECT 1 FROM prezzi WHERE anno=? AND mese=?").bind(anno, mese).first();
+        if (!es) return err("no_price", "Price not entered yet");
+        return json({ ok: true, mail: await inviaReportPrezzo(env, cfg, anno, mese, url.origin, b.lang) });
       }
       if (url.pathname === "/api/miapassword" && req.method === "POST") {
         const b = await req.json();
@@ -770,6 +1033,7 @@ export default {
             const p = +b.prezzo, i = +b.iva || 0;
             if (!(p > 0 && p < 5) || !(i >= 0 && i <= 100)) return err("bad_price", "Invalid price or tax");
             await env.DB.prepare("INSERT OR REPLACE INTO prezzi VALUES (?,?,?,?)").bind(anno, mese, p, i).run();
+            return json({ ok: true, mail: await inviaReportPrezzo(env, cfg, anno, mese, url.origin, b.lang) });
           }
           return json({ ok: true });
         }
