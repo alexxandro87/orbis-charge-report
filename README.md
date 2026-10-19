@@ -36,6 +36,9 @@ A small, free web app that downloads the session history from an **Orbis** EV ch
 - **Cost splitting that adds up**: amounts are split in cents with the largest-remainder method, so the sum of the single sessions always equals the card total.
 - **Sessions started from the app** (no RFID card) are kept in a separate section that only authorised users see.
 - **Monthly price entry** (price per kWh and VAT) that locks automatically once the month is closed.
+- **Monthly report by email**: when a month's price is saved, the split per card is emailed to the recipients you choose, with a PDF of every session attached (via Resend).
+- **PDF downloads**: charger users can download a PDF of their own sessions for a month or a whole year.
+- **One-click backup**: the administrator can download a `.sql` dump of the whole database from the Settings tab.
 - **Users and permissions**: email + password, per-user permissions, single-use invitation links (optionally emailed through [Resend](https://resend.com)). A "charger user" account is bound to one card and sees only its own sessions.
 - **First-run setup page**: creates the administrator and collects everything needed to reach the charger.
 - **Everything configurable from the web page**: charger URL, credentials, URL paths, response format and column numbers, time zone, currency, tax label, site title, email.
@@ -145,7 +148,8 @@ All of these are in the **Settings** tab (administrator only) and are saved in t
 | Time zone | `Europe/Rome` | IANA name. Decides which month a session belongs to and when prices lock. |
 | Currency symbol | `€` | Shown next to totals. |
 | Tax label | empty | Empty = "VAT" in English, "IVA" in Italian. |
-| Resend API key / sender | empty | Enable invitation emails. The key is never sent back to the browser. |
+| Resend API key / sender | empty | Enable emails (invitations and monthly reports). The key is never sent back to the browser. |
+| Monthly report recipients (To / CC) | empty | Comma-separated addresses that receive the monthly split with the PDF when a price is saved. Empty To = no report email. |
 
 ## How it talks to the charger
 
@@ -171,13 +175,13 @@ The only assumptions left are: one session per line, start and end as epoch seco
 The administrator sees and does everything. Other users are created in the **Users** tab by entering an email address and either:
 
 - **Manager**: pick what the user may do: see the monthly report, the yearly history, all sessions; enter price and VAT; print and export; download from the charger and import CSV; see sessions started from the app.
-- **Charger user**: linked to one card; sees only that card's sessions (month by month, with amounts) and nothing else.
+- **Charger user**: linked to one card; sees only that card's sessions (month by month, with amounts) and nothing else, and can download them as a PDF.
 
 Pressing **Send invitation** emails a personal single-use link, valid 48 hours, to choose the password. If email is not configured, or sending fails, the page shows the link so you can send it yourself. "Reset" / "Resend" creates a new link. Passwords can be changed by each user from the header.
 
 ## Prices, VAT and the month lock
 
-Enter price per kWh and VAT for each month from the electricity bill. A month's price can be entered and corrected until the end of the following month, then it locks: for example the October price can be changed until 30 November and is locked from 1 December, for everyone including the administrator. A month with no price can still be filled in once. The point is that closed reports cannot change afterwards.
+Enter price per kWh and VAT for each month from the electricity bill. If report recipients are set in Settings, saving the price emails the split per card with a PDF of every session (the administrator can send it again with **Email report again**). A month's price can be entered and corrected until the end of the following month, then it locks: for example the October price can be changed until 30 November and is locked from 1 December, for everyone including the administrator. A month with no price can still be filled in once. The point is that closed reports cannot change afterwards.
 
 Emergency correction of a locked month, from a terminal:
 
@@ -216,9 +220,13 @@ Set a secret with `npx wrangler secret put NAME`.
 
 ## Backups
 
+From the page: **Settings > Database backup > Download backup (.sql)** (administrator only). From a terminal:
+
 ```
 npx wrangler d1 export ricariche --remote --output backup.sql
 ```
+
+Restore either file with `npx wrangler d1 execute ricariche --remote --file=backup.sql`.
 
 Schedule it with cron or Task Scheduler. D1 also keeps 7 days of point-in-time history (`npx wrangler d1 time-travel restore ricariche --timestamp=<ISO date>`). Note that the export contains the saved charger password and Resend key: keep it private.
 
@@ -245,7 +253,10 @@ npx wrangler dev
 ## Security notes
 
 - Passwords are hashed with PBKDF2-SHA-256; the iteration count is deliberately low (5000) to stay inside the free plan's CPU limit. Use long passwords.
-- Sign-in is rate-limited (5 attempts per 10 minutes per user name). Session cookies are `HttpOnly`, `Secure`, `SameSite=Strict`.
+- Sign-in is rate-limited (5 attempts per 10 minutes per user name). Session cookies are `HttpOnly`, `Secure`, `SameSite=Strict`; every sign-in gets a different signed token.
+- **Log out** also cancels the session on the server (the token is revoked, not just the cookie deleted). Changing a password or deleting a user ends all of that user's sessions.
+- Every response carries security headers: plain HTTP is redirected to HTTPS, HSTS, `X-Frame-Options: DENY` and `frame-ancestors 'none'` (no embedding in other sites), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` (invitation links never leak).
+- HTTP Basic authentication is accepted only on `/api/ingest`, never for the pages.
 - The charger password and Resend key are stored in the D1 database (not shown again in the page). If that is not acceptable, set them as Worker secrets instead.
 - The charger link is plain HTTP on most of these stations, so credentials sent to it are not encrypted in transit. Prefer a dedicated, read-only account if the charger supports it.
 - This was written for a small private group. Review it before exposing it to untrusted users.
