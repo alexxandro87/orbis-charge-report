@@ -61,7 +61,12 @@ e_cant_delete_admin:"The admin cannot be deleted",e_bad_action:"Invalid action",
 e_pw_wrong:"Current password is wrong",e_invite_invalid:"Invalid or expired link: ask for a new invitation",e_bad_period:"Invalid month/year",
 e_price_locked:"Price locked: the month has been closed since {d} and can no longer be changed",e_bad_price:"Invalid price or tax",e_not_found:"Not found",
 e_empty_file:"Empty file",e_not_viaris:"This does not look like a per-card Viaris export",e_card_unknown:"Cannot match the card from the file name ({f}): download from the charger first",
-e_bad_url:"The charger address must start with http:// or https://",e_bad_tz:"Unknown time zone",e_bad_config:"Invalid number in field {k}",e_no_url:"Set the charger address first"
+e_bad_url:"The charger address must start with http:// or https://",e_bad_tz:"Unknown time zone",e_bad_config:"Invalid number in field {k}",e_no_url:"Set the charger address first",
+e_no_price:"Price not entered yet",
+rep_resend:"Email report again",rep_resend_c:"Email the {t} report again to the report recipients?",rep_mailed:"Report emailed to the recipients",rep_notmailed:"Report email not sent: {r}",rep_norec:"no report recipients in Settings",
+s_rto:"Monthly report recipients (To)",s_rcc:"Monthly report recipients (CC)",s_rep_h:"When a month's price is saved, the split per card is emailed here with a PDF of every session. Separate addresses with commas; leave To empty to send nothing.",
+s_bk:"Database backup",s_bk_h:"A .sql file with sessions, cards, prices, users and settings (including the saved charger password and Resend key): keep it private. Restore with: npx wrangler d1 execute <database> --remote --file=<file>",s_bk_btn:"Download backup (.sql)",
+m_pdf:"Download PDF",m_year:"Whole year"
 },it:{
 lang_name:"Italiano",
 setup_title:"prima configurazione",setup_h:"Benvenuto - prima configurazione",setup_intro:"Crea l'account amministratore e indica come raggiungere la colonnina. Tutto si puo' cambiare dopo nella scheda Impostazioni; i campi facoltativi possono restare vuoti.",
@@ -121,7 +126,12 @@ e_cant_delete_admin:"L'admin non si puo' eliminare",e_bad_action:"Azione non val
 e_pw_wrong:"Password attuale errata",e_invite_invalid:"Link non valido o scaduto: chiedi un nuovo invito",e_bad_period:"Mese/anno non validi",
 e_price_locked:"Prezzo bloccato: il mese e' chiuso dal {d} e non si puo' piu' modificare",e_bad_price:"Prezzo o IVA non validi",e_not_found:"Non trovato",
 e_empty_file:"File vuoto",e_not_viaris:"Non sembra un export per tessera di Viaris",e_card_unknown:"Non riconosco la tessera dal nome del file ({f}): scarica prima dalla colonnina",
-e_bad_url:"L'indirizzo della colonnina deve iniziare con http:// o https://",e_bad_tz:"Fuso orario sconosciuto",e_bad_config:"Numero non valido nel campo {k}",e_no_url:"Imposta prima l'indirizzo della colonnina"
+e_bad_url:"L'indirizzo della colonnina deve iniziare con http:// o https://",e_bad_tz:"Fuso orario sconosciuto",e_bad_config:"Numero non valido nel campo {k}",e_no_url:"Imposta prima l'indirizzo della colonnina",
+e_no_price:"Prezzo non ancora inserito",
+rep_resend:"Reinvia il report via email",rep_resend_c:"Reinviare il report di {t} ai destinatari dei report?",rep_mailed:"Report inviato via email ai destinatari",rep_notmailed:"Email del report non inviata: {r}",rep_norec:"nessun destinatario dei report nelle Impostazioni",
+s_rto:"Destinatari del report mensile (A)",s_rcc:"Destinatari del report mensile (CC)",s_rep_h:"Quando salvi il prezzo di un mese, la ripartizione per tessera viene mandata a questi indirizzi con il PDF di tutte le sessioni. Separa gli indirizzi con una virgola; lascia vuoto A per non inviare nulla.",
+s_bk:"Backup del database",s_bk_h:"Un file .sql con sessioni, tessere, prezzi, utenti e impostazioni (compresi la password della colonnina e la chiave Resend salvate): tienilo riservato. Si ripristina con: npx wrangler d1 execute <database> --remote --file=<file>",s_bk_btn:"Scarica backup (.sql)",
+m_pdf:"Scarica PDF",m_year:"Anno intero"
 }};
 var LANG=(function(){try{var l=localStorage.getItem("lang");if(l==="en"||l==="it")return l}catch(e){}return String(navigator.language||"en").slice(0,2)==="it"?"it":"en"})();
 var LOC=LANG==="it"?"it-IT":"en-GB";
@@ -251,6 +261,7 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:
     <label><span id="lPrezzo"></span> <input id="prezzo" size="7" inputmode="decimal"></label>
     <label><span id="lIva"></span> <input id="iva" size="4" inputmode="decimal"></label>
     <button class="p" id="bPrezzo" data-i="save_price"></button>
+    <button id="bReinvia" class="hide" data-i="rep_resend"></button>
   </div>
   <div class="sub err noprint" id="avviso"></div>
   <div class="card">
@@ -283,7 +294,7 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:
 </section>
 
 <section id="t5" class="hide">
-  <div class="bar noprint"><select id="selAnnoM"></select></div>
+  <div class="bar noprint"><select id="selAnnoM"></select> <select id="selMeseM"></select> <button class="p" id="bPdfM" data-i="m_pdf"></button></div>
   <div class="card">
     <h2 id="mieTit"></h2>
     <div class="w"><table id="tabM"></table></div>
@@ -375,7 +386,15 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:
       <label><span data-i="s_rkey"></span><input id="cf_resend_key" type="password" autocomplete="new-password"></label>
       <label class="chk"><input type="checkbox" id="cf_rk_clear"><span data-i="s_rclear"></span></label>
       <label class="wide"><span data-i="s_mfrom"></span><input id="cf_mail_from" autocomplete="off"></label>
+      <label class="wide"><span data-i="s_rto"></span><input id="cf_report_to" autocomplete="off" placeholder="admin@example.com"></label>
+      <label class="wide"><span data-i="s_rcc"></span><input id="cf_report_cc" autocomplete="off"></label>
+      <span class="sub wide" data-i="s_rep_h"></span>
     </div>
+  </div>
+  <div class="card">
+    <h2 data-i="s_bk"></h2>
+    <div class="sub" data-i="s_bk_h"></div>
+    <div class="bar"><a href="/api/backup" download><button type="button" data-i="s_bk_btn"></button></a></div>
   </div>
   <div class="bar">
     <button class="p" id="bCfSalva" data-i="s_save"></button>
@@ -416,6 +435,7 @@ var oggi=new Date(), rep=null, righeAnno=[];
   $("selAnno").value=$("selAnnoS").value=String(oggi.getFullYear());
   var m="";for(var i=0;i<12;i++)m+='<option value="'+(i+1)+'">'+MESI[i]+'</option>';
   $("selMese").innerHTML=m;$("selMese").value=String(oggi.getMonth()+1);
+  $("selMeseM").innerHTML='<option value="0">'+T("m_year")+'</option>'+m;
   $("stato").textContent=T("loading");
 })();
 function etichette(){
@@ -449,6 +469,7 @@ function caricaReport(){
     $("avviso").textContent=r.prezzo===null?T("adv_enter"):(r.bloccato?T("adv_locked",{d:D(r.blocco_da+" 00:00").slice(0,10)}):T("adv_open",{d:D(r.blocco_da+" 00:00").slice(0,10)}));
     $("avviso").style.color=r.bloccato?"":"var(--mut)";
     $("prezzo").disabled=$("iva").disabled=$("bPrezzo").disabled=!!r.bloccato;
+    $("bReinvia").classList.toggle("hide",!(io&&io.ruolo==="admin"&&r.prezzo!==null));
     var t=row([th(T("c_card")),th(T("c_user")),th(T("c_sess"),1),th(T("c_kwh"),1),th(T("c_net"),1),th(TAXL,1),th(T("c_total"),1)]);
     r.tessere.forEach(function(x,i){t+='<tr class="ut" data-i="'+i+'" title="'+T("click_sess")+'">'+td(esc(x.tag))+td(esc(x.nome||T("unknown_card")))+td(x.n,1)+td(nf(x.kwh),1)+td(nf(x.imp),1)+td(nf(x.iva),1)+td(nf(x.tot),1)+"</tr>"});
     t+=row([td(""),td(T("tot_cards")),td(r.tessere.reduce(function(s,x){return s+x.n},0),1),td(nf(r.kwh_tessere),1),td(nf(r.imp_tessere),1),td(nf(r.iva_tessere),1),td(nf(r.tot_tessere),1)],"t");
@@ -518,8 +539,18 @@ $("bPrezzo").onclick=function(){
   var p=$("prezzo").value.trim().replace(",","."), i=$("iva").value.trim().replace(",",".")||"0";
   if(p!==""&&(isNaN(+p)||+p<=0||+p>=5)){alert(T("alert_price"));return}
   if(isNaN(+i)||+i<0||+i>100){alert(T("alert_tax"));return}
-  post("/api/prezzo",{anno:+$("selAnno").value,mese:+$("selMese").value,prezzo:p===""?null:+p,iva:+i}).then(function(r){
-    if(r.errore)alert(E(r));caricaReport()});
+  post("/api/prezzo",{anno:+$("selAnno").value,mese:+$("selMese").value,prezzo:p===""?null:+p,iva:+i,lang:LANG}).then(function(r){
+    if(r.errore)alert(E(r));else esitoMail(r.mail);caricaReport()});
+};
+function esitoMail(m){
+  if(!m||m==="no_recipients")return;
+  $("esito").textContent=m==="sent"?T("rep_mailed"):T("rep_notmailed",{r:m==="not_configured"?T("mail_nc"):m});
+}
+$("bReinvia").onclick=function(){
+  if(!rep||!confirm(T("rep_resend_c",{t:rep.titolo})))return;
+  post("/api/reinvia",{anno:rep.anno,mese:rep.mese,lang:LANG}).then(function(r){
+    if(r.errore){alert(E(r));return}
+    if(r.mail==="no_recipients")alert(T("rep_notmailed",{r:T("rep_norec")}));else{esitoMail(r.mail);alert($("esito").textContent)}});
 };
 
 $("bScarica").onclick=function(){
@@ -584,6 +615,10 @@ function caricaMie(){
   });
 }
 $("selAnnoM").onchange=caricaMie;
+$("bPdfM").onclick=function(){
+  var a=document.createElement("a");a.href="/api/mie.pdf?anno="+$("selAnnoM").value+"&mese="+$("selMeseM").value+"&lang="+LANG;
+  a.download="";document.body.appendChild(a);a.click();a.remove();
+};
 
 function permForm(){var p={};document.querySelectorAll("#uPerm input").forEach(function(c){p[c.dataset.p]=c.checked});return p}
 function setPermForm(p){document.querySelectorAll("#uPerm input").forEach(function(c){c.checked=!!p[c.dataset.p]})}
@@ -641,7 +676,7 @@ $("bUPerm").onclick=function(){
 };
 
 /* ---- settings (admin) ---- */
-var CF_TXT=["url","user","header_name","header_value","history_path","tags_path","timeout","hist_json_field","hist_sep","hist_skip","c_start","c_end","c_tag","c_type","c_cont_ini","c_cont_fin","tags_sep","tags_skip","tags_c_tag","tags_c_name","title","tz","currency","tax_label","mail_from"];
+var CF_TXT=["url","user","header_name","header_value","history_path","tags_path","timeout","hist_json_field","hist_sep","hist_skip","c_start","c_end","c_tag","c_type","c_cont_ini","c_cont_fin","tags_sep","tags_skip","tags_c_tag","tags_c_name","title","tz","currency","tax_label","mail_from","report_to","report_cc"];
 function formCfg(c){
   CF_TXT.forEach(function(k){var e=$("cf_"+k);if(e)e.value=c[k]===undefined||c[k]===null?"":c[k]});
   $("cf_auto").checked=!!c.auto;$("cf_password").value="";$("cf_pw_clear").checked=false;
