@@ -36,6 +36,9 @@ Una piccola webapp gratuita che scarica lo storico delle sessioni da una colonni
 - **Ripartizione che torna sempre**: gli importi sono divisi in centesimi con il metodo del resto maggiore, cosi' la somma delle singole ricariche e' uguale al totale della tessera.
 - **Ricariche avviate da app** (senza tessera RFID) in una sezione separata, visibile solo agli utenti autorizzati.
 - **Inserimento mensile del prezzo** (prezzo al kWh e IVA) che si blocca da solo quando il mese e' chiuso.
+- **Report mensile via email**: quando salvi il prezzo di un mese, la ripartizione per tessera parte via email ai destinatari che scegli, con il PDF di tutte le sessioni allegato (tramite Resend).
+- **PDF da scaricare**: gli utenti della colonnina possono scaricare il PDF delle proprie ricariche di un mese o di un anno intero.
+- **Backup con un clic**: l'amministratore scarica dalla scheda Impostazioni un file `.sql` con tutto il database.
 - **Utenti e permessi**: email e password, permessi per utente, link di invito monouso (anche via email con [Resend](https://resend.com)). Un "utente della colonnina" e' legato a una sola tessera e vede solo le proprie ricariche.
 - **Pagina di prima configurazione**: crea l'amministratore e raccoglie tutto cio' che serve per raggiungere la colonnina.
 - **Tutto configurabile dalla pagina web**: indirizzo della colonnina, credenziali, percorsi, formato della risposta e numeri di colonna, fuso orario, valuta, nome dell'imposta, titolo del sito, email.
@@ -145,7 +148,8 @@ Sono tutte nella scheda **Impostazioni** (solo amministratore) e vengono salvate
 | Fuso orario | `Europe/Rome` | Nome IANA. Decide a quale mese appartiene una sessione e quando i prezzi si bloccano. |
 | Simbolo della valuta | `€` | Mostrato accanto ai totali. |
 | Nome dell'imposta | vuoto | Vuoto = "IVA" in italiano, "VAT" in inglese. |
-| Chiave API Resend / mittente | vuoti | Attivano le email di invito. La chiave non viene mai rimandata al browser. |
+| Chiave API Resend / mittente | vuoti | Attivano le email (inviti e report mensili). La chiave non viene mai rimandata al browser. |
+| Destinatari del report mensile (A / CC) | vuoti | Indirizzi separati da virgola che ricevono la ripartizione con il PDF quando salvi un prezzo. A vuoto = nessuna email del report. |
 
 ## Come parla con la colonnina
 
@@ -171,13 +175,13 @@ Restano solo queste ipotesi: una sessione per riga, inizio e fine in epoch secon
 L'amministratore vede e fa tutto. Gli altri utenti si creano nella scheda **Utenti** inserendo un indirizzo email e scegliendo:
 
 - **Gestione**: decidi cosa puo' fare l'utente: vedere il report mensile, lo storico annuale, tutte le sessioni; inserire prezzo e IVA; stampare ed esportare; scaricare dalla colonnina e importare CSV; vedere le ricariche avviate da app.
-- **Utente della colonnina**: legato a una tessera; vede solo le sessioni di quella tessera (mese per mese, con gli importi) e nient'altro.
+- **Utente della colonnina**: legato a una tessera; vede solo le sessioni di quella tessera (mese per mese, con gli importi) e nient'altro, e puo' scaricarle in PDF.
 
 Con **Invia invito** parte via email un link personale e monouso, valido 48 ore, per scegliere la password. Se l'email non e' configurata o l'invio fallisce, la pagina mostra il link da mandare a mano. "Reimposta" / "Reinvia" crea un nuovo link. Ogni utente puo' cambiare la propria password dall'intestazione.
 
 ## Prezzi, IVA e blocco del mese
 
-Per ogni mese inserisci prezzo al kWh e IVA dalla bolletta. Il prezzo di un mese si puo' inserire e correggere fino alla fine del mese successivo, poi si blocca: per esempio il prezzo di ottobre si puo' cambiare fino al 30 novembre e dal 1 dicembre e' bloccato, per tutti, amministratore compreso. Un mese senza prezzo si puo' ancora compilare una volta. Lo scopo e' che i report chiusi non cambino piu'.
+Per ogni mese inserisci prezzo al kWh e IVA dalla bolletta. Se nelle Impostazioni ci sono i destinatari dei report, salvando il prezzo parte la ripartizione per tessera via email con il PDF di tutte le sessioni (l'amministratore puo' rimandarla con **Reinvia il report via email**). Il prezzo di un mese si puo' inserire e correggere fino alla fine del mese successivo, poi si blocca: per esempio il prezzo di ottobre si puo' cambiare fino al 30 novembre e dal 1 dicembre e' bloccato, per tutti, amministratore compreso. Un mese senza prezzo si puo' ancora compilare una volta. Lo scopo e' che i report chiusi non cambino piu'.
 
 Correzione d'emergenza di un mese bloccato, da terminale:
 
@@ -216,9 +220,13 @@ Un segreto si imposta con `npx wrangler secret put NOME`.
 
 ## Backup
 
+Dalla pagina: **Impostazioni > Backup del database > Scarica backup (.sql)** (solo amministratore). Da terminale:
+
 ```
 npx wrangler d1 export ricariche --remote --output backup.sql
 ```
+
+Entrambi i file si ripristinano con `npx wrangler d1 execute ricariche --remote --file=backup.sql`.
 
 Pianificalo con cron o con l'Utilita' di pianificazione. D1 conserva anche 7 giorni di storia (`npx wrangler d1 time-travel restore ricariche --timestamp=<data ISO>`). Attenzione: l'esportazione contiene la password della colonnina e la chiave Resend salvate: tienila riservata.
 
@@ -245,7 +253,10 @@ npx wrangler dev
 ## Note sulla sicurezza
 
 - Le password sono protette con PBKDF2-SHA-256; il numero di iterazioni e' volutamente basso (5000) per restare nel limite di CPU del piano gratuito. Usa password lunghe.
-- L'accesso e' limitato nei tentativi (5 ogni 10 minuti per nome utente). I cookie di sessione sono `HttpOnly`, `Secure`, `SameSite=Strict`.
+- L'accesso e' limitato nei tentativi (5 ogni 10 minuti per nome utente). I cookie di sessione sono `HttpOnly`, `Secure`, `SameSite=Strict`; ogni accesso riceve un token firmato diverso.
+- **Esci** annulla la sessione anche sul server (il token viene revocato, non solo cancellato il cookie). Cambiare password o eliminare un utente chiude tutte le sue sessioni.
+- Ogni risposta ha intestazioni di sicurezza: l'HTTP semplice viene rediretto su HTTPS, HSTS, `X-Frame-Options: DENY` e `frame-ancestors 'none'` (il sito non si puo' incorporare in altri siti), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` (i link di invito non escono mai).
+- L'autenticazione HTTP Basic e' accettata solo su `/api/ingest`, mai per le pagine.
 - La password della colonnina e la chiave Resend sono salvate nel database D1 (e non vengono piu' mostrate nella pagina). Se non e' accettabile, impostale come segreti del Worker.
 - Il collegamento alla colonnina e' spesso in HTTP semplice, quindi le credenziali inviate non sono cifrate. Se la colonnina lo permette, usa un account dedicato in sola lettura.
 - E' stata scritta per un piccolo gruppo privato. Rivedila prima di esporla a utenti non fidati.
