@@ -17,6 +17,7 @@ Una piccola webapp gratuita che scarica lo storico delle sessioni da una colonni
 - [Impostazioni](#impostazioni)
 - [Come parla con la colonnina](#come-parla-con-la-colonnina)
 - [Usarla con un'altra colonnina](#usarla-con-unaltra-colonnina)
+- [Stato in tempo reale con OCPP](#stato-in-tempo-reale-con-ocpp-facoltativo)
 - [Utenti e permessi](#utenti-e-permessi)
 - [Prezzi, IVA e blocco del mese](#prezzi-iva-e-blocco-del-mese)
 - [Importare i CSV di Viaris](#importare-i-csv-di-viaris)
@@ -42,6 +43,8 @@ Una piccola webapp gratuita che scarica lo storico delle sessioni da una colonni
 - **Utenti e permessi**: email e password, permessi per utente, link di invito monouso (anche via email con [Resend](https://resend.com)). Un "utente della colonnina" e' legato a una sola tessera e vede solo le proprie ricariche.
 - **Pagina di prima configurazione**: crea l'amministratore e raccoglie tutto cio' che serve per raggiungere la colonnina.
 - **Tutto configurabile dalla pagina web**: indirizzo della colonnina, credenziali, percorsi, formato della risposta e numeri di colonna, fuso orario, valuta, nome dell'imposta, titolo del sito, email.
+- **Stato in tempo reale (OCPP 1.6)**: la scheda "Colonnina" mostra se la colonnina e' collegata, chi sta caricando, potenza, corrente, tensione ed energia in diretta. E' la colonnina che si collega al Worker; non le viene inviato nulla se non i comandi che premi tu (leggi configurazione, chiedi una misura, ferma la ricarica, riavvia).
+- **Intestatari delle tessere con date**: registra chi ha avuto ogni tessera e da quando. I report usano l'intestatario al momento di ogni sessione: passare una tessera a un'altra persona non riscrive i mesi passati.
 - **Interfaccia in italiano e in inglese** con selettore della lingua (anche nella pagina di accesso, negli inviti e nelle email).
 - Importazione facoltativa dei CSV per tessera esportati dal programma Viaris per desktop.
 
@@ -160,6 +163,20 @@ Sul firmware provato, l'interfaccia web della colonnina risponde a due semplici 
 
 Le sessioni sono salvate una sola volta (chiave primaria = ora di inizio + contatore iniziale), quindi riscaricare lo stesso storico non crea doppioni. I codici tessera si confrontano senza distinguere maiuscole e minuscole. Se un'importazione Viaris e uno scarico dalla colonnina descrivono la stessa sessione, il doppione viene tolto.
 
+## Stato in tempo reale con OCPP (facoltativo)
+
+La colonnina puo' comunicare in diretta con il tuo Worker tramite OCPP 1.6-J. Il Worker usa un piccolo Durable Object (con SQLite, disponibile nel piano gratuito) per la connessione.
+
+1. Tieni nel tuo `wrangler.toml` i blocchi `[[durable_objects.bindings]]` e `[[migrations]]` di `wrangler.toml.example` e pubblica di nuovo. La colonnina deve raggiungere il Worker in `wss://` sulla porta 443, quindi serve un dominio personalizzato.
+2. Apri la scheda **Colonnina** come amministratore e copia l'indirizzo mostrato (contiene un token segreto).
+3. Nelle impostazioni OCPP della colonnina inserisci quell'indirizzo, protocollo OCPP 1.6-J. Entro un minuto la scheda mostra "Colonnina collegata".
+
+Cosa fa: mostra stato e misure in diretta, elenca gli ultimi messaggi e permette all'amministratore di leggere la configurazione, chiedere una misura o lo stato, fermare la ricarica in corso e riavviare una colonnina a riposo. Cosa non fa: non invia mai una lista di tessere ne' profili di carica, e i report mensili continuano a partire dallo storico scaricato. Quando la colonnina chiede al server di autorizzare una tessera, viene accettata solo una tessera gia' presente nell'elenco scaricato dalla colonnina; le sconosciute sono rifiutate. Il permesso "live" permette a un gestore di vedere chi sta caricando. "Genera un nuovo indirizzo" invalida il token precedente.
+
+### Intestatari delle tessere
+
+Il riquadro "Intestatari delle tessere" (scheda Colonnina, amministratore) elenca chi ha avuto ogni tessera e da/fino a quale data. I nomi che arrivano dalla colonnina creano il primo periodo in automatico. Per passare una tessera a un'altra persona scegli la tessera, scrivi il nome e la data di inizio: il periodo precedente si chiude quel giorno. Le date di un periodo si correggono con "Date". I periodi che modifichi non vengono mai sovrascritti dagli scarichi successivi. Un utente della colonnina legato a una tessera vede solo le sessioni dell'intestatario attuale.
+
 ## Usarla con un'altra colonnina
 
 Nessun formato e' scritto nel codice in modo rigido. Se la tua colonnina (o il tuo firmware) restituisce lo storico in modo diverso, apri **Impostazioni**, premi **Prova la connessione**, leggi la risposta grezza mostrata e cambia:
@@ -263,6 +280,7 @@ npx wrangler dev
 
 ## Limiti
 
+- Lo stato in tempo reale usa un solo collegamento (una colonnina); il Worker non gestisce l'elenco tessere della colonnina.
 - I report riguardano una sola colonnina e un solo prezzo al mese.
 - L'intervallo dello scarico programmato si imposta in `wrangler.toml` (predefinito ogni 6 ore).
 - Commenti e nomi interni del codice sono in parte in italiano per ragioni storiche; interfaccia e messaggi sono bilingue.
