@@ -66,7 +66,23 @@ e_no_price:"Price not entered yet",
 rep_resend:"Email report again",rep_resend_c:"Email the {t} report again to the report recipients?",rep_mailed:"Report emailed to the recipients",rep_notmailed:"Report email not sent: {r}",rep_norec:"no report recipients in Settings",
 s_rto:"Monthly report recipients (To)",s_rcc:"Monthly report recipients (CC)",s_rep_h:"When a month's price is saved, the split per card is emailed here with a PDF of every session. Separate addresses with commas; leave To empty to send nothing.",
 s_bk:"Database backup",s_bk_h:"A .sql file with sessions, cards, prices, users and settings (including the saved charger password and Resend key): keep it private. Restore with: npx wrangler d1 execute <database> --remote --file=<file>",s_bk_btn:"Download backup (.sql)",
-m_pdf:"Download PDF",m_year:"Whole year"
+m_pdf:"Download PDF",m_year:"Whole year",
+n_live:"Charger",p_live:"See who is charging now and the live measures",pe_live:"live",
+lv_title:"Charging now",lv_off:"Live data is not enabled (OCPP): see the README.",lv_disc:"Charger not connected to the server: no data available",lv_free:"Charger free",lv_wait:"Car plugged in, waiting for the card",lv_busy:"In use",lv_unknown:"unknown card",
+lv_power:"Power",lv_current:"Current",lv_volt:"Voltage",lv_energy:"Energy charged",lv_since:"Started",lv_upd:"Updated",
+oc_title:"Connection to the server (OCPP)",oc_help:"In the charger's OCPP settings enter this address (port 443, protocol OCPP 1.6-J). Keep it private: it contains the access token.",oc_url:"Address for the charger",
+oc_conn:"Charger connected",oc_noconn:"Charger not connected",oc_last:"last message: {t}",oc_socket:"socket: {s}",oc_tx:"charging, card {c}, since {t}",
+oc_regen:"Generate a new address",oc_regen_c:"The old address stops working and you must enter the new one in the charger. Continue?",
+oc_c_cfg:"Read settings",oc_c_meter:"Ask for a measure",oc_c_status:"Ask for the status",oc_c_stop:"Stop the charge",oc_c_reset:"Restart the charger",oc_c_stop_c:"Stop the charging session in progress?",oc_c_reset_c:"Restart the charger?",oc_sent:"Command sent",oc_events:"Latest messages",
+ev_sys:"Connection: {a0}",ev_boot:"Charger started ({a0}, firmware {a1})",ev_hb:"Heartbeat",ev_status:"Socket {a0}: {a1} {a2}",ev_auth:"Authorization request, card {a0}",ev_start:"Charge started, card {a0}, meter {a1} kWh",ev_stop:"Charge ended {a0}, meter {a1} kWh",ev_meter:"Measure: {a0}",ev_other:"{a0}",
+ev_resp:"Answer to {a0}: {a1}",ev_err:"Error from the charger: {a0} {a1}",ev_cmd:"Command to the charger: {a0} {a1}",ev_srverr:"Error sent to the charger: {a0}",
+cmd_Reset:"restart",cmd_GetConfiguration:"read settings",cmd_ChangeConfiguration:"change setting",cmd_TriggerMessage:"request message",cmd_RemoteStopTransaction:"stop charge",cmd_GetLocalListVersion:"card list version",
+res_ok:"ok",res_config:"settings read ({n})",res_list:"list version {n}",res_Accepted:"accepted",res_Rejected:"rejected",res_NotSupported:"not supported",res_Failed:"failed",
+cn_title:"Card holders",cn_help:"Who held each card and when. Reports use the holder at the time of each session, so handing a card to someone else never changes the past months.",cn_tag:"Card",cn_name:"Holder",cn_from:"From",cn_to:"To",cn_open:"in use",cn_edit:"Dates",
+cn_assign:"Assign a card to someone",cn_assign_btn:"Assign",cn_name_ph:"Name of the new holder",cn_p_from:"Start date (YYYY-MM-DD)",cn_p_to:"End date (YYYY-MM-DD), empty = still in use",cn_saved:"Saved",
+e_no_ocpp:"OCPP is not enabled: add the Durable Object binding shown in wrangler.toml.example and deploy again",e_bad_cmd:"Command not allowed",e_no_tx:"No charging session to stop",e_ocpp_busy:"The charger is in use: restart not allowed",
+e_not_connected:"Charger not connected to the server",e_no_answer:"No answer from the charger within 15 seconds",e_charger_error:"The charger answered with an error: {d}",
+e_bad_date:"Invalid date",e_bad_period:"Invalid period: check the dates",e_dup_period:"A period with that start date already exists",e_bad_card:"Card and name are required"
 },it:{
 lang_name:"Italiano",
 setup_title:"prima configurazione",setup_h:"Benvenuto - prima configurazione",setup_intro:"Crea l'account amministratore e indica come raggiungere la colonnina. Tutto si puo' cambiare dopo nella scheda Impostazioni; i campi facoltativi possono restare vuoti.",
@@ -131,7 +147,23 @@ e_no_price:"Prezzo non ancora inserito",
 rep_resend:"Reinvia il report via email",rep_resend_c:"Reinviare il report di {t} ai destinatari dei report?",rep_mailed:"Report inviato via email ai destinatari",rep_notmailed:"Email del report non inviata: {r}",rep_norec:"nessun destinatario dei report nelle Impostazioni",
 s_rto:"Destinatari del report mensile (A)",s_rcc:"Destinatari del report mensile (CC)",s_rep_h:"Quando salvi il prezzo di un mese, la ripartizione per tessera viene mandata a questi indirizzi con il PDF di tutte le sessioni. Separa gli indirizzi con una virgola; lascia vuoto A per non inviare nulla.",
 s_bk:"Backup del database",s_bk_h:"Un file .sql con sessioni, tessere, prezzi, utenti e impostazioni (compresi la password della colonnina e la chiave Resend salvate): tienilo riservato. Si ripristina con: npx wrangler d1 execute <database> --remote --file=<file>",s_bk_btn:"Scarica backup (.sql)",
-m_pdf:"Scarica PDF",m_year:"Anno intero"
+m_pdf:"Scarica PDF",m_year:"Anno intero",
+n_live:"Colonnina",p_live:"Vedere chi sta caricando e le misure in tempo reale",pe_live:"live",
+lv_title:"Ricarica in corso",lv_off:"I dati in tempo reale non sono attivi (OCPP): vedi il README.",lv_disc:"Colonnina non collegata al server: dati non disponibili",lv_free:"Colonnina libera",lv_wait:"Auto collegata, in attesa della tessera",lv_busy:"Occupata",lv_unknown:"tessera sconosciuta",
+lv_power:"Potenza",lv_current:"Corrente",lv_volt:"Tensione",lv_energy:"Energia caricata",lv_since:"Iniziata",lv_upd:"Aggiornato",
+oc_title:"Collegamento al server (OCPP)",oc_help:"Nelle impostazioni OCPP della colonnina inserisci questo indirizzo (porta 443, protocollo OCPP 1.6-J). Tienilo riservato: contiene il token di accesso.",oc_url:"Indirizzo da inserire nella colonnina",
+oc_conn:"Colonnina collegata",oc_noconn:"Colonnina non collegata",oc_last:"ultimo messaggio: {t}",oc_socket:"presa: {s}",oc_tx:"ricarica in corso, tessera {c}, dalle {t}",
+oc_regen:"Genera un nuovo indirizzo",oc_regen_c:"Il vecchio indirizzo smette di funzionare e dovrai inserire quello nuovo nella colonnina. Continuare?",
+oc_c_cfg:"Leggi configurazione",oc_c_meter:"Chiedi una misura",oc_c_status:"Chiedi lo stato",oc_c_stop:"Ferma la ricarica",oc_c_reset:"Riavvia la colonnina",oc_c_stop_c:"Fermare la ricarica in corso?",oc_c_reset_c:"Riavviare la colonnina?",oc_sent:"Comando inviato",oc_events:"Ultimi messaggi",
+ev_sys:"Connessione: {a0}",ev_boot:"Avvio colonnina ({a0}, firmware {a1})",ev_hb:"Conferma collegamento",ev_status:"Presa {a0}: {a1} {a2}",ev_auth:"Richiesta di autorizzazione, tessera {a0}",ev_start:"Inizio ricarica, tessera {a0}, contatore {a1} kWh",ev_stop:"Fine ricarica {a0}, contatore {a1} kWh",ev_meter:"Misura: {a0}",ev_other:"{a0}",
+ev_resp:"Risposta a {a0}: {a1}",ev_err:"Errore dalla colonnina: {a0} {a1}",ev_cmd:"Comando alla colonnina: {a0} {a1}",ev_srverr:"Errore inviato alla colonnina: {a0}",
+cmd_Reset:"riavvio",cmd_GetConfiguration:"lettura configurazione",cmd_ChangeConfiguration:"modifica impostazione",cmd_TriggerMessage:"richiesta messaggio",cmd_RemoteStopTransaction:"stop ricarica",cmd_GetLocalListVersion:"versione lista tessere",
+res_ok:"ok",res_config:"configurazione letta ({n})",res_list:"versione lista {n}",res_Accepted:"accettato",res_Rejected:"rifiutato",res_NotSupported:"non supportato",res_Failed:"non riuscito",
+cn_title:"Intestatari delle tessere",cn_help:"Chi ha avuto ogni tessera e da quando. I report usano l'intestatario al momento di ogni sessione: passare una tessera a un'altra persona non cambia i mesi passati.",cn_tag:"Tessera",cn_name:"Intestatario",cn_from:"Dal",cn_to:"Al",cn_open:"in uso",cn_edit:"Date",
+cn_assign:"Assegna una tessera a qualcuno",cn_assign_btn:"Assegna",cn_name_ph:"Nome del nuovo intestatario",cn_p_from:"Data di inizio (AAAA-MM-GG)",cn_p_to:"Data di fine (AAAA-MM-GG), vuoto = ancora in uso",cn_saved:"Salvato",
+e_no_ocpp:"OCPP non e' attivo: aggiungi il binding del Durable Object indicato in wrangler.toml.example e ripubblica",e_bad_cmd:"Comando non consentito",e_no_tx:"Nessuna ricarica in corso da fermare",e_ocpp_busy:"Colonnina occupata: riavvio non consentito",
+e_not_connected:"Colonnina non collegata al server",e_no_answer:"Nessuna risposta dalla colonnina entro 15 secondi",e_charger_error:"La colonnina risponde con un errore: {d}",
+e_bad_date:"Data non valida",e_bad_period:"Periodo non valido: controlla le date",e_dup_period:"Esiste gia' un periodo con quella data di inizio",e_bad_card:"Tessera e nome sono obbligatori"
 }};
 var LANG=(function(){try{var l=localStorage.getItem("lang");if(l==="en"||l==="it")return l}catch(e){}return String(navigator.language||"en").slice(0,2)==="it"?"it":"en"})();
 var LOC=LANG==="it"?"it-IT":"en-GB";
@@ -249,6 +281,7 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:
   <button data-t="t2" data-i="n_year"></button>
   <button data-t="t3" data-i="n_all"></button>
   <button data-t="t4" id="navUt" class="hide" data-i="n_users"></button>
+  <button data-t="t7" id="navCol" class="hide" data-i="n_live"></button>
   <button data-t="t6" id="navSet" class="hide" data-i="n_set"></button>
   <button data-t="t5" id="navM" class="hide" data-i="n_mine"></button>
 </nav>
@@ -322,6 +355,7 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:
       <label><input type="checkbox" data-p="stampa"> <span data-i="p_stampa"></span></label>
       <label><input type="checkbox" data-p="scarica"> <span data-i="p_scarica"></span></label>
       <label><input type="checkbox" data-p="app"> <span data-i="p_app"></span></label>
+      <label><input type="checkbox" data-p="live"> <span data-i="p_live"></span></label>
     </div>
     <div class="bar">
       <button class="p" id="bUInvita" data-i="u_send"></button>
@@ -405,6 +439,46 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:
   <div id="cfProva"></div>
 </section>
 
+<section id="t7" class="hide">
+  <div class="card">
+    <h2 data-i="lv_title"></h2>
+    <div id="lvBox"></div>
+    <div class="sub" id="lvUpd"></div>
+  </div>
+  <div id="adminCol" class="hide">
+    <div class="card">
+      <h2 data-i="oc_title"></h2>
+      <div class="sub" data-i="oc_help"></div>
+      <div class="bar"><label style="display:flex;flex-direction:column;gap:3px;font-size:13px"><span data-i="oc_url"></span><input id="ocUrl" readonly size="64"></label>
+        <button id="bOcRegen" data-i="oc_regen"></button></div>
+      <div class="sub" id="ocStato"></div>
+      <div class="bar">
+        <button id="bOcCfg" data-i="oc_c_cfg"></button>
+        <button id="bOcMis" data-i="oc_c_meter"></button>
+        <button id="bOcSt" data-i="oc_c_status"></button>
+        <button id="bOcStop" data-i="oc_c_stop"></button>
+        <button id="bOcRst" data-i="oc_c_reset"></button>
+      </div>
+      <div class="sub err" id="ocEsito"></div>
+      <h2 data-i="oc_events"></h2>
+      <div class="w"><table id="tabEv"></table></div>
+    </div>
+    <div class="card">
+      <h2 data-i="cn_title"></h2>
+      <div class="sub" data-i="cn_help"></div>
+      <div class="w"><table id="tabN"></table></div>
+      <h2 data-i="cn_assign"></h2>
+      <div class="bar">
+        <select id="cnTag"></select>
+        <input id="cnNome" data-ph="cn_name_ph" autocomplete="off">
+        <input id="cnDal" type="date">
+        <button class="p" id="bCnAssegna" data-i="cn_assign_btn"></button>
+      </div>
+      <div class="sub err" id="cnEsito"></div>
+    </div>
+  </div>
+</section>
+
 <section id="t3" class="hide">
   <div class="bar noprint"><label><span data-i="user_filter"></span> <select id="selUt"></select></label></div>
   <div class="card"><div class="w"><table id="tabX"></table></div></div>
@@ -445,9 +519,99 @@ etichette();
 
 document.querySelectorAll("nav button").forEach(function(b){b.onclick=function(){
   document.querySelectorAll("nav button").forEach(function(x){x.classList.toggle("on",x===b)});
-  ["t1","t2","t3","t4","t5","t6"].forEach(function(t){$(t).classList.toggle("hide",t!==b.dataset.t)});
-  if(b.dataset.t==="t2")caricaStorico();if(b.dataset.t==="t3")caricaSessioni();if(b.dataset.t==="t4")caricaUtenti();if(b.dataset.t==="t5")caricaMie();if(b.dataset.t==="t6")caricaConfig();
+  ["t1","t2","t3","t4","t5","t6","t7"].forEach(function(t){$(t).classList.toggle("hide",t!==b.dataset.t)});
+  if(b.dataset.t==="t2")caricaStorico();if(b.dataset.t==="t3")caricaSessioni();if(b.dataset.t==="t4")caricaUtenti();if(b.dataset.t==="t5")caricaMie();if(b.dataset.t==="t6")caricaConfig();if(b.dataset.t==="t7"){caricaLive();if(io&&io.ruolo==="admin"){$("adminCol").classList.remove("hide");caricaOcpp();caricaNomi()}}
 }});
+
+
+// ---- live charging, OCPP connection, card holders
+function oraTxt(ms){return ms?new Date(ms).toLocaleString(LOC,{dateStyle:"short",timeStyle:"medium"}):"-"}
+function fx(x,n,u){return x===null||x===undefined?"-":x.toFixed(n)+" "+u}
+function caricaLive(){
+  return api("/api/live").then(function(r){
+    var h="";
+    if(r.errore)h=esc(E(r));
+    else if(!r.attivo)h=T("lv_off");
+    else if(!r.connessa)h=T("lv_disc");
+    else if(!r.occupata)h=r.stato==="Preparing"?T("lv_wait"):T("lv_free");
+    else{
+      h="<b>"+T("lv_busy")+(r.da?" - "+esc(r.da):(r.dettagli?" - "+T("lv_unknown"):""))+"</b>";
+      var d=r.dettagli;
+      if(d)h+='<div class="w"><table>'+row([td(T("lv_power")),td(fx(d.kw,2,"kW"))])+row([td(T("lv_current")),td(fx(d.a,1,"A"))])
+        +(d.v!==null&&d.v!==undefined?row([td(T("lv_volt")),td(fx(d.v,0,"V"))]):"")
+        +row([td(T("lv_energy")),td(fx(d.kwh,2,"kWh"))])+row([td(T("lv_since")),td(oraTxt(d.inizio))])+'</table></div>';
+    }
+    $("lvBox").innerHTML=h;$("lvUpd").textContent=T("lv_upd")+": "+new Date().toLocaleTimeString(LOC);
+  });
+}
+function nomeCmd(c){var s=T("cmd_"+c);return s==="cmd_"+c?c:s}
+function nomeRes(x){
+  if(x.indexOf("config:")===0)return T("res_config",{n:x.slice(7)});
+  if(x.indexOf("list:")===0)return T("res_list",{n:x.slice(5)});
+  var s=T("res_"+x);return s==="res_"+x?x:s;
+}
+function evTxt(e){
+  var o={};for(var i=0;i<e.a.length;i++)o["a"+i]=e.a[i]===undefined||e.a[i]===null?"":e.a[i];
+  if(e.k==="ev_resp"){o.a0=nomeCmd(o.a0);o.a1=nomeRes(String(o.a1))}
+  if(e.k==="ev_cmd")o.a0=nomeCmd(o.a0);
+  return T(e.k,o);
+}
+function erroreOcpp(r){return r.codice?E(r):E({codice:r.errore,errore:r.errore,par:{d:r.dettaglio||""}})}
+function caricaOcpp(){
+  return api("/api/ocpp").then(function(r){
+    if(r.errore){$("ocEsito").classList.add("err");$("ocEsito").textContent=erroreOcpp(r);return}
+    $("ocUrl").value="wss://"+r.host+r.percorso;
+    var t=(r.connessa?T("oc_conn"):T("oc_noconn"))+" - "+T("oc_last",{t:oraTxt(r.ultimo_msg)});
+    var pr=r.prese&&r.prese["1"];
+    if(pr)t+=" - "+T("oc_socket",{s:pr.status+(pr.errore&&pr.errore!=="NoError"?" ("+pr.errore+")":"")});
+    var tx=r.transazione_aperta;
+    if(tx)t+=" - "+T("oc_tx",{c:tx.tag,t:oraTxt(tx.inizio)});
+    $("ocStato").textContent=t;
+    var h="";(r.eventi||[]).forEach(function(e){h+=row([td(oraTxt(e.ts)),td(esc(evTxt(e)))])});
+    $("tabEv").innerHTML=h;
+  });
+}
+function ocCmd(b,conf){
+  if(conf&&!confirm(T(conf)))return;
+  $("ocEsito").classList.remove("err");$("ocEsito").textContent=T("loading");
+  post("/api/ocpp",b).then(function(r){
+    var bad=!!r.errore;$("ocEsito").classList.toggle("err",bad);
+    $("ocEsito").textContent=bad?erroreOcpp(r):T("oc_sent");
+    setTimeout(caricaOcpp,1500);
+  });
+}
+$("bOcCfg").onclick=function(){ocCmd({azione:"comando",comando:"GetConfiguration"})};
+$("bOcMis").onclick=function(){ocCmd({azione:"comando",comando:"TriggerMessage",richiesta:"MeterValues"})};
+$("bOcSt").onclick=function(){ocCmd({azione:"comando",comando:"TriggerMessage",richiesta:"StatusNotification"})};
+$("bOcStop").onclick=function(){ocCmd({azione:"comando",comando:"RemoteStopTransaction"},"oc_c_stop_c")};
+$("bOcRst").onclick=function(){ocCmd({azione:"comando",comando:"Reset"},"oc_c_reset_c")};
+$("bOcRegen").onclick=function(){if(confirm(T("oc_regen_c")))post("/api/ocpp",{azione:"rigenera"}).then(caricaOcpp)};
+
+var NOMI=[];
+function caricaNomi(){
+  return Promise.all([api("/api/nomi"),api("/api/tessere")]).then(function(v){
+    NOMI=Array.isArray(v[0])?v[0]:[];
+    var h=row([th(T("cn_tag")),th(T("cn_name")),th(T("cn_from")),th(T("cn_to")),th("")]);
+    NOMI.forEach(function(x,i){h+=row([td(esc(x.tag)),td(esc(x.nome)),td(x.dal_txt),td(x.al_txt||T("cn_open")),td('<button class="bn" data-i="'+i+'">'+T("cn_edit")+'</button>')])});
+    $("tabN").innerHTML=h;
+    document.querySelectorAll("#tabN .bn").forEach(function(b){b.onclick=function(){
+      var x=NOMI[+b.dataset.i];
+      var nd=prompt(T("cn_p_from"),x.dal_txt);if(nd===null)return;
+      var na=prompt(T("cn_p_to"),x.al_txt);if(na===null)return;
+      post("/api/nomi",{tag:x.tag,dal:x.dal,nuovo_dal:nd,nuovo_al:na}).then(function(r){
+        $("cnEsito").textContent=r.errore?E(r):T("cn_saved");if(!r.errore)caricaNomi()});
+    }});
+    var cards=Array.isArray(v[1])?v[1]:[],o="";
+    cards.forEach(function(c){o+='<option value="'+esc(c.tag)+'">'+esc(c.tag)+(c.nome?" - "+esc(c.nome):"")+'</option>'});
+    $("cnTag").innerHTML=o;
+  });
+}
+$("bCnAssegna").onclick=function(){
+  post("/api/nomi",{azione:"assegna",tag:$("cnTag").value,nome:$("cnNome").value,dal:$("cnDal").value}).then(function(r){
+    $("cnEsito").textContent=r.errore?E(r):T("cn_saved");
+    if(!r.errore){$("cnNome").value="";caricaNomi()}});
+};
+setInterval(function(){if(!$("t7").classList.contains("hide")&&!document.hidden){caricaLive();if(io&&io.ruolo==="admin")caricaOcpp()}},10000);
 
 function caricaStato(){return api("/api/stato").then(function(s){
   var t=s.sessioni?T(s.sessioni===1?"st_n1":"st_n",{n:s.sessioni,a:D(s.dal).slice(0,10),b:D(s.al).slice(0,10)}):T("st_empty");
@@ -730,6 +894,7 @@ api("/api/me").then(function(m){
     $("navM").click();return;
   }
   if(m.ruolo==="admin"){$("navUt").classList.remove("hide");$("navSet").classList.remove("hide")}
+  if(m.ruolo==="admin"||P.live)$("navCol").classList.remove("hide");
   function nasc(id,ok){var e=$(id);if(e)e.classList.toggle("hide",!ok)}
   nasc("bScarica",P.scarica);nasc("bImporta",P.scarica);
   document.querySelectorAll("#prezzo,#iva,#bPrezzo").forEach(function(e){(e.tagName==="BUTTON"?e:e.parentNode).classList.toggle("hide",!P.prezzo)});
