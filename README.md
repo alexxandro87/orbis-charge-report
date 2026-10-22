@@ -17,6 +17,7 @@ A small, free web app that downloads the session history from an **Orbis** EV ch
 - [Settings reference](#settings-reference)
 - [How it talks to the charger](#how-it-talks-to-the-charger)
 - [Using it with another charger](#using-it-with-another-charger)
+- [Live status over OCPP](#live-status-over-ocpp-optional)
 - [Users and permissions](#users-and-permissions)
 - [Prices, VAT and the month lock](#prices-vat-and-the-month-lock)
 - [Importing Viaris CSV files](#importing-viaris-csv-files)
@@ -42,6 +43,8 @@ A small, free web app that downloads the session history from an **Orbis** EV ch
 - **Users and permissions**: email + password, per-user permissions, single-use invitation links (optionally emailed through [Resend](https://resend.com)). A "charger user" account is bound to one card and sees only its own sessions.
 - **First-run setup page**: creates the administrator and collects everything needed to reach the charger.
 - **Everything configurable from the web page**: charger URL, credentials, URL paths, response format and column numbers, time zone, currency, tax label, site title, email.
+- **Live charging status (OCPP 1.6)**: the "Charger" tab shows whether the charger is connected, who is charging now, power, current, voltage and energy in real time. The charger connects to your Worker; nothing is sent to it except the commands you press (read settings, ask for a measure, stop the charge, restart).
+- **Card holders with dates**: record who held each card and when. Reports use the holder at the time of each session, so handing a card to someone else never rewrites past months.
 - **English and Italian interface** with a language switch (also on the sign-in page, invitations and emails).
 - Optional import of the per-card CSV exports of the Viaris desktop program.
 
@@ -160,6 +163,20 @@ On the tested firmware the charger's own web interface answers two plain HTTP GE
 
 Sessions are stored once (primary key = start time + start meter), so downloading the same history again never creates duplicates. Card codes are matched case-insensitively. If a Viaris import and a charger download describe the same session, the duplicate is removed.
 
+## Live status over OCPP (optional)
+
+The charger can report in real time to your Worker using OCPP 1.6-J. The Worker runs a small Durable Object (SQLite-backed, available on the free plan) for the connection.
+
+1. Keep the `[[durable_objects.bindings]]` and `[[migrations]]` blocks of `wrangler.toml.example` in your `wrangler.toml` and deploy again. The charger needs to reach the Worker over `wss://` on port 443, so use a custom domain.
+2. Open the **Charger** tab as administrator and copy the address shown (it contains a secret token).
+3. In the charger's OCPP settings enter that address, with OCPP 1.6-J. The tab shows "Charger connected" within a minute.
+
+What it does: shows live status and measures, lists the latest messages, and lets the administrator read the settings, ask for a measure or status, stop the running charge and restart an idle charger. What it does not do: it never sends a card list or a charging profile, and the monthly reports keep coming from the history download. When the charger asks the server to authorize a card, only a card already in the list downloaded from the charger is accepted; unknown cards are refused. Permission "live" lets a manager see who is charging now. "Generate a new address" invalidates the old token.
+
+### Card holders
+
+The "Card holders" box (Charger tab, administrator) lists who held each card and from/to which date. Names coming from the charger create the first period automatically. To hand a card to someone else, choose the card, type the name and the start date: the previous period is closed that day. The dates of a period can be corrected with "Dates". Periods you edit are never overwritten by later downloads. A charger user bound to a card sees only the sessions of the card's current holder.
+
 ## Using it with another charger
 
 Nothing about the format is hard-coded. If your charger (or firmware) returns the history in a different shape, open **Settings**, press **Test connection** and read the raw response shown there, then change:
@@ -264,6 +281,7 @@ npx wrangler dev
 ## Limits
 
 - Reports are for a single charger and a single price per month.
+- Live status uses one charger connection (one socket); the Worker does not manage the charger's card list.
 - The scheduled download interval is set in `wrangler.toml` (default every 6 hours).
 - Code comments and internal names are partly Italian for historical reasons; the user interface and messages are bilingual.
 
