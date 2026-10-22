@@ -3,6 +3,8 @@
 // Orbis Charge Report - Cloudflare Worker (API + pages + scheduled download from the charger)
 // Note: internal identifiers are in Italian (historical); user-facing text is in EN/IT.
 import { HTML, LOGIN, INVITO, SETUP, I18N } from "./ui.js";
+import { Colonnina } from "./ocpp.js";
+export { Colonnina };      // Durable Object class (OCPP live connection), bound as COLONNINA
 
 let TITOLO = "EV Charger";            // site title (from settings)
 let TZ = "Europe/Rome";                // time zone used for months, reports and the price lock (from settings)
@@ -88,11 +90,59 @@ const annoMeseLocale = (epoch) => {
   return d.getUTCFullYear() * 100 + d.getUTCMonth() + 1;
 };
 
+// -------------------------------------------------------------- card assignments (who held a card, and when)
+// tessere_nomi keeps one row per (card, holder, from-date); "al" is the date the card was returned.
+// Reports use the holder at the time of each session, so reassigning a card never rewrites the past.
+// Names that come from the charger create/extend periods automatically; periods edited by the administrator
+// (man = 1) are never touched by the automatic synchronisation.
+async function syncNomi(env) {
+  await preparaTabelle(env);
+  const cor = (await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results;
+  const ult = new Map((await env.DB.prepare(
+    "SELECT tag, nome, dal, al, man FROM tessere_nomi n WHERE dal = (SELECT MAX(dal) FROM tessere_nomi WHERE tag = n.tag)").all()).results.map((r) => [r.tag, r]));
+  const prima = new Map((await env.DB.prepare("SELECT tag, MIN(inizio_utc) p FROM sessioni GROUP BY tag").all()).results.map((r) => [r.tag, r.p]));
+  const ora = Math.floor(Date.now() / 1000), st = [];
+  const ins = "INSERT OR REPLACE INTO tessere_nomi (tag, nome, dal, man) VALUES (?,?,?,0)";
+  for (const c of cor) {
+    if (!c.nome) continue;
+    const u = ult.get(c.tag);
+    if (!u) {
+      const p = prima.get(c.tag);
+      st.push(env.DB.prepare(ins).bind(c.tag, c.nome, p && p < ora ? p - 86400 : ora));
+    } else if (!u.man && u.al == null && u.nome !== c.nome) {
+      if (norm(c.nome).startsWith(norm(u.nome))) st.push(env.DB.prepare("UPDATE tessere_nomi SET nome=? WHERE tag=? AND dal=?").bind(c.nome, c.tag, u.dal));
+      else if (!norm(u.nome).startsWith(norm(c.nome))) {
+        st.push(env.DB.prepare("UPDATE tessere_nomi SET al=? WHERE tag=? AND dal=?").bind(ora, c.tag, u.dal));
+        st.push(env.DB.prepare(ins).bind(c.tag, c.nome, ora));
+      }
+    }
+  }
+  if (st.length) await env.DB.batch(st);
+}
+let storiaCache = { t: 0, m: null };
+async function nomiStorici(env) {
+  if (storiaCache.m && Date.now() - storiaCache.t < 15000) return storiaCache.m;
+  await syncNomi(env);
+  const m = new Map();
+  for (const r of (await env.DB.prepare("SELECT tag, nome, dal, al FROM tessere_nomi ORDER BY tag, dal").all()).results) {
+    if (!m.has(r.tag)) m.set(r.tag, []);
+    m.get(r.tag).push(r);
+  }
+  storiaCache = { t: Date.now(), m };
+  return m;
+}
+function nomeAl(storia, tag, t) {              // holder of the card at epoch t (undefined = none)
+  const a = storia.get(tag);
+  if (!a) return undefined;
+  let r = a[0];
+  for (const x of a) if (x.dal <= t) r = x;
+  return r.al != null && t >= r.al ? undefined : r.nome;
+}
+
 // -------------------------------------------------------------- accesso ai dati
 async function reportMese(env, anno, mese, riservato = false) {
   const [ini, fin] = intervalloMese(anno, mese);
-  const nomi = Object.fromEntries(
-    (await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((r) => [r.tag, r.nome]));
+  const storia = await nomiStorici(env);
   const pr = await env.DB.prepare("SELECT eur_kwh, iva FROM prezzi WHERE anno=? AND mese=?").bind(anno, mese).first();
   const prezzo = pr ? pr.eur_kwh : null;
   const ivaPct = pr ? pr.iva : null;
@@ -107,7 +157,8 @@ async function reportMese(env, anno, mese, riservato = false) {
       if (riservato) app.push({ inizio: fmtLocale(s.inizio_utc), fine: fmtLocale(s.fine_utc), kwh: s.energia_wh / 1000,
         imp: euro(s.energia_wh / 1000, prezzo) });
     } else {
-      const d = (perTag[s.tag] ||= { tag: s.tag, nome: nomi[s.tag] || "", n: 0, wh: 0, sess: [] });
+      const nome = nomeAl(storia, s.tag, s.inizio_utc) || "";
+      const d = (perTag[s.tag + "|" + nome] ||= { tag: s.tag, nome, n: 0, wh: 0, sess: [] });
       d.sess.push({ inizio: fmtLocale(s.inizio_utc), fine: fmtLocale(s.fine_utc), kwh: s.energia_wh / 1000 });
       d.n += 1;
       d.wh += s.energia_wh;
@@ -389,7 +440,7 @@ const json = (o, status = 200) => new Response(JSON.stringify(o), {
 // -------------------------------------------------------------- utenti e sessioni
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 // permessi assegnabili agli utenti (l'admin ha sempre tutto)
-const PERMESSI = ["report", "storico", "sessioni", "prezzo", "stampa", "scarica", "app"];
+const PERMESSI = ["report", "storico", "sessioni", "prezzo", "stampa", "scarica", "app", "live"];
 const PERMESSI_DEFAULT = { report: 1, storico: 1, sessioni: 1, stampa: 1 };
 const DURATA_INVITO = 48 * 3600;
 function permessiDi(u) {
@@ -426,6 +477,7 @@ async function preparaTabelle(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS utenti (nome TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL, ruolo TEXT NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS tentativi (nome TEXT NOT NULL, ts INTEGER NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS revocati (sig TEXT PRIMARY KEY, exp INTEGER NOT NULL)"),   // sessions closed with "Log out"
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS tessere_nomi (tag TEXT NOT NULL, nome TEXT NOT NULL, dal INTEGER NOT NULL, al INTEGER, man INTEGER DEFAULT 0, PRIMARY KEY (tag, dal))"),
   ]);
   const col = (await env.DB.prepare("PRAGMA table_info(utenti)").all()).results.map((c) => c.name);
   for (const [nome, tipo] of [["permessi", "TEXT"], ["invito_hash", "TEXT"], ["invito_exp", "INTEGER"], ["tessera", "TEXT"]])
@@ -459,7 +511,7 @@ const leggiToken = (req) => {                // [name, exp, nonce, signature] fr
   try { val = ck ? decodeURIComponent(ck[1]) : ""; } catch (_) { /* malformed cookie */ }
   return (/^(.+)~(\d+)~([0-9a-f]{16})~([0-9a-f]{64})$/.exec(val) || []).slice(1);
 };
-const cookie = (v, età) => `sess=${encodeURIComponent(v)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${età}`;
+const cookie = (v, eta) => `sess=${encodeURIComponent(v)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${eta}`;
 
 async function utenteCorrente(req, env) {
   await preparaTabelle(env);
@@ -652,9 +704,11 @@ function pdfReportMese(r, cfg, l) {
 
 async function mieRicariche(env, tag, anno) {
   const out = [];
+  const lista = (await nomiStorici(env)).get(tag) || [];
+  const cur = lista.length ? lista[lista.length - 1].nome : "";      // only what belongs to the current holder of the card
   for (let m = 1; m <= 12; m++) {
     const r = await reportMese(env, anno, m, false);
-    const t = r.tessere.find((x) => x.tag === tag);
+    const t = r.tessere.find((x) => x.tag === tag && x.nome === cur);
     out.push({ mese: m, nome: MESI[m - 1], prezzo: r.prezzo, iva_pct: r.iva_pct, n: t ? t.n : 0,
       kwh: t ? t.kwh : 0, imp: t ? t.imp : null, iva: t ? t.iva : null, tot: t ? t.tot : null, sess: t ? t.sess : [] });
   }
@@ -741,7 +795,7 @@ async function backupSql(env) {
   const q1 = (v) => v === null || v === undefined ? "NULL" : typeof v === "number" ? String(v) : "'" + String(v).replace(/'/g, "''") + "'";
   let out = `-- Backup ${TITOLO} - ${new Date().toISOString()}\n-- Contains saved secrets (charger password, Resend key): keep it private.\n` +
     "-- Restore: npx wrangler d1 execute <database> --remote --file=<this file>\n";
-  for (const t of ["sessioni", "tessere", "prezzi", "meta", "utenti"]) {
+  for (const t of ["sessioni", "tessere", "tessere_nomi", "prezzi", "meta", "utenti"]) {
     const def = await env.DB.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").bind(t).first();
     if (!def) continue;
     out += def.sql.replace(/^CREATE TABLE\s+(IF NOT EXISTS\s+)?/i, "CREATE TABLE IF NOT EXISTS ") + ";\n";
@@ -855,12 +909,32 @@ async function eseguiSetup(req, env, cfg) {
 }
 
 const escHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// -------------------------------------------------------------- OCPP (live connection from the charger, optional)
+const colonnina = (env) => (env.COLONNINA ? env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")) : null);
+async function statoLive(env) { return await (await colonnina(env).fetch("https://do/stato")).json(); }
+async function tokenOcpp(env, rigenera = false) {         // secret part of the address the charger connects to
+  let r = rigenera ? null : await env.DB.prepare("SELECT valore FROM meta WHERE chiave='ocpp_token'").first();
+  if (r) return r.valore;
+  const v = hex(crypto.getRandomValues(new Uint8Array(16)));
+  await env.DB.prepare("INSERT OR REPLACE INTO meta VALUES ('ocpp_token', ?)").bind(v).run();
+  return v;
+}
+async function ocppConnessione(req, env, url) {           // /ocpp/<token>/<charger-id>
+  const [, , token, sigla] = url.pathname.split("/");
+  if (req.headers.get("upgrade") !== "websocket") return new Response("Upgrade Required", { status: 426 });
+  if (!env.COLONNINA || !sigla || !/^[A-Za-z0-9._-]{1,40}$/.test(sigla) || !uguali(token || "", await tokenOcpp(env)))
+    return new Response("Not found", { status: 404 });
+  return await colonnina(env).fetch(req);
+}
+const OCPP_CMD = ["GetConfiguration", "GetLocalListVersion", "TriggerMessage", "RemoteStopTransaction", "Reset"];
+const OCPP_TRIGGER = ["MeterValues", "StatusNotification", "Heartbeat", "DiagnosticsStatusNotification", "FirmwareStatusNotification"];
+
 const pagina = (h) => h.replaceAll("__I18N__", () => I18N).replaceAll("__TITLE__", () => escHtml(TITOLO));
 
 export default {
   async fetch(req, env, ctx) {
     const u = new URL(req.url);
-    if (u.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(u.hostname)) {
+    if (u.protocol === "http:" && !u.pathname.startsWith("/ocpp/") && !["localhost", "127.0.0.1", "[::1]"].includes(u.hostname)) {
       u.protocol = "https:";
       return Response.redirect(u.toString(), 301);
     }
@@ -878,6 +952,7 @@ export default {
     const url = new URL(req.url);
     const q = url.searchParams;
     try {
+      if (url.pathname.startsWith("/ocpp/")) return await ocppConnessione(req, env, url);
       const cfg = await leggiConfig(env);
       if (await setupAperto(env)) {
         const html = (h) => new Response(pagina(h), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
@@ -997,9 +1072,97 @@ export default {
       }
       if (url.pathname === "/api/storico") { if (!P.storico) return nega(); }
       if (url.pathname === "/api/storico") return json(await storicoAnno(env, +q.get("anno") || new Date().getUTCFullYear(), ris));
+      if (url.pathname === "/api/live") {
+        if (!env.COLONNINA) return json({ attivo: false });
+        const live = await statoLive(env);
+        const tx = live.transazione_aperta, pr = live.prese && live.prese["1"];
+        const out = { attivo: true, connessa: live.connessa, stato: pr ? pr.status : null, occupata: !!live.occupata };
+        const mia = tx && me.tessera && me.tessera === tx.tag;
+        if (tx && (P.live || mia)) {
+          const t = await env.DB.prepare("SELECT nome FROM tessere WHERE tag=?").bind(tx.tag).first();
+          out.da = t ? t.nome : "";
+          const m = live.meter && live.meter.tx === tx.id ? live.meter : null, d = m ? m.dati : {};
+          const num = (k, div) => {
+            const x = d[k];
+            if (!x) return null;
+            const v = parseFloat(x.v);
+            return isNaN(v) ? null : v / (/^k/i.test(x.u) ? 1 : div);
+          };
+          const e = d["Energy.Active.Import.Register"], wh = e ? parseFloat(e.v) * (/^k/i.test(e.u) ? 1000 : 1) : null;
+          out.dettagli = { tag: tx.tag, inizio: tx.inizio, kw: num("Power.Active.Import", 1000),
+            a: num("Current.Import", 1) ?? num("Current.Import.L1", 1), v: num("Voltage", 1),
+            kwh: wh != null && tx.meter_ini != null ? (wh - tx.meter_ini) / 1000 : null, agg: m ? m.ts : null };
+        }
+        return json(out);
+      }
+      if (url.pathname === "/api/ocpp") {
+        if (me.ruolo !== "admin") return nega();
+        if (!env.COLONNINA) return err("no_ocpp", "OCPP is not enabled: add the Durable Object binding shown in wrangler.toml.example and deploy again", 501);
+        if (req.method === "POST") {
+          const b = await req.json();
+          if (b.azione === "rigenera") await tokenOcpp(env, true);
+          if (b.azione === "comando") {
+            if (!OCPP_CMD.includes(b.comando)) return err("bad_cmd", "Command not allowed");
+            let payload = {};
+            if (b.comando === "TriggerMessage") {
+              if (!OCPP_TRIGGER.includes(b.richiesta)) return err("bad_cmd", "Command not allowed");
+              payload = { requestedMessage: b.richiesta, ...(b.richiesta === "Heartbeat" ? {} : { connectorId: 1 }) };
+            } else if (b.comando === "RemoteStopTransaction" || b.comando === "Reset") {
+              const st = await statoLive(env);
+              if (b.comando === "RemoteStopTransaction") {
+                if (!st.transazione_aperta) return err("no_tx", "No charging session to stop");
+                payload = { transactionId: st.transazione_aperta.id };
+              } else {
+                if (st.occupata) return err("ocpp_busy", "The charger is in use: restart not allowed");
+                payload = { type: "Soft" };
+              }
+            }
+            const r = await colonnina(env).fetch("https://do/comando", { method: "POST", body: JSON.stringify({ azione: b.comando, payload }) });
+            return json(await r.json());
+          }
+        }
+        return json({ ...(await statoLive(env)), host: url.host, percorso: `/ocpp/${await tokenOcpp(env)}/CHARGER` });
+      }
+      if (url.pathname === "/api/nomi") {
+        if (me.ruolo !== "admin") return nega();
+        await syncNomi(env);
+        const data = (e) => {
+          if (e == null) return "";
+          const d = new Date((e + offsetTz(e)) * 1000);
+          return `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
+        };
+        if (req.method === "GET")
+          return json((await env.DB.prepare("SELECT tag, nome, dal, al FROM tessere_nomi ORDER BY nome, dal").all()).results
+            .map((x) => ({ ...x, dal_txt: data(x.dal), al_txt: data(x.al) })));
+        if (req.method !== "POST") return err("method", "Method not allowed", 405);
+        const b = await req.json();
+        const giorno = (t) => { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(String(t || "").trim()); return m ? epochDaLocale(+m[1], +m[2], +m[3]) : null; };
+        try {
+          if (b.azione === "assegna") {                    // hand the card to someone from a date: closes the open period
+            const tag = String(b.tag || "").toUpperCase(), nome = String(b.nome || "").trim().slice(0, 80), dal = giorno(b.dal);
+            if (!tag || !nome) return err("bad_card", "Card and name are required");
+            if (dal === null) return err("bad_date", "Invalid date");
+            const ult = await env.DB.prepare("SELECT dal, al FROM tessere_nomi WHERE tag=? ORDER BY dal DESC LIMIT 1").bind(tag).first();
+            if (ult && dal <= ult.dal) return err("bad_period", "The new assignment must start after the previous one");
+            const st = [];
+            if (ult && ult.al == null) st.push(env.DB.prepare("UPDATE tessere_nomi SET al=?, man=1 WHERE tag=? AND dal=?").bind(dal, tag, ult.dal));
+            st.push(env.DB.prepare("INSERT INTO tessere_nomi (tag, nome, dal, man) VALUES (?,?,?,1)").bind(tag, nome, dal));
+            await env.DB.batch(st);
+          } else {                                         // edit the dates of an existing period
+            const nd = giorno(b.nuovo_dal), na = b.nuovo_al ? giorno(b.nuovo_al) : null;
+            if (nd === null || (b.nuovo_al && na === null)) return err("bad_date", "Invalid date");
+            if (na !== null && na <= nd) return err("bad_period", "The end date must be after the start date");
+            await env.DB.prepare("UPDATE tessere_nomi SET dal=?, al=?, man=1 WHERE tag=? AND dal=?").bind(nd, na, String(b.tag), +b.dal).run();
+          }
+        } catch (_) {
+          return err("dup_period", "A period with that start date already exists");
+        }
+        storiaCache = { t: 0, m: null };
+        return json({ ok: true });
+      }
       if (url.pathname === "/api/sessioni") {
         if (!P.sessioni) return nega();
-        const nomi = Object.fromEntries((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((r) => [r.tag, r.nome]));
+        const storia = await nomiStorici(env);
         const prz = new Map((await env.DB.prepare("SELECT anno, mese, eur_kwh, iva FROM prezzi").all()).results.map((p) => [p.anno * 100 + p.mese, p]));
         const r = (await env.DB.prepare("SELECT inizio_utc, fine_utc, tag, tag_tipo, energia_wh FROM sessioni ORDER BY inizio_utc DESC").all()).results
           .filter((s) => ris || !(s.tag === "" || s.tag_tipo === "app"));
@@ -1015,7 +1178,7 @@ export default {
           lista.forEach((s, i) => { s.costo = c[i]; });
         }
         return json(r.map((s) => ({ inizio: fmtLocale(s.inizio_utc), fine: fmtLocale(s.fine_utc),
-          tag: s.tag || "(app)", nome: s.tag ? (nomi[s.tag] || "") : "", kwh: s.energia_wh / 1000,
+          tag: s.tag || "(app)", nome: s.tag ? (nomeAl(storia, s.tag, s.inizio_utc) || "") : "", kwh: s.energia_wh / 1000,
           imp: s.costo.imp, iva: s.costo.iva, tot: s.costo.tot })));
       }
       if (req.method === "POST") {
