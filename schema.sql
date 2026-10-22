@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS sessioni (
   PRIMARY KEY (inizio_utc, cont_ini_wh)
 );
 CREATE TABLE IF NOT EXISTS tessere (tag TEXT PRIMARY KEY, nome TEXT);
+-- who held each card and when (reports use the holder at the time of each session)
+CREATE TABLE IF NOT EXISTS tessere_nomi (tag TEXT NOT NULL, nome TEXT NOT NULL, dal INTEGER NOT NULL, al INTEGER, man INTEGER DEFAULT 0, PRIMARY KEY (tag, dal));
 CREATE TABLE IF NOT EXISTS prezzi (
   anno INTEGER NOT NULL, mese INTEGER NOT NULL, eur_kwh REAL NOT NULL, iva REAL NOT NULL DEFAULT 0,
   PRIMARY KEY (anno, mese)
