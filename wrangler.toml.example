@@ -20,6 +20,17 @@ binding = "DB"
 database_name = "ricariche"
 database_id = "PUT-YOUR-D1-DATABASE-ID-HERE"
 
+# Live charging status over OCPP 1.6 (optional but recommended): the charger connects to
+# wss://<your-domain>/ocpp/<secret>/CHARGER (the address is shown in the "Charger" tab).
+# Works on the free plan (SQLite-backed Durable Object). Needs a custom domain for the charger to reach it.
+[[durable_objects.bindings]]
+name = "COLONNINA"
+class_name = "Colonnina"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Colonnina"]
+
 # Automatic download from the charger every 6 hours
 # (can be switched off in the Settings tab; the schedule itself is set here)
 [triggers]
