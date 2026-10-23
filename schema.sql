@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS sessioni (
   energia_wh  INTEGER NOT NULL,
   PRIMARY KEY (inizio_utc, cont_ini_wh)
 );
-CREATE TABLE IF NOT EXISTS tessere (tag TEXT PRIMARY KEY, nome TEXT);
+-- attiva = 0: the card is no longer on the charger, or is blocked/expired/invalid there (refused over OCPP)
+CREATE TABLE IF NOT EXISTS tessere (tag TEXT PRIMARY KEY, nome TEXT, attiva INTEGER NOT NULL DEFAULT 1);
 -- who held each card and when (reports use the holder at the time of each session)
 CREATE TABLE IF NOT EXISTS tessere_nomi (tag TEXT NOT NULL, nome TEXT NOT NULL, dal INTEGER NOT NULL, al INTEGER, man INTEGER DEFAULT 0, PRIMARY KEY (tag, dal));
 CREATE TABLE IF NOT EXISTS prezzi (
