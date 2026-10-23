@@ -179,7 +179,7 @@ function applyI18n(){
   if(s){s.innerHTML='<option value="en">English</option><option value="it">Italiano</option>';s.value=LANG;s.onchange=function(){setLang(s.value)}}
 }
 
-function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
 function D(s){if(LANG==="it"||!s)return s;var m=/^(\d\d)\/(\d\d)\/(\d{4}) (.*)$/.exec(s);return m?m[3]+"-"+m[2]+"-"+m[1]+" "+m[4]:s}
 function bloccoProva(nome,x){
   var h='<div class="card"><h2>'+nome+' - '+(x.ok?'<span class="ok">'+T("s_ok")+'</span>':'<span class="err">'+T("s_fail")+'</span>')+'</h2>';
