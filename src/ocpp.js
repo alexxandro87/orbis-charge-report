@@ -7,8 +7,8 @@
 // MeterValues) and keeps the live state: socket status, running transaction, last measures.
 //
 // The server never sends a card list or a charging profile to the charger: the charger keeps managing its own
-// cards. Only a card already present in the "tessere" table (downloaded from the charger) is accepted when the
-// charger asks the server to authorize it; unknown cards get "Invalid".
+// cards. Only a card present and active in the "tessere" table (downloaded from the charger, still on its list
+// and in state accepted) is accepted when the charger asks the server to authorize it; others get "Invalid".
 
 const HEARTBEAT_S = 300;
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json" } });
@@ -112,8 +112,9 @@ export class Colonnina {
   webSocketError(ws, e) { this.log("sys", "socket error: " + (e && e.message || e)); }
 
   async tagOk(idTag) {
-    const r = await this.env.DB.prepare("SELECT 1 FROM tessere WHERE tag=?").bind(String(idTag || "").toUpperCase()).first();
-    return r ? "Accepted" : "Invalid";
+    // SELECT * so this still works before the "attiva" column has been added by the Worker
+    const r = await this.env.DB.prepare("SELECT * FROM tessere WHERE tag=?").bind(String(idTag || "").toUpperCase()).first();
+    return r && r.attiva !== 0 ? "Accepted" : "Invalid";
   }
 
   async chiamata(azione, p) {
