@@ -56,6 +56,10 @@ All screenshots use made-up demo data.
 
 <img src="docs/monthly-report.png" alt="Monthly report">
 
+**Live charger status** - connection, who is charging now, power and energy in real time, plus the card holders box:
+
+<img src="docs/charger-live.png" alt="Live charger status">
+
 | Yearly history | All sessions |
 |---|---|
 | <img src="docs/yearly-history.png" alt="Yearly history"> | <img src="docs/all-sessions.png" alt="All sessions"> |
