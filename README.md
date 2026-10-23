@@ -45,6 +45,7 @@ A small, free web app that downloads the session history from an **Orbis** EV ch
 - **Everything configurable from the web page**: charger URL, credentials, URL paths, response format and column numbers, time zone, currency, tax label, site title, email.
 - **Live charging status (OCPP 1.6)**: the "Charger" tab shows whether the charger is connected, who is charging now, power, current, voltage and energy in real time. The charger connects to your Worker; nothing is sent to it except the commands you press (read settings, ask for a measure, stop the charge, restart).
 - **Card holders with dates**: record who held each card and when. Reports use the holder at the time of each session, so handing a card to someone else never rewrites past months.
+- **Card list on the charger (Orbis)**: read, add, edit, block, remove and restore the cards the charger accepts, straight from the web page. The list is saved before every change and read back to check it.
 - **English and Italian interface** with a language switch (also on the sign-in page, invitations and emails).
 - Optional import of the per-card CSV exports of the Viaris desktop program.
 
@@ -177,6 +178,10 @@ The charger can report in real time to your Worker using OCPP 1.6-J. The Worker 
 
 What it does: shows live status and measures, lists the latest messages, and lets the administrator read the settings, ask for a measure or status, stop the running charge and restart an idle charger. What it does not do: it never sends a card list or a charging profile, and the monthly reports keep coming from the history download. When the charger asks the server to authorize a card, only a card already in the list downloaded from the charger is accepted; unknown cards are refused. Permission "live" lets a manager see who is charging now. "Generate a new address" invalidates the old token.
 
+### Cards on the charger
+
+The "Cards on the charger" box (Charger tab, administrator) shows the cards the charger accepts and lets you add, edit (name, expiry, state accepted / blocked / expired / invalid) and remove them, or put back the list saved before the last change. It uses the Orbis web interface, not OCPP: the list is read from the **Card list path** of the Settings (it must contain `level=file`), written back to the same address and saved with `level=save`. Before each change the current list is stored in the database, and after writing the list is read again to check that the charger kept it (the charger keeps names up to 25 characters). The cards are also copied to the local card table, which feeds the reports and the OCPP card check, and a card added with a "holder since" date starts its holder period on that day. This only works with the Orbis card list format (`code;expiry;name;state`).
+
 ### Card holders
 
 The "Card holders" box (Charger tab, administrator) lists who held each card and from/to which date. Names coming from the charger create the first period automatically. To hand a card to someone else, choose the card, type the name and the start date: the previous period is closed that day. The dates of a period can be corrected with "Dates". Periods you edit are never overwritten by later downloads. A charger user bound to a card sees only the sessions of the card's current holder.
@@ -285,7 +290,7 @@ npx wrangler dev
 ## Limits
 
 - Reports are for a single charger and a single price per month.
-- Live status uses one charger connection (one socket); the Worker does not manage the charger's card list.
+- Live status uses one charger connection (one socket); the card list is managed only for the Orbis web interface (see "Cards on the charger").
 - The scheduled download interval is set in `wrangler.toml` (default every 6 hours).
 - Code comments and internal names are partly Italian for historical reasons; the user interface and messages are bilingual.
 
