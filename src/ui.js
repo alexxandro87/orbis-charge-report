@@ -82,7 +82,7 @@ cn_title:"Card holders",cn_help:"Who held each card and when. Reports use the ho
 cn_assign:"Assign a card to someone",cn_assign_btn:"Assign",cn_name_ph:"Name of the new holder",cn_p_from:"Start date (YYYY-MM-DD)",cn_p_to:"End date (YYYY-MM-DD), empty = still in use",cn_saved:"Saved",
 e_no_ocpp:"OCPP is not enabled: add the Durable Object binding shown in wrangler.toml.example and deploy again",e_bad_cmd:"Command not allowed",e_no_tx:"No charging session to stop",e_ocpp_busy:"The charger is in use: restart not allowed",
 e_not_connected:"Charger not connected to the server",e_no_answer:"No answer from the charger within 15 seconds",e_charger_error:"The charger answered with an error: {d}",
-e_bad_date:"Invalid date",e_bad_period:"Invalid period: check the dates",e_dup_period:"A period with that start date already exists",e_bad_card:"Card and name are required"
+rf_title:"Cards on the charger",rf_help:"The cards the charger accepts, read from the charger and written back to it (nothing is sent over OCPP). Before every change the current list is saved so you can go back. The charger keeps names up to 25 characters.",rf_code:"Code",rf_name:"Name",rf_exp:"Expiry",rf_state:"State",rf_st0:"Accepted",rf_st1:"Blocked",rf_st2:"Expired",rf_st3:"Invalid",rf_id_ph:"Card code",rf_name_ph:"Name",rf_since:"Holder since",rf_add:"Add a card",rf_edit_t:"Edit the card",rf_fix_t:"Repair the card",rf_save_add:"Add",rf_save:"Save",rf_cancel:"Cancel",rf_edit:"Edit",rf_fix:"Repair",rf_del:"Remove",rf_del_c:"Remove this card from the charger?",rf_none:"No cards",rf_reading:"Reading the charger...",rf_writing:"Writing to the charger...",rf_noexp:"never",rf_nocode:"(unreadable code)",rf_restore:"Restore the previous list",rf_restore_c:"Put back the list saved before the last change?",rf_bk:"Previous list: {n} cards, saved {t}",rf_done:"Done",rf_mismatch:"The charger answered, but the list read back does not match: check it",e_rfid_unsupported:"Managing cards needs the charger URL and a card list path containing level=file (Settings tab)",e_rfid_unreachable:"Charger not reachable",e_rfid_write_failed:"Writing to the charger failed",e_rfid_bad_id:"Invalid card code (digits and letters A-F only, 4 to 20 characters)",e_rfid_bad_name:"Enter the name",e_rfid_name_long:"Name too long (maximum 25 characters)",e_rfid_bad_expiry:"Invalid expiry",e_rfid_bad_state:"Invalid state",e_rfid_exists:"Card already present",e_rfid_missing:"Card not found",e_rfid_no_backup:"No previous copy",e_bad_date:"Invalid date",e_bad_period:"Invalid period: check the dates",e_dup_period:"A period with that start date already exists",e_bad_card:"Card and name are required"
 },it:{
 lang_name:"Italiano",
 setup_title:"prima configurazione",setup_h:"Benvenuto - prima configurazione",setup_intro:"Crea l'account amministratore e indica come raggiungere la colonnina. Tutto si puo' cambiare dopo nella scheda Impostazioni; i campi facoltativi possono restare vuoti.",
@@ -163,7 +163,7 @@ cn_title:"Intestatari delle tessere",cn_help:"Chi ha avuto ogni tessera e da qua
 cn_assign:"Assegna una tessera a qualcuno",cn_assign_btn:"Assegna",cn_name_ph:"Nome del nuovo intestatario",cn_p_from:"Data di inizio (AAAA-MM-GG)",cn_p_to:"Data di fine (AAAA-MM-GG), vuoto = ancora in uso",cn_saved:"Salvato",
 e_no_ocpp:"OCPP non e' attivo: aggiungi il binding del Durable Object indicato in wrangler.toml.example e ripubblica",e_bad_cmd:"Comando non consentito",e_no_tx:"Nessuna ricarica in corso da fermare",e_ocpp_busy:"Colonnina occupata: riavvio non consentito",
 e_not_connected:"Colonnina non collegata al server",e_no_answer:"Nessuna risposta dalla colonnina entro 15 secondi",e_charger_error:"La colonnina risponde con un errore: {d}",
-e_bad_date:"Data non valida",e_bad_period:"Periodo non valido: controlla le date",e_dup_period:"Esiste gia' un periodo con quella data di inizio",e_bad_card:"Tessera e nome sono obbligatori"
+rf_title:"Tessere sulla colonnina",rf_help:"Le tessere che la colonnina accetta, lette dalla colonnina e riscritte su di essa (non viene inviato nulla via OCPP). Prima di ogni modifica la lista attuale viene salvata, cosi' puoi tornare indietro. La colonnina tiene nomi fino a 25 caratteri.",rf_code:"Codice",rf_name:"Nome",rf_exp:"Scadenza",rf_state:"Stato",rf_st0:"Accettata",rf_st1:"Bloccata",rf_st2:"Scaduta",rf_st3:"Non valida",rf_id_ph:"Codice tessera",rf_name_ph:"Nome",rf_since:"Intestatario dal",rf_add:"Aggiungi una tessera",rf_edit_t:"Modifica la tessera",rf_fix_t:"Ripara la tessera",rf_save_add:"Aggiungi",rf_save:"Salva",rf_cancel:"Annulla",rf_edit:"Modifica",rf_fix:"Ripara",rf_del:"Elimina",rf_del_c:"Eliminare questa tessera dalla colonnina?",rf_none:"Nessuna tessera",rf_reading:"Leggo la colonnina...",rf_writing:"Scrivo sulla colonnina...",rf_noexp:"mai",rf_nocode:"(codice illeggibile)",rf_restore:"Ripristina la lista precedente",rf_restore_c:"Rimettere la lista salvata prima dell'ultima modifica?",rf_bk:"Lista precedente: {n} tessere, salvata {t}",rf_done:"Fatto",rf_mismatch:"La colonnina ha risposto, ma la lista riletta non coincide: controlla",e_rfid_unsupported:"Per gestire le tessere servono l'indirizzo della colonnina e un percorso elenco tessere che contenga level=file (scheda Impostazioni)",e_rfid_unreachable:"Colonnina non raggiungibile",e_rfid_write_failed:"Scrittura sulla colonnina non riuscita",e_rfid_bad_id:"Codice tessera non valido (solo cifre e lettere A-F, da 4 a 20 caratteri)",e_rfid_bad_name:"Inserisci il nome",e_rfid_name_long:"Nome troppo lungo (massimo 25 caratteri)",e_rfid_bad_expiry:"Scadenza non valida",e_rfid_bad_state:"Stato non valido",e_rfid_exists:"Tessera gia' presente",e_rfid_missing:"Tessera non trovata",e_rfid_no_backup:"Nessuna copia precedente",e_bad_date:"Data non valida",e_bad_period:"Periodo non valido: controlla le date",e_dup_period:"Esiste gia' un periodo con quella data di inizio",e_bad_card:"Tessera e nome sono obbligatori"
 }};
 var LANG=(function(){try{var l=localStorage.getItem("lang");if(l==="en"||l==="it")return l}catch(e){}return String(navigator.language||"en").slice(0,2)==="it"?"it":"en"})();
 var LOC=LANG==="it"?"it-IT":"en-GB";
@@ -464,6 +464,24 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:
       <div class="w"><table id="tabEv"></table></div>
     </div>
     <div class="card">
+      <h2 data-i="rf_title"></h2>
+      <div class="sub" data-i="rf_help"></div>
+      <div class="sub err" id="rfMsg"></div>
+      <div class="w"><table id="tabRf"></table></div>
+      <h2 id="rfFormT"></h2>
+      <div class="bar">
+        <input id="rfId" data-ph="rf_id_ph" autocomplete="off" size="16">
+        <input id="rfNome" data-ph="rf_name_ph" maxlength="25" autocomplete="off">
+        <label><span data-i="rf_exp"></span> <input id="rfScad" type="date"></label>
+        <select id="rfStato"><option value="0" data-i="rf_st0"></option><option value="1" data-i="rf_st1"></option><option value="2" data-i="rf_st2"></option><option value="3" data-i="rf_st3"></option></select>
+        <label id="rfDalL"><span data-i="rf_since"></span> <input id="rfDal" type="date"></label>
+        <button class="p" id="bRfSalva"></button>
+        <button id="bRfAnn" data-i="rf_cancel"></button>
+      </div>
+      <div class="bar"><button id="bRfRip" data-i="rf_restore"></button><span class="sub" id="rfBk"></span></div>
+      <div class="sub err" id="rfEsito"></div>
+    </div>
+    <div class="card">
       <h2 data-i="cn_title"></h2>
       <div class="sub" data-i="cn_help"></div>
       <div class="w"><table id="tabN"></table></div>
@@ -520,7 +538,7 @@ etichette();
 document.querySelectorAll("nav button").forEach(function(b){b.onclick=function(){
   document.querySelectorAll("nav button").forEach(function(x){x.classList.toggle("on",x===b)});
   ["t1","t2","t3","t4","t5","t6","t7"].forEach(function(t){$(t).classList.toggle("hide",t!==b.dataset.t)});
-  if(b.dataset.t==="t2")caricaStorico();if(b.dataset.t==="t3")caricaSessioni();if(b.dataset.t==="t4")caricaUtenti();if(b.dataset.t==="t5")caricaMie();if(b.dataset.t==="t6")caricaConfig();if(b.dataset.t==="t7"){caricaLive();if(io&&io.ruolo==="admin"){$("adminCol").classList.remove("hide");caricaOcpp();caricaNomi()}}
+  if(b.dataset.t==="t2")caricaStorico();if(b.dataset.t==="t3")caricaSessioni();if(b.dataset.t==="t4")caricaUtenti();if(b.dataset.t==="t5")caricaMie();if(b.dataset.t==="t6")caricaConfig();if(b.dataset.t==="t7"){caricaLive();if(io&&io.ruolo==="admin"){$("adminCol").classList.remove("hide");caricaOcpp();caricaRfid();caricaNomi()}}
 }});
 
 
@@ -611,6 +629,45 @@ $("bCnAssegna").onclick=function(){
     $("cnEsito").textContent=r.errore?E(r):T("cn_saved");
     if(!r.errore){$("cnNome").value="";caricaNomi()}});
 };
+var RF=[],RFMOD=null;
+function rfErr(r){var m=E(r);if((r.codice==="rfid_unreachable"||r.codice==="rfid_write_failed")&&r.errore){var i=r.errore.indexOf(": ");if(i>0)m+=": "+r.errore.slice(i+2)}return m}
+function scadIso(d,old){if(!d)return "";if(old&&old.slice(0,10)===d)return old;var o=-new Date(d+"T12:00:00").getTimezoneOffset(),sg=o<0?"-":"+";o=Math.abs(o);
+  return d+"T23:59:59"+sg+("0"+Math.floor(o/60)).slice(-2)+":"+("0"+o%60).slice(-2)}
+function rfForm(m){RFMOD=m;var add=!m;
+  $("rfFormT").textContent=T(add?"rf_add":(m.indice!==undefined?"rf_fix_t":"rf_edit_t"));
+  $("bRfSalva").textContent=T(add?"rf_save_add":"rf_save");
+  var x=m||{id:"",nome:"",scad:"",stato:"0"};
+  $("rfId").value=x.id||"";$("rfId").disabled=!!(m&&m.id);$("rfNome").value=(x.nome_completo||x.nome||"").slice(0,25);
+  $("rfScad").value=(x.scad||"").slice(0,10);$("rfStato").value=x.stato||"0";$("rfDal").value="";$("rfDalL").classList.toggle("hide",!add)}
+function rfDisegna(){
+  var h=row([th(T("rf_code")),th(T("rf_name")),th(T("rf_exp")),th(T("rf_state")),th("")]);
+  RF.forEach(function(x,i){
+    h+=row([td(x.id?esc(x.id):T("rf_nocode")),td(esc(x.nome_completo||x.nome)),td(x.scad?esc(x.scad.slice(0,10)):T("rf_noexp")),td(T("rf_st"+(/^[0-3]$/.test(x.stato)?x.stato:"3"))),
+      td('<button class="re" data-i="'+i+'">'+T(x.id?"rf_edit":"rf_fix")+'</button> <button class="rd" data-i="'+i+'">'+T("rf_del")+'</button>')])});
+  if(!RF.length)h+=row([td(T("rf_none")),td(""),td(""),td(""),td("")]);
+  $("tabRf").innerHTML=h;
+  document.querySelectorAll("#tabRf .re").forEach(function(b){b.onclick=function(){var x=RF[+b.dataset.i];rfForm(x.id?x:{indice:+b.dataset.i,id:"",nome:x.nome,scad:x.scad,stato:x.stato})}});
+  document.querySelectorAll("#tabRf .rd").forEach(function(b){b.onclick=function(){var x=RF[+b.dataset.i];if(!confirm(T("rf_del_c")))return;
+    rfPost({azione:"elimina",id:x.id,indice:+b.dataset.i})}});
+}
+function caricaRfid(){
+  $("rfMsg").textContent=T("rf_reading");
+  return api("/api/rfid").then(function(r){
+    if(r.errore){$("rfMsg").textContent=rfErr(r);RF=[];rfDisegna();return}
+    $("rfMsg").textContent="";RF=r.lista||[];rfDisegna();rfForm(null);
+    $("rfBk").textContent=r.backup?T("rf_bk",{n:r.backup.n,t:new Date(r.backup.quando).toLocaleString(LOC,{dateStyle:"short",timeStyle:"short"})}):"";
+    $("bRfRip").disabled=!r.backup});
+}
+function rfPost(b){$("rfEsito").classList.remove("err");$("rfEsito").textContent=T("rf_writing");
+  return post("/api/rfid",b).then(function(r){
+    if(r.errore){$("rfEsito").classList.add("err");$("rfEsito").textContent=rfErr(r);return}
+    caricaRfid().then(function(){caricaNomi();$("rfEsito").classList.toggle("err",!r.ok);$("rfEsito").textContent=r.ok?T("rf_done"):T("rf_mismatch")})})}
+$("bRfSalva").onclick=function(){
+  var b={id:$("rfId").value,nome:$("rfNome").value,scad:scadIso($("rfScad").value,RFMOD&&RFMOD.scad),stato:$("rfStato").value,dal:$("rfDal").value};
+  if(!RFMOD)b.azione="aggiungi";else if(RFMOD.indice!==undefined){b.azione="ripara";b.indice=RFMOD.indice}else{b.azione="modifica";b.id=RFMOD.id}
+  rfPost(b)};
+$("bRfAnn").onclick=function(){rfForm(null)};
+$("bRfRip").onclick=function(){if(confirm(T("rf_restore_c")))rfPost({azione:"ripristina"})};
 setInterval(function(){if(!$("t7").classList.contains("hide")&&!document.hidden){caricaLive();if(io&&io.ruolo==="admin")caricaOcpp()}},10000);
 
 function caricaStato(){return api("/api/stato").then(function(s){
