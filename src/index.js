@@ -577,11 +577,25 @@ async function utenteCorrente(req, env) {
   if (h.startsWith("Basic ") && new URL(req.url).pathname === "/api/ingest") {
     try {
       const [n, ...r] = atob(h.slice(6)).split(":");
-      const u = await verificaLogin(env, n.toLowerCase(), r.join(":"));
-      if (u) return u;
+      const u = await loginLimitato(env, n.trim().toLowerCase(), r.join(":"));
+      if (u && !u.limite) return u;
     } catch (_) { /* ignora */ }
   }
   return null;
+}
+
+// verificaLogin with the attempt limit (5 failures per 10 minutes per user name), shared by
+// /api/login and HTTP Basic on /api/ingest. Returns the user, null, or { limite: true }.
+async function loginLimitato(env, nome, pw) {
+  await preparaTabelle(env);
+  const ora = Math.floor(Date.now() / 1000);
+  await env.DB.prepare("DELETE FROM tentativi WHERE ts < ?").bind(ora - 600).run();
+  const t = await env.DB.prepare("SELECT COUNT(*) n FROM tentativi WHERE nome=?").bind(nome).first();
+  if (t.n >= 5) return { limite: true };
+  const u = await verificaLogin(env, nome, pw);
+  if (!u) await env.DB.prepare("INSERT INTO tentativi VALUES (?, ?)").bind(nome, ora).run();
+  else await env.DB.prepare("DELETE FROM tentativi WHERE nome=?").bind(nome).run();
+  return u;
 }
 
 // controlla nome e password; alla prima volta (nessun utente) admin = APP_PASSWORD
@@ -602,17 +616,9 @@ async function verificaLogin(env, nome, pw) {
 async function login(req, env) {
   const b = await req.json();
   const nome = String(b.nome || "").trim().toLowerCase(), pw = String(b.password || "");
-  await preparaTabelle(env);
-  const ora = Math.floor(Date.now() / 1000);
-  await env.DB.prepare("DELETE FROM tentativi WHERE ts < ?").bind(ora - 600).run();
-  const t = await env.DB.prepare("SELECT COUNT(*) n FROM tentativi WHERE nome=?").bind(nome).first();
-  if (t.n >= 5) return err("too_many", "Too many attempts: try again in 10 minutes", 429);
-  const u = await verificaLogin(env, nome, pw);
-  if (!u) {
-    await env.DB.prepare("INSERT INTO tentativi VALUES (?, ?)").bind(nome, ora).run();
-    return err("bad_login", "Wrong user name or password", 401);
-  }
-  await env.DB.prepare("DELETE FROM tentativi WHERE nome=?").bind(nome).run();
+  const u = await loginLimitato(env, nome, pw);
+  if (u && u.limite) return err("too_many", "Too many attempts: try again in 10 minutes", 429);
+  if (!u) return err("bad_login", "Wrong user name or password", 401);
   const r = json({ ok: true, nome: u.nome, ruolo: u.ruolo });
   r.headers.append("set-cookie", cookie(await creaToken(env, u), DURATA_SESSIONE));
   return r;
