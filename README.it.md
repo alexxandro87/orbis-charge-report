@@ -45,6 +45,7 @@ Una piccola webapp gratuita che scarica lo storico delle sessioni da una colonni
 - **Tutto configurabile dalla pagina web**: indirizzo della colonnina, credenziali, percorsi, formato della risposta e numeri di colonna, fuso orario, valuta, nome dell'imposta, titolo del sito, email.
 - **Stato in tempo reale (OCPP 1.6)**: la scheda "Colonnina" mostra se la colonnina e' collegata, chi sta caricando, potenza, corrente, tensione ed energia in diretta. E' la colonnina che si collega al Worker; non le viene inviato nulla se non i comandi che premi tu (leggi configurazione, chiedi una misura, ferma la ricarica, riavvia).
 - **Intestatari delle tessere con date**: registra chi ha avuto ogni tessera e da quando. I report usano l'intestatario al momento di ogni sessione: passare una tessera a un'altra persona non riscrive i mesi passati.
+- **Elenco tessere sulla colonnina (Orbis)**: leggi, aggiungi, modifica, blocca, elimina e ripristina le tessere che la colonnina accetta, direttamente dalla pagina web. L'elenco viene salvato prima di ogni modifica e riletto per controllare.
 - **Interfaccia in italiano e in inglese** con selettore della lingua (anche nella pagina di accesso, negli inviti e nelle email).
 - Importazione facoltativa dei CSV per tessera esportati dal programma Viaris per desktop.
 
@@ -177,6 +178,10 @@ La colonnina puo' comunicare in diretta con il tuo Worker tramite OCPP 1.6-J. Il
 
 Cosa fa: mostra stato e misure in diretta, elenca gli ultimi messaggi e permette all'amministratore di leggere la configurazione, chiedere una misura o lo stato, fermare la ricarica in corso e riavviare una colonnina a riposo. Cosa non fa: non invia mai una lista di tessere ne' profili di carica, e i report mensili continuano a partire dallo storico scaricato. Quando la colonnina chiede al server di autorizzare una tessera, viene accettata solo una tessera gia' presente nell'elenco scaricato dalla colonnina; le sconosciute sono rifiutate. Il permesso "live" permette a un gestore di vedere chi sta caricando. "Genera un nuovo indirizzo" invalida il token precedente.
 
+### Tessere sulla colonnina
+
+Il riquadro "Tessere sulla colonnina" (scheda Colonnina, amministratore) mostra le tessere accettate dalla colonnina e permette di aggiungerle, modificarle (nome, scadenza, stato accettata / bloccata / scaduta / non valida) ed eliminarle, oppure di rimettere la lista salvata prima dell'ultima modifica. Usa l'interfaccia web di Orbis, non OCPP: l'elenco si legge dal **Percorso elenco tessere** delle Impostazioni (deve contenere `level=file`), si riscrive allo stesso indirizzo e si salva con `level=save`. Prima di ogni modifica l'elenco attuale viene conservato nel database e, dopo la scrittura, viene riletto per controllare che la colonnina l'abbia tenuto (la colonnina tiene nomi fino a 25 caratteri). Le tessere vengono copiate anche nella tabella locale, che alimenta i report e il controllo OCPP, e una tessera aggiunta con "Intestatario dal" fa partire il periodo dell'intestatario da quel giorno. Funziona solo con il formato elenco tessere di Orbis (`codice;scadenza;nome;stato`).
+
 ### Intestatari delle tessere
 
 Il riquadro "Intestatari delle tessere" (scheda Colonnina, amministratore) elenca chi ha avuto ogni tessera e da/fino a quale data. I nomi che arrivano dalla colonnina creano il primo periodo in automatico. Per passare una tessera a un'altra persona scegli la tessera, scrivi il nome e la data di inizio: il periodo precedente si chiude quel giorno. Le date di un periodo si correggono con "Date". I periodi che modifichi non vengono mai sovrascritti dagli scarichi successivi. Un utente della colonnina legato a una tessera vede solo le sessioni dell'intestatario attuale.
@@ -284,7 +289,7 @@ npx wrangler dev
 
 ## Limiti
 
-- Lo stato in tempo reale usa un solo collegamento (una colonnina); il Worker non gestisce l'elenco tessere della colonnina.
+- Lo stato in tempo reale usa un solo collegamento (una colonnina); l'elenco tessere si gestisce solo con l'interfaccia web di Orbis (vedi "Tessere sulla colonnina").
 - I report riguardano una sola colonnina e un solo prezzo al mese.
 - L'intervallo dello scarico programmato si imposta in `wrangler.toml` (predefinito ogni 6 ore).
 - Commenti e nomi interni del codice sono in parte in italiano per ragioni storiche; interfaccia e messaggi sono bilingue.
