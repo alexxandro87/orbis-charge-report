@@ -1347,8 +1347,11 @@ export default {
           catch (e) { return json({ ok: false, errore: String(e.message || e) }, 502); }
         }
         if (url.pathname === "/api/ingest") {          // per chi spinge i dati da fuori (vedi README)
-          const b = await req.json();
-          return json({ ok: true, ...(await salvaScarico(env, cfg, b.storico, b.tessere || null)) });
+          const b = await req.json().catch(() => null);
+          if (!b || typeof b.storico !== "string" || !b.storico.trim() || (b.tessere != null && typeof b.tessere !== "string"))
+            return err("bad_ingest", "Send \"storico\" (the charger's history response) as text, and optionally \"tessere\" as text");
+          try { return json({ ok: true, ...(await salvaScarico(env, cfg, b.storico, b.tessere || null)) }); }
+          catch (e) { return json({ ok: false, errore: String(e.message || e) }, 400); }
         }
         if (url.pathname === "/api/importa") {
           const b = await req.json();
