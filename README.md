@@ -176,7 +176,7 @@ The charger can report in real time to your Worker using OCPP 1.6-J. The Worker 
 2. Open the **Charger** tab as administrator and copy the address shown (it contains a secret token).
 3. In the charger's OCPP settings enter that address, with OCPP 1.6-J. The tab shows "Charger connected" within a minute.
 
-What it does: shows live status and measures, lists the latest messages, and lets the administrator read the settings, ask for a measure or status, stop the running charge and restart an idle charger. What it does not do: it never sends a card list or a charging profile, and the monthly reports keep coming from the history download. When the charger asks the server to authorize a card, only a card already in the list downloaded from the charger is accepted; unknown cards are refused. Permission "live" lets a manager see who is charging now. "Generate a new address" invalidates the old token.
+What it does: shows live status and measures, lists the latest messages, and lets the administrator read the settings, ask for a measure or status, stop the running charge and restart an idle charger. What it does not do: it never sends a card list or a charging profile, and the monthly reports keep coming from the history download. When the charger asks the server to authorize a card, only a card that is in the list downloaded from the charger, and accepted there, is accepted; unknown cards, cards removed from the charger and cards blocked, expired or invalid on it are refused. Permission "live" lets a manager see who is charging now. "Generate a new address" invalidates the old token.
 
 ### Cards on the charger
 
