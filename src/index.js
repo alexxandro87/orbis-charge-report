@@ -399,6 +399,55 @@ async function provaColonnina(c) {
 // -------------------------------------------------------------- importazione export Viaris
 const norm = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
+// -------------------------------------------------------------- card list on the charger (Orbis web interface)
+// The charger keeps its authorised cards in a text file: first line = version, then one card per line
+// "code;expiry;name;state" (state 0 accepted, 1 blocked, 2 expired, 3 invalid). It is read and written through the
+// same path as the card list (level=file), then saved with level=save. Nothing is ever sent over OCPP.
+const RFID_NOME_MAX = 25;
+const RFID_ID_OK = /^[0-9A-F]{4,20}$/;
+const RFID_SCAD_OK = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d)?$/;
+const RFID_STATI = ["accepted", "blocked", "expired", "invalid"];
+const rfidId = (x) => String(x || "").trim().toUpperCase();
+const rfidNome = (x) => String(x || "").replace(/[;\r\n\t]/g, " ").replace(/\s+/g, " ").trim();
+const rfidStato = (x) => {
+  const v = String(x ?? "").trim();
+  if (/^[0-3]$/.test(v)) return v;
+  const i = RFID_STATI.indexOf(v.toLowerCase());
+  return i >= 0 ? String(i) : null;
+};
+function rfidLeggi(testo) {
+  const out = [];
+  for (const riga of testo.split(/\r?\n/).slice(1)) {
+    const p = riga.split(";");
+    if (p.length >= 4 && (p[0].trim() || p[2].trim())) out.push({ id: p[0].trim().toUpperCase(), scad: p[1].trim(), nome: p[2].trim(), stato: p[3].trim() });
+  }
+  return out;
+}
+const rfidTesto = (L) => "1\r\n" + L.map((t) => `${t.id};${t.scad};${t.nome};${t.stato}\r\n`).join("");
+function rfidPercorsi(c) {                         // read path and save path; null = this charger layout is not supported
+  if (!c.url || !/level=file/.test(c.tags_path || "")) return null;
+  return { file: urlCompleto(c, c.tags_path), salva: urlCompleto(c, c.tags_path.replace("level=file", "level=save")) };
+}
+async function rfidDallaColonnina(c, per) { return rfidLeggi(await conTimeout(per.file, c)); }
+async function rfidScrivi(env, c, per, prima, dopo, copia = true) {
+  if (copia) await env.DB.prepare("INSERT OR REPLACE INTO meta VALUES ('rfid_backup', ?)").bind(JSON.stringify({ quando: new Date().toISOString(), lista: prima })).run();
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), c.timeout * 1000);
+  try {
+    const r = await fetch(per.file, { method: "POST", headers: { ...intestazioni(c), "content-type": "text/plain" }, body: rfidTesto(dopo), signal: ctl.signal });
+    if (!r.ok) throw new Error("write: HTTP " + r.status);
+  } finally { clearTimeout(t); }
+  await conTimeout(per.salva, c);
+  const letta = await rfidDallaColonnina(c, per);
+  const ok = letta.length === dopo.length && dopo.every((x) => letta.some((y) => y.id === x.id && y.nome === x.nome && y.scad === x.scad));
+  // keep the local card table in step (it feeds the reports and the OCPP card check)
+  const vecchi = new Map((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((r) => [r.tag, r.nome]));
+  const st = env.DB.prepare("INSERT OR REPLACE INTO tessere VALUES (?,?)");
+  const da = dopo.filter((x) => x.id && (!vecchi.has(x.id) || !norm(vecchi.get(x.id)).startsWith(norm(x.nome))));
+  if (da.length) { await env.DB.batch(da.map((x) => st.bind(x.id, x.nome))); await syncNomi(env); }
+  storiaCache = { t: 0, m: null };
+  return { ok, lista: letta };
+}
+
 async function importaCsv(env, nomeFile, testo) {
   const righe = testo.replace(/^﻿/, "").split(/\r?\n/).filter((r) => r.trim());
   if (!righe.length) throw Object.assign(new Error("Empty file"), { codice: "empty_file" });
@@ -1021,6 +1070,77 @@ export default {
       if (url.pathname === "/api/tessere") {
         if (me.ruolo !== "admin") return err("unauthorized", "Not authorized", 403);
         return json((await env.DB.prepare("SELECT tag, nome FROM tessere ORDER BY nome").all()).results);
+      }
+      if (url.pathname === "/api/rfid") {              // card list on the charger (administrator)
+        if (me.ruolo !== "admin") return nega();
+        const c = await leggiConfig(env), per = rfidPercorsi(c);
+        if (!per) return err("rfid_unsupported", "Managing cards needs the charger URL and a card list path containing level=file (Settings tab)", 501);
+        let prima;
+        try { prima = await rfidDallaColonnina(c, per); }
+        catch (e) { return err("rfid_unreachable", "Charger not reachable: " + (e.message || e), 502); }
+        const bk = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='rfid_backup'").first();
+        const backup = bk ? JSON.parse(bk.valore) : null;
+        if (req.method === "GET") {
+          const db = new Map((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((r) => [r.tag, r.nome]));
+          return json({ lista: prima.map((x) => ({ ...x, nome_completo: x.id && db.has(x.id) && norm(db.get(x.id)).startsWith(norm(x.nome)) ? db.get(x.id) : x.nome })),
+            backup: backup ? { quando: backup.quando, n: backup.lista.length } : null });
+        }
+        if (req.method !== "POST") return err("method", "Method not allowed", 405);
+        const b = await req.json();
+        let dopo = prima.map((x) => ({ ...x }));
+        const id = rfidId(b.id), nome = rfidNome(b.nome), scad = String(b.scad || "").trim(), stato = rfidStato(b.stato ?? "0");
+        const controlla = () => {
+          if (!RFID_ID_OK.test(id)) return ["rfid_bad_id", "Invalid card code (digits and letters A-F only, 4 to 20 characters)"];
+          if (!nome) return ["rfid_bad_name", "Enter the name"];
+          if (nome.length > RFID_NOME_MAX) return ["rfid_name_long", "Name too long (maximum 25 characters)"];
+          if (!RFID_SCAD_OK.test(scad)) return ["rfid_bad_expiry", "Invalid expiry"];
+          if (stato === null) return ["rfid_bad_state", "Invalid state"];
+          return null;
+        };
+        if (b.azione === "aggiungi" || b.azione === "modifica") {
+          const e = controlla();
+          if (e) return err(e[0], e[1]);
+          const es = dopo.find((x) => x.id === id);
+          if (b.azione === "aggiungi") {
+            if (es) return err("rfid_exists", "Card already present");
+            dopo.push({ id, scad, nome, stato });
+          } else {
+            if (!es) return err("rfid_missing", "Card not found", 404);
+            Object.assign(es, { nome, scad, stato });
+          }
+        } else if (b.azione === "ripara") {                // a line the charger kept without a readable code
+          const x = dopo[+b.indice];
+          if (!x || x.id) return err("rfid_missing", "Card not found", 404);
+          const e = controlla();
+          if (e) return err(e[0], e[1]);
+          if (dopo.some((y) => y.id === id)) return err("rfid_exists", "Card already present");
+          Object.assign(x, { id, nome, scad, stato });
+        } else if (b.azione === "elimina") {
+          const i = id ? dopo.findIndex((x) => x.id === id) : (dopo[+b.indice] && !dopo[+b.indice].id ? +b.indice : -1);
+          if (i < 0) return err("rfid_missing", "Card not found", 404);
+          dopo.splice(i, 1);
+        } else if (b.azione === "ripristina") {
+          if (!backup) return err("rfid_no_backup", "No previous copy", 400);
+          dopo = backup.lista;
+        } else return err("bad_cmd", "Unknown action");
+        try {
+          const r = await rfidScrivi(env, c, per, prima, dopo);
+          const dal = String(b.dal || "").match(/^(\d{4})-(\d\d)-(\d\d)$/);
+          if (b.azione === "aggiungi" && dal) {              // card handed over on a given day: the holder starts that day
+            await env.DB.prepare("UPDATE tessere_nomi SET dal=? WHERE tag=? AND dal=(SELECT MAX(dal) FROM tessere_nomi WHERE tag=?) AND al IS NULL")
+              .bind(epochDaLocale(+dal[1], +dal[2], +dal[3]), id, id).run().catch(() => {});
+            storiaCache = { t: 0, m: null };
+          }
+          if (b.azione === "elimina" && id) {                // card removed: close the holder's period now
+            await syncNomi(env);
+            await env.DB.prepare("UPDATE tessere_nomi SET al=? WHERE tag=? AND dal=(SELECT MAX(dal) FROM tessere_nomi WHERE tag=?) AND al IS NULL")
+              .bind(Math.floor(Date.now() / 1000), id, id).run();
+            storiaCache = { t: 0, m: null };
+          }
+          return json({ ok: r.ok, lista: r.lista, avviso: r.ok ? null : "rfid_mismatch" });
+        } catch (e) {
+          return err("rfid_write_failed", "Writing to the charger failed: " + (e.message || e), 502);
+        }
       }
       if (url.pathname === "/api/mie") {                 // le ricariche dell'utente della colonnina (solo la sua tessera)
         if (!me.tessera) return nega();
