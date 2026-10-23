@@ -327,13 +327,24 @@ async function rimuoviDoppioni(env) {
   return r.meta.changes || 0;
 }
 
+// Marks as active only the given cards: the others were removed from the charger or are not accepted there.
+const stmtTessereAttive = (env, tags) =>
+  env.DB.prepare("UPDATE tessere SET attiva = CASE WHEN tag IN (SELECT value FROM json_each(?)) THEN 1 ELSE 0 END").bind(JSON.stringify(tags));
+const idAccettati = (L) => L.filter((x) => x.id && x.stato === "0").map((x) => x.id);
+
 async function salvaScarico(env, c, testoStorico, testoTessere) {
+  await preparaTabelle(env);
   const { righe, scartate } = parseStorico(testoStorico, c);
   const nuove = await inserisciSessioni(env, righe);
   if (testoTessere) {
-    const st = env.DB.prepare("INSERT OR REPLACE INTO tessere VALUES (?,?)");
+    const st = env.DB.prepare("INSERT OR REPLACE INTO tessere (tag, nome) VALUES (?,?)");
     const t = parseTessere(testoTessere, c);
-    if (t.length) await env.DB.batch(t.map((x) => st.bind(...x)));
+    if (t.length) {
+      // Orbis card list: only state 0 (accepted) is active; other layouts carry no state, so every listed card is
+      const orbis = rfidPercorsi(c) ? rfidLeggi(testoTessere) : [];
+      const attive = orbis.length ? idAccettati(orbis) : t.map((x) => x[0]);
+      await env.DB.batch([...t.map((x) => st.bind(...x)), stmtTessereAttive(env, attive)]);
+    }
   }
   await rimuoviDoppioni(env);
   await env.DB.prepare("INSERT OR REPLACE INTO meta VALUES ('ultimo_scarico', ?)").bind(new Date().toISOString()).run();
@@ -441,9 +452,11 @@ async function rfidScrivi(env, c, per, prima, dopo, copia = true) {
   const ok = letta.length === dopo.length && dopo.every((x) => letta.some((y) => y.id === x.id && y.nome === x.nome && y.scad === x.scad));
   // keep the local card table in step (it feeds the reports and the OCPP card check)
   const vecchi = new Map((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((r) => [r.tag, r.nome]));
-  const st = env.DB.prepare("INSERT OR REPLACE INTO tessere VALUES (?,?)");
+  const st = env.DB.prepare("INSERT OR REPLACE INTO tessere (tag, nome) VALUES (?,?)");
   const da = dopo.filter((x) => x.id && (!vecchi.has(x.id) || !norm(vecchi.get(x.id)).startsWith(norm(x.nome))));
-  if (da.length) { await env.DB.batch(da.map((x) => st.bind(x.id, x.nome))); await syncNomi(env); }
+  // the list read back is what the charger really accepts: removed or blocked cards stop being active
+  await env.DB.batch([...da.map((x) => st.bind(x.id, x.nome)), stmtTessereAttive(env, idAccettati(letta))]);
+  if (da.length) await syncNomi(env);
   storiaCache = { t: 0, m: null };
   return { ok, lista: letta };
 }
@@ -531,6 +544,8 @@ async function preparaTabelle(env) {
   const col = (await env.DB.prepare("PRAGMA table_info(utenti)").all()).results.map((c) => c.name);
   for (const [nome, tipo] of [["permessi", "TEXT"], ["invito_hash", "TEXT"], ["invito_exp", "INTEGER"], ["tessera", "TEXT"]])
     if (!col.includes(nome)) await env.DB.prepare(`ALTER TABLE utenti ADD COLUMN ${nome} ${tipo}`).run();
+  const colT = (await env.DB.prepare("PRAGMA table_info(tessere)").all()).results.map((c) => c.name);
+  if (colT.length && !colT.includes("attiva")) await env.DB.prepare("ALTER TABLE tessere ADD COLUMN attiva INTEGER NOT NULL DEFAULT 1").run();
   tabelleOk = true;
 }
 async function chiaveSessioni(env) {
