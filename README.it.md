@@ -56,6 +56,10 @@ Tutte le schermate usano dati dimostrativi inventati.
 
 <img src="docs/monthly-report-it.png" alt="Report mensile">
 
+**Stato in diretta della colonnina** - collegamento, chi sta caricando, potenza ed energia in tempo reale, piu' il riquadro degli intestatari:
+
+<img src="docs/charger-live-it.png" alt="Stato in diretta della colonnina">
+
 | Storico annuale | Tutte le sessioni |
 |---|---|
 | <img src="docs/yearly-history.png" alt="Storico annuale"> | <img src="docs/all-sessions.png" alt="Tutte le sessioni"> |
