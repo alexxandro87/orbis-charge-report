@@ -3,7 +3,7 @@
 // Orbis Charge Report - Cloudflare Worker (API + pages + scheduled download from the charger)
 // Note: internal identifiers are in Italian (historical); user-facing text is in EN/IT.
 import { HTML, LOGIN, INVITO, SETUP, I18N } from "./ui.js";
-import { Colonnina } from "./ocpp.js";
+import { Colonnina, PARAMETRI, valoreParametro } from "./ocpp.js";
 export { Colonnina };      // Durable Object class (OCPP live connection), bound as COLONNINA
 
 let TITOLO = "EV Charger";            // site title (from settings)
@@ -337,7 +337,8 @@ async function salvaScarico(env, c, testoStorico, testoTessere) {
   const { righe, scartate } = parseStorico(testoStorico, c);
   const nuove = await inserisciSessioni(env, righe);
   if (testoTessere) {
-    const st = env.DB.prepare("INSERT OR REPLACE INTO tessere (tag, nome) VALUES (?,?)");
+    // a card listed without a name keeps the name already stored
+    const st = env.DB.prepare("INSERT INTO tessere (tag, nome) VALUES (?,?) ON CONFLICT(tag) DO UPDATE SET nome = CASE WHEN excluded.nome <> '' THEN excluded.nome ELSE tessere.nome END");
     const t = parseTessere(testoTessere, c);
     if (t.length) {
       // Orbis card list: only state 0 (accepted) is active; other layouts carry no state, so every listed card is
@@ -1242,6 +1243,13 @@ export default {
         if (req.method === "POST") {
           const b = await req.json();
           if (b.azione === "rigenera") await tokenOcpp(env, true);
+          if (b.azione === "parametro") {                 // change or reset one of the allowed OCPP settings
+            const reset = b.valore === null || b.valore === "";
+            if (!reset && valoreParametro(b.chiave, b.valore) === undefined) return err("bad_param", "Value not allowed for this setting");
+            if (reset && !Object.prototype.hasOwnProperty.call(PARAMETRI, b.chiave)) return err("bad_param", "Value not allowed for this setting");
+            const r = await colonnina(env).fetch("https://do/parametro", { method: "POST", body: JSON.stringify({ chiave: b.chiave, valore: reset ? null : b.valore }) });
+            if (!r.ok) return err("bad_param", "Value not allowed for this setting");
+          }
           if (b.azione === "comando") {
             if (!OCPP_CMD.includes(b.comando)) return err("bad_cmd", "Command not allowed");
             let payload = {};
@@ -1262,7 +1270,7 @@ export default {
             return json(await r.json());
           }
         }
-        return json({ ...(await statoLive(env)), host: url.host, percorso: `/ocpp/${await tokenOcpp(env)}/CHARGER` });
+        return json({ ...(await statoLive(env)), host: url.host, percorso: `/ocpp/${await tokenOcpp(env)}/CHARGER`, parametri_def: PARAMETRI });
       }
       if (url.pathname === "/api/nomi") {
         if (me.ruolo !== "admin") return nega();
