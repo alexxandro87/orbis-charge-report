@@ -7,10 +7,31 @@
 // MeterValues) and keeps the live state: socket status, running transaction, last measures.
 //
 // The server never sends a card list or a charging profile to the charger: the charger keeps managing its own
-// cards. Only a card present and active in the "tessere" table (downloaded from the charger, still on its list
+// cards. The only settings it sends are the ones listed in PARAMETRI, and only when the administrator changes them. Only a card present and active in the "tessere" table (downloaded from the charger, still on its list
 // and in state accepted) is accepted when the charger asks the server to authorize it; others get "Invalid".
 
 const HEARTBEAT_S = 300;
+// OCPP settings the administrator may change from the page: [min, max, charger default] in seconds or counts,
+// "bool" = true/false. Only these keys can ever be sent; everything else (card lists, charging profiles,
+// current/power limits, server address) is left to the charger.
+export const PARAMETRI = {
+  HeartbeatInterval: [60, 3600, 300],
+  ConnectionTimeOut: [10, 300, 60],
+  WebSocketPingInterval: [5, 300, 10],
+  TransactionMessageRetryInterval: [5, 600, 30],
+  TransactionMessageAttempts: [1, 10, 3],
+  MeterValueSampleInterval: [10, 3600, 60],
+  ClockAlignedDataInterval: [0, 3600, 900],
+  LocalAuthorizeOffline: "bool",
+};
+export const predefinito = (k) => (PARAMETRI[k] === "bool" ? true : PARAMETRI[k][2]);   // the charger's own value
+export function valoreParametro(k, v) {            // normalised value, or undefined if not allowed
+  const d = Object.prototype.hasOwnProperty.call(PARAMETRI, k) ? PARAMETRI[k] : null;
+  if (!d) return undefined;
+  if (d === "bool") return v === true || v === "true" ? true : v === false || v === "false" ? false : undefined;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= d[0] && n <= d[1] ? n : undefined;
+}
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json" } });
 const OCCUPATA = /Charging|Suspended|Preparing|Finishing/;
 
@@ -44,6 +65,19 @@ export class Colonnina {
       if (req.method === "POST" && path === "/comando") {
         const b = await req.json();
         return json(await this.inviaComando(b.azione, b.payload));
+      }
+      if (req.method === "POST" && path === "/parametro") {     // administrator changed (or reset) an OCPP setting
+        const b = await req.json();
+        const voluti = this.voluti();
+        if (b.valore === null || b.valore === "") delete voluti[b.chiave];
+        else {
+          const v = valoreParametro(b.chiave, b.valore);
+          if (v === undefined) return json({ errore: "bad_param" }, 400);
+          voluti[b.chiave] = v;
+        }
+        this.put("par_voluti", voluti);
+        if (this.state.getWebSockets().length) this.state.waitUntil(this.applicaParametri());
+        return json({ ok: true });
       }
       return json(this.stato());
     }
@@ -84,10 +118,37 @@ export class Colonnina {
     const out = r === undefined ? [4, id, "NotImplemented", "", {}] : [3, id, r];
     this.log(">", JSON.stringify(out));
     ws.send(JSON.stringify(out));
-    if (azione === "BootNotification" || (azione === "Heartbeat" && this.get("hb") !== HEARTBEAT_S)) {
-      this.put("hb", HEARTBEAT_S);                          // ask the charger for a gentle heartbeat
-      this.state.waitUntil(this.inviaComando("ChangeConfiguration", { key: "HeartbeatInterval", value: String(HEARTBEAT_S) }));
-    }
+    if (azione === "BootNotification") this.state.waitUntil(this.applicaParametri(true));   // after a restart: send them all again
+    else if (this.daInviare().length) this.state.waitUntil(this.applicaParametri());       // changed meanwhile: send now
+  }
+
+  // OCPP settings: "voluti" = chosen by the administrator, "inviati" = last value accepted by the charger
+  voluti() { return this.get("par_voluti") || {}; }
+  hb() { return this.voluti().HeartbeatInterval ?? HEARTBEAT_S; }
+  daInviare(tutti = false) {
+    const voluti = { HeartbeatInterval: this.hb(), ...this.voluti() };
+    const inviati = tutti ? {} : (this.get("par_inviati") || {});
+    // a setting put back to the charger's value after being changed: send that value once more
+    for (const k of Object.keys(inviati)) if (!(k in voluti) && k in PARAMETRI) voluti[k] = predefinito(k);
+    return Object.entries(voluti).filter(([k, v]) => inviati[k] !== v);
+  }
+  // one ChangeConfiguration at a time, each waiting for the charger's answer
+  async applicaParametri(tutti = false) {
+    if (this.applicando) return;
+    this.applicando = true;
+    try {
+      if (tutti) this.put("par_inviati", {});
+      for (const [k, v] of this.daInviare()) {
+        const r = await this.inviaComando("ChangeConfiguration", { key: k, value: String(v) });
+        const esiti = this.get("par_esiti") || {};
+        if (r.errore && r.errore !== "charger_error") { esiti[k] = r.errore; this.put("par_esiti", esiti); break; }   // offline / no answer: retry later
+        esiti[k] = r.errore ? "Error" : (r.risposta && r.risposta.status) || "Accepted";
+        this.put("par_esiti", esiti);
+        const inviati = { ...(this.get("par_inviati") || {}), [k]: v };      // also when refused, so it is not retried in a loop
+        if (!(k in this.voluti()) && k !== "HeartbeatInterval") { delete inviati[k]; delete esiti[k]; this.put("par_esiti", esiti); }   // back to the charger's value
+        this.put("par_inviati", inviati);
+      }
+    } finally { this.applicando = false; }
   }
 
   // a command from the administrator: sent now, the answer is awaited for 15 seconds
@@ -122,7 +183,7 @@ export class Colonnina {
     switch (azione) {
       case "BootNotification":
         this.put("boot", { ...p, ts: adesso });
-        return { status: "Accepted", currentTime: adesso, interval: HEARTBEAT_S };
+        return { status: "Accepted", currentTime: adesso, interval: this.hb() };
       case "Heartbeat":
         return { currentTime: adesso };
       case "StatusNotification":
@@ -243,6 +304,7 @@ export class Colonnina {
       transazione_aperta: aperta,
       occupata: !!aperta || Object.values(prese).some((p) => OCCUPATA.test(p.status)),
       eventi: this.eventiBrevi(),
+      parametri: { voluti: { HeartbeatInterval: this.hb(), ...this.voluti() }, inviati: this.get("par_inviati") || {}, esiti: this.get("par_esiti") || {} },
     };
   }
 }
