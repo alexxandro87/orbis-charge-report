@@ -43,7 +43,7 @@ Nel codice non c'è nulla di una installazione specifica: indirizzo della colonn
 - **Ripartizione che torna**: gli importi sono divisi in centesimi col metodo del resto maggiore, così la somma delle singole ricariche coincide sempre con il totale della tessera.
 - **Ricariche avviate da app** (senza tessera) in una sezione a parte, visibile solo a chi ha il permesso.
 - **Prezzo mensile** (prezzo al kWh e IVA); una volta salvato, il mese è bloccato.
-- **Report mensile via mail** con il PDF di tutte le sessioni allegato (Resend), ai destinatari che scegli.
+- **Report mensile via mail** con il PDF di tutte le sessioni allegato (Resend), ai destinatari che scegli. Ogni utente della colonnina riceve anche una mail personale con i suoi importi.
 - **Utenti e permessi**: amministratore, gestori con permessi per funzione, utenti della colonnina legati a una o più tessere che vedono solo le proprie ricariche e le scaricano in PDF.
 - **Registrazione autonoma**: gli utenti si registrano da soli (password forte, telefoni, accettazione di regolamento e informativa con l'edizione registrata), confermano l'email e vengono attivati quando l'amministratore abbina la tessera. La scheda "Il mio profilo" permette di cambiare o revocare i consensi.
 - **Assistenza (ticket)**: tessera smarrita o danneggiata (bloccata subito sulla colonnina), richiesta di nuova tessera con costo e metodi di pagamento configurabili (PayPal.me, Satispay, Revolut, contanti), correzione dei dati, cancellazione di dati o utenza, problemi con la colonnina. L'amministratore approva o rifiuta; l'utente riceve l'esito per mail.
@@ -242,7 +242,7 @@ Impostando il secret `DATA_KEY` (32 byte casuali in base64) nome, cognome, telef
 
 ## Prezzi, IVA e blocco del mese
 
-Inserisci prezzo al kWh e IVA di ogni mese dalla bolletta, quando arriva. Appena il prezzo di un mese è salvato il mese è **bloccato** e non si può più modificare, amministratore compreso (la pagina chiede conferma prima). Se ci sono destinatari, al salvataggio parte la mail con la ripartizione per tessera e il PDF di tutte le sessioni; "Reinvia report" la rimanda. Gli utenti della colonnina vedono una nota sui mesi senza prezzo.
+Inserisci prezzo al kWh e IVA di ogni mese dalla bolletta, quando arriva. Appena il prezzo di un mese è salvato il mese è **bloccato** e non si può più modificare, amministratore compreso (la pagina chiede conferma prima). Se ci sono destinatari, al salvataggio parte la mail con la ripartizione per tessera e il PDF di tutte le sessioni; "Reinvia report" la rimanda. Nello stesso momento ogni utente della colonnina che ha ricaricato in quel mese riceve una mail personale (italiano e inglese) con i soli suoi importi: prezzo, IVA e, per ogni sua tessera, sessioni, kWh, imponibile, IVA e totale. È sempre attiva, senza impostazione per disattivarla; non parte per chi non ha sessioni nel mese o non ha ancora confermato l'email, "Reinvia report" non la rimanda e ne partono al massimo 40 per salvataggio (limite del piano gratuito; se qualcuna non parte o supera il limite l'amministratore riceve una notifica). Gli utenti della colonnina vedono una nota sui mesi senza prezzo.
 
 Correzione d'emergenza di un mese bloccato, da terminale:
 

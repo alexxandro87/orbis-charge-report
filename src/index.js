@@ -1211,6 +1211,44 @@ async function inviaReportPrezzo(env, anno, mese, origin) {
   return inviaMail(env, d.a, `Ripartizione ricariche ${r.titolo} - ${TITOLO}`, html, d.cc, allegati);
 }
 
+// when the price is entered, every user with cards and charging sessions in that month gets their own amounts (only theirs)
+const MAX_MAIL_UTENTI = 40;                                 // the free plan limits the requests per invocation
+async function inviaMailUtentiPrezzo(env, anno, mese, origin) {
+  if (!env.RESEND_API_KEY || !env.MAIL_FROM) return { inviate: 0, errori: 0 };
+  const r = await reportMese(env, anno, mese, false);
+  if (r.prezzo == null || !r.tessere.length) return { inviate: 0, errori: 0 };
+  const utenti = (await env.DB.prepare("SELECT nome, tessera, tessere_altre FROM utenti WHERE verifica_hash IS NULL").all()).results;
+  const E = (v) => num(v, 2) + " " + VALUTA;
+  let inviate = 0, errori = 0, saltate = 0;
+  for (const u of utenti) {
+    if (!EMAIL_OK.test(u.nome)) continue;
+    const tags = tessereDi(u), ts = r.tessere.filter((x) => tags.includes(x.tag));
+    if (!ts.length) continue;                               // no sessions this month: no email
+    if (inviate + errori >= MAX_MAIL_UTENTI) { saltate++; continue; }
+    const perTag = {};                                      // a card that changed holder name during the month appears more than once
+    for (const x of ts) {
+      const d = (perTag[x.tag] ||= { n: 0, kwh: 0, imp: 0, iva: 0, tot: 0 });
+      d.n += x.n; d.kwh += x.kwh; d.imp += x.imp || 0; d.iva += x.iva || 0; d.tot += x.tot || 0;
+    }
+    const righe = (it) => Object.entries(perTag).map(([tag, d]) => it
+      ? `Tessera ${tag}: ${d.n} ${d.n === 1 ? "ricarica" : "ricariche"}, ${num(d.kwh)} kWh - imponibile ${E(d.imp)}, IVA ${E(d.iva)}, totale ${E(d.tot)}`
+      : `Card ${tag}: ${d.n} ${d.n === 1 ? "session" : "sessions"}, ${num(d.kwh)} kWh - net ${E(d.imp)}, VAT ${E(d.iva)}, total ${E(d.tot)}`);
+    const tot = Object.values(perTag).reduce((s, d) => s + d.tot, 0);
+    const html = mailBil(`Le tue ricariche di ${r.titolo}`, [
+      `è stato inserito il prezzo dell'energia di ${r.titolo}: ${num(r.prezzo, 4)} ${VALUTA}/kWh, IVA ${num(r.iva_pct, 1)}%.`,
+      ...righe(true), `Totale: ${E(tot)}.`,
+      `Il dettaglio di ogni sessione è nell'area riservata, scheda "Le mie ricariche": ${origin}`],
+    `Your charging in ${r.titolo}`, [
+      `the energy price for ${r.titolo} has been entered: ${num(r.prezzo, 4)} ${VALUTA}/kWh, VAT ${num(r.iva_pct, 1)}%.`,
+      ...righe(false), `Total: ${E(tot)}.`,
+      `The detail of every session is in the reserved area, "My charging" tab: ${origin}`]);
+    const m = await inviaMail(env, u.nome, `Le tue ricariche ${r.titolo} / Your charging ${r.titolo} - ${TITOLO}`, html);
+    if (m === "inviata") inviate++; else errori++;
+  }
+  if (errori || saltate) await notifica(env, "Mail del prezzo agli utenti", `${r.titolo}: ${inviate} inviate, ${errori} non riuscite, ${saltate} non inviate per il limite di ${MAX_MAIL_UTENTI}.`);
+  return { inviate, errori };
+}
+
 function leggiPermessi(b) {
   return JSON.stringify(Object.fromEntries(PERMESSI.map((k) => [k, b && b[k] ? 1 : 0])));
 }
@@ -2748,7 +2786,9 @@ export default {
             if (!(p > 0 && p < 5) || !(i >= 0 && i <= 100)) return json({ errore: "prezzo o IVA non validi" }, 400);
             await env.DB.prepare("INSERT OR REPLACE INTO prezzi VALUES (?,?,?,?)").bind(anno, mese, p, i).run();
             const mail = await inviaReportPrezzo(env, anno, mese, url.origin);
-            return json({ ok: true, mail, destinatari: mail === "inviata" ? (await leggiDestinatari(env)).a.concat((await leggiDestinatari(env)).cc) : undefined });
+            let utenti = { inviate: 0, errori: 0 };
+            try { utenti = await inviaMailUtentiPrezzo(env, anno, mese, url.origin); } catch (_) { /* the price is saved anyway */ }
+            return json({ ok: true, mail, utenti, destinatari: mail === "inviata" ? (await leggiDestinatari(env)).a.concat((await leggiDestinatari(env)).cc) : undefined });
           }
           return json({ ok: true });
         }

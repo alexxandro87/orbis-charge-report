@@ -500,7 +500,7 @@ var EN={"una tantum":"one-off","costo":"cost",
 "Inserisci il prezzo del kWh di questo mese e premi Salva prezzo per calcolare gli importi.":"Enter this month's kWh price and press Save price to calculate the amounts.",
 "Inserisci il prezzo del kWh di questo mese e premi Salva prezzo per calcolare gli importi. Dopo il salvataggio non si potra' piu' modificare.":"Enter this month's kWh price and press Save price to calculate the amounts. Once saved it can no longer be changed.",
 "Prezzo bloccato: una volta inserito non si puo' piu' modificare.":"Price locked: once entered it can no longer be changed.",
-"Dopo il salvataggio il prezzo di questo mese non si potra' piu' modificare e il report verra' inviato per mail ai destinatari. Confermi?":"Once saved, this month's price can no longer be changed and the report will be emailed to the recipients. Confirm?",
+"Dopo il salvataggio il prezzo di questo mese non si potra' piu' modificare e il report verra' inviato per mail ai destinatari e ogni utente ricevera' i propri importi. Confermi?":"Once saved, this month's price can no longer be changed and the report will be emailed to the recipients and each user will receive their own amounts. Confirm?",
 "Destinatari report mensili":"Monthly report recipients",
 "Impostazioni":"Settings",
 "Scarica PDF":"Download PDF",
@@ -627,6 +627,10 @@ var EN={"una tantum":"one-off","costo":"cost",
 "Inviare di nuovo il report di questo mese ai destinatari?":"Send this month's report to the recipients again?",
 "Prezzo salvato. ":"Price saved. ",
 "Report inviato a ":"Report sent to ",
+"Mail agli utenti: ":"Emails to users: ",
+" inviate":" sent",
+" non riuscite":" failed",
+"Mail del prezzo agli utenti":"Price emails to users",
 "Report non inviato (":"Report not sent (",
 "nessun destinatario":"no recipients",
 "Prezzo gia' inserito: il mese e' bloccato e non si puo' piu' modificare":"Price already entered: the month is locked and can no longer be changed",
@@ -722,7 +726,8 @@ var EN={"una tantum":"one-off","costo":"cost",
 "non trovato":"Not found"
 };
 // messages built by the server with a variable part: prefix/pattern translated, the detail kept as is
-var EN_PAT=[[/^Prezzo bloccato: il mese e' chiuso dal (.+) e non si puo' piu' modificare$/,"Price locked: the month has been closed since $1 and can no longer be changed"],
+var EN_PAT=[[/^(.+): (\d+) inviate, (\d+) non riuscite, (\d+) non inviate per il limite di (\d+)\.$/,"$1: $2 sent, $3 failed, $4 not sent because of the limit of $5."],
+  [/^Prezzo bloccato: il mese e' chiuso dal (.+) e non si puo' piu' modificare$/,"Price locked: the month has been closed since $1 and can no longer be changed"],
   [/^non riconosco la tessera dal nome del file \((.*)\): scarica prima dalla colonnina$/,"cannot recognise the card from the file name ($1): download from the charger first"],
   [/^La colonnina risponde con errore: /,"The charger answered with an error: "],[/^Colonnina non raggiungibile: /,"Charger not reachable: "],[/^Scrittura sulla colonnina non riuscita: /,"Writing to the charger failed: "],
   [/^Cloudflare: /,"Cloudflare: "],[/^Mail non inviata: /,"Email not sent: "],[/^Numero non valido: /,"Invalid number: "],[/^nessuna risposta entro (\d+) s$/,"no answer within $1 s"],[/^HTTP (\d+)$/,"HTTP $1"],[/^scrittura: HTTP (\d+)$/,"write: HTTP $1"],
@@ -883,9 +888,9 @@ $("bPrezzo").onclick=function(){
   var p=$("prezzo").value.trim().replace(",","."), i=$("iva").value.trim().replace(",",".")||"0";
   if(p!==""&&(isNaN(+p)||+p<=0||+p>=5)){alert(T("Prezzo non valido: scrivi per esempio 0,2845"));return}
   if(isNaN(+i)||+i<0||+i>100){alert(T("IVA non valida: scrivi per esempio 10 oppure 0"));return}
-  if(p!==""&&!confirm(T("Dopo il salvataggio il prezzo di questo mese non si potra' piu' modificare e il report verra' inviato per mail ai destinatari. Confermi?")))return;
+  if(p!==""&&!confirm(T("Dopo il salvataggio il prezzo di questo mese non si potra' piu' modificare e il report verra' inviato per mail ai destinatari e ogni utente ricevera' i propri importi. Confermi?")))return;
   post("/api/prezzo",{anno:+$("selAnno").value,mese:+$("selMese").value,prezzo:p===""?null:+p,iva:+i}).then(function(r){
-    if(r.errore)alert(T(r.errore));else $("esito").textContent=esitoMail(r,"Prezzo salvato. ");caricaReport()});
+    if(r.errore)alert(T(r.errore));else $("esito").textContent=esitoMail(r,"Prezzo salvato. ")+(r.utenti&&(r.utenti.inviate||r.utenti.errori)?". "+T("Mail agli utenti: ")+r.utenti.inviate+T(" inviate")+(r.utenti.errori?", "+r.utenti.errori+T(" non riuscite"):""):"");caricaReport()});
 };
 
 $("bScarica").onclick=function(){

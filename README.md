@@ -43,7 +43,7 @@ Nothing about a specific installation is in the code: charger address, title, ti
 - **Cost splitting that adds up**: amounts are split in cents with the largest-remainder method, so the sum of the single sessions always equals the card total.
 - **Sessions started from the app** (no RFID card) are kept in a separate section that only authorised users see.
 - **Monthly price entry** (price per kWh and VAT); once saved, the month is locked.
-- **Monthly report by email** with a PDF of every session attached (via Resend), to the recipients you choose.
+- **Monthly report by email** with a PDF of every session attached (via Resend), to the recipients you choose. Each charger user also gets a personal email with their own amounts.
 - **Users and permissions**: administrator, managers with per-feature permissions, charger users bound to one or more cards who see only their own sessions and can download them as PDF.
 - **Self-registration**: users can register by themselves (strong password, phone numbers, acceptance of the rules and privacy notice with the edition recorded), confirm their email, and are activated when the administrator links their card. A "My profile" tab lets them change or withdraw consents.
 - **Support tickets**: lost or damaged card (the card is blocked on the charger at once), new card request with the fee and payment options you configure (PayPal.me, Satispay, Revolut, cash), data correction, deletion of data or account, charger problems. The administrator approves or rejects; the user gets the outcome by email.
@@ -242,7 +242,7 @@ Set the `DATA_KEY` secret (32 random bytes in base64) and first name, last name,
 
 ## Prices, VAT and the month lock
 
-Enter price per kWh and VAT for each month from the electricity bill, whenever the bill arrives. As soon as a month's price is saved the month is **locked** and cannot be changed again, administrator included (the page asks for confirmation first). If report recipients are set, saving the price emails the split per card with a PDF of every session; "Email report again" sends it once more. Charger users see a note on months without a price.
+Enter price per kWh and VAT for each month from the electricity bill, whenever the bill arrives. As soon as a month's price is saved the month is **locked** and cannot be changed again, administrator included (the page asks for confirmation first). If report recipients are set, saving the price emails the split per card with a PDF of every session; "Email report again" sends it once more. At the same moment every charger user who charged that month gets a personal email (Italian and English) with their own amounts only: price, VAT and, for each of their cards, sessions, kWh, net, VAT and total. It is always on, with no setting to turn it off; it is not sent to users with no sessions that month or who have not yet confirmed their email, "Email report again" does not resend it, and at most 40 are sent per save (free-plan limit; if some fail or exceed it the administrator gets a notification). Charger users see a note on months without a price.
 
 Emergency correction of a locked month, from a terminal:
 
