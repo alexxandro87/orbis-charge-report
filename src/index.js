@@ -896,11 +896,11 @@ async function inviaCodaMessaggi(env) {
 // /aiuto. Chats that are not linked only get an answer to /start: no outbound calls for random messages.
 const COMANDI_BOT = [
   ["smarrita", "Tessera smarrita: /smarrita <codice tessera>"], ["danneggiata", "Tessera danneggiata o non funzionante: /danneggiata <codice tessera>"],
-  ["problema", "Problema con la colonnina: /problema <descrizione>"], ["richieste", "Le mie richieste"], ["aiuto", "Elenco dei comandi"], ["stop", "Scollega questa chat"]];
+  ["problema", "Problema con la colonnina (poi scrivi il testo)"], ["richieste", "Le mie richieste"], ["aiuto", "Elenco dei comandi"], ["stop", "Scollega questa chat"]];
 const AIUTO_BOT = "Comandi / Commands:\n" +
   "/smarrita <tessera> - tessera smarrita, viene bloccata subito / lost card, blocked at once\n" +
   "/danneggiata <tessera> - tessera danneggiata o non funzionante / damaged or faulty card\n" +
-  "/problema <testo> - problema con la colonnina / charger problem\n" +
+  "/problema - problema con la colonnina: poi scrivi il testo / charger problem: then write the text\n" +
   "/richieste - le mie richieste / my requests\n" +
   "/stop - scollega questa chat / unlink this chat";
 async function telegramWebhook(req, env, url) {
@@ -928,6 +928,15 @@ async function telegramWebhook(req, env, url) {
   }
   const u = await utenteDaChat(env, chat);
   if (!u) return json({ ok: true });
+  const attese = await leggiMeta(env, "tg_attesa", {}), ora = Date.now();   // pending free text (after /problema): per chat, valid 10 minutes
+  for (const k of Object.keys(attese)) if (!(attese[k].fino > ora)) delete attese[k];   // expired
+  const attesa = attese[chat];
+  if (attesa && !cmd) {                                   // the awaited text becomes the request
+    delete attese[chat]; await salvaMeta(env, "tg_attesa", attese);
+    await rispondi(await ticketDalBot(env, u, url, { azione: "apri", tipo: attesa.tipo, testo: txt.slice(0, 1000) }));
+    return json({ ok: true });
+  }
+  if (attesa) { delete attese[chat]; await salvaMeta(env, "tg_attesa", attese); }   // a command cancels the wait
   if (c === "stop") {
     await salvaChatTelegram(env, u.nome, (await chatTelegram(env, u)).filter((x) => x !== chat));
     await rispondi("Chat scollegata: qui non arriveranno più messaggi. Per ricollegarla usa il profilo del sito.\nChat unlinked: no more messages here. Use your profile on the site to link it again.");
@@ -938,12 +947,15 @@ async function telegramWebhook(req, env, url) {
       `\nSpecify the card: ${mie.map((x) => "/" + c + " " + x).join(" or ")}` + (c === "smarrita" ? "\nThe card will be blocked on the charger at once." : ""));
     else await rispondi(await ticketDalBot(env, u, url, { azione: "apri", tipo: "tessera", tessera: tag, motivo: c }));
   } else if (c === "problema") {
-    if (!arg) await rispondi("Scrivi il problema dopo il comando: /problema <descrizione>\nWrite the problem after the command: /problema <description>");
-    else await rispondi(await ticketDalBot(env, u, url, { azione: "apri", tipo: "colonnina", testo: arg }));
+    if (!arg) {
+      attese[chat] = { tipo: "colonnina", fino: ora + 10 * 60000 }; await salvaMeta(env, "tg_attesa", attese);
+      await rispondi("Scrivi il problema in un messaggio e premi invio: lo inoltro all'amministratore. Hai 10 minuti; /annulla per annullare.\nWrite the problem in a message and press send: I will forward it to the administrator. You have 10 minutes; /annulla to cancel.");
+    } else await rispondi(await ticketDalBot(env, u, url, { azione: "apri", tipo: "colonnina", testo: arg }));
   } else if (c === "richieste") {
     const r = (await env.DB.prepare("SELECT id, tipo, stato, creato FROM ticket WHERE utente=? ORDER BY id DESC LIMIT 10").bind(u.nome).all()).results;
     await rispondi(r.length ? "Le tue richieste / Your requests:\n" + r.map((x) => `#${x.id} ${TIPI_TICKET[x.tipo] || x.tipo} - ${x.stato} (${String(x.creato).slice(0, 10)})`).join("\n") : "Nessuna richiesta.\nNo requests.");
-  } else await rispondi(AIUTO_BOT);
+  } else if (c === "annulla") await rispondi("Annullato.\nCancelled.");
+  else await rispondi(AIUTO_BOT);
   return json({ ok: true });
 }
 // opens a request as from the site, with the same ticket() function: card block, email/notification to the admin, limit of 5 open

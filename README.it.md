@@ -244,7 +244,7 @@ importi), una loro richiesta viene approvata/rifiutata/chiusa, la tessera viene 
 
 Comandi del bot (solo per le chat collegate; le altre non ricevono risposta): `/smarrita <tessera>` e `/danneggiata <tessera>`
 aprono la richiesta «Tessera smarrita o danneggiata» (la tessera viene bloccata subito sulla colonnina, come dal sito; senza
-codice il bot elenca le tessere dell'utente), `/problema <testo>` apre «Problema con la colonnina», `/richieste` elenca le
+codice il bot elenca le tessere dell'utente), `/problema` chiede di scrivere il problema e il messaggio successivo apre «Problema con la colonnina» (`/annulla` per annullare; vale anche `/problema <testo>`), `/richieste` elenca le
 ultime richieste con lo stato, `/aiuto` i comandi. Le richieste passano dalla stessa funzione del sito: limite di 5 aperte,
 mail/notifica all'amministratore, esito via mail e messaggio.
 

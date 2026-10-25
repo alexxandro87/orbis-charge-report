@@ -244,7 +244,7 @@ is approved/rejected/closed, their card is reactivated. Text in Italian and Engl
 
 Bot commands (linked chats only; other chats get no answer): `/smarrita <card>` and `/danneggiata <card>` open the "Lost or
 damaged card" request (the card is blocked on the charger at once, as from the site; without the code the bot lists the user's
-cards), `/problema <text>` opens "Charger problem", `/richieste` lists the latest requests with their state, `/aiuto` the
+cards), `/problema` asks for the problem and the next message opens "Charger problem" (`/annulla` cancels; `/problema <text>` also works), `/richieste` lists the latest requests with their state, `/aiuto` the
 commands. Requests go through the same function as the site: limit of 5 open, email/notification to the administrator,
 outcome by email and message.
 
