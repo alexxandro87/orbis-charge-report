@@ -108,15 +108,15 @@ Altri modelli Orbis o altre versioni del firmware potrebbero comportarsi diversa
 ## Installazione
 
 ```
-git clone https://github.com/alexxandro87/orbis-charge-report.git
-cd orbis-charge-report
+git clone https://github.com/alexxandro87/orbis-viaris-charge-report.git
+cd orbis-viaris-charge-report
 npm install
 npx wrangler login                          # apre il browser: accedi a Cloudflare
 cp wrangler.toml.example wrangler.toml
 npx wrangler d1 create ricariche            # copia il database_id stampato dentro wrangler.toml
 npx wrangler d1 execute ricariche --remote --file=schema.sql
 npx wrangler secret put SETUP_CODE          # consigliato, vedi sotto
-npx wrangler deploy                         # stampa https://orbis-charge-report.<tuo>.workers.dev
+npx wrangler deploy                         # stampa https://orbis-viaris-charge-report.<tuo>.workers.dev
 ```
 
 Su Windows PowerShell, se `npx` è bloccato, usa `npx.cmd`.
