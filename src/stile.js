@@ -23,4 +23,46 @@ export const STILE = [
   ".tabs button.on{background:var(--acc);border-color:var(--acc);color:var(--btx)}",
   // Log out button: red
   "#bEsci{background:var(--esci);border-color:var(--esci);color:#fff}",
+  // ---------- phone (up to 700 px): app-like look ----------
+  "#titoloM,nav .ico,nav .lbM,#navAltro,#altroM{display:none}",
+  "@media (max-width:700px){" + [
+    "html,body{overflow-x:clip}body{background:var(--bg)}",
+    // tables not turned into cards (e.g. Information): wrap instead of widening the page
+    "table:not(.tbm) th,table:not(.tbm) td{white-space:normal;overflow-wrap:anywhere}",
+    "header{padding:calc(14px + env(safe-area-inset-top)) 16px 12px;border-bottom:0;background:var(--bg)}",
+    "header h1{display:none}",
+    "#titoloM{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0}",
+    "header .top:first-child{flex-direction:column-reverse;align-items:stretch;gap:6px}",
+    ".utente{justify-content:flex-end;gap:4px 12px;font-size:14px}",
+    "#chi{display:none}",
+    "header button{min-height:36px;font-size:14px}",
+    "#bEsci{border-radius:10px;padding:0 14px}",
+    ".riga2{flex-direction:column;align-items:stretch;gap:10px;margin-top:10px}",
+    ".azioni{display:grid;grid-template-columns:1fr 1fr;gap:8px}",
+    ".azioni button{min-height:44px;border-radius:12px;white-space:normal}",
+    ".pwbox{flex-direction:column;align-items:stretch}",
+    "main{padding:4px 14px calc(96px + env(safe-area-inset-bottom))}",
+    ".card{border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 1px 2px rgba(20,24,31,.05)}",
+    "h2{font-size:17px;margin:0 0 10px}",
+    "button,select,input,textarea{min-height:44px;font-size:16px;border-radius:12px}",
+    "input[type=checkbox],input[type=radio]{min-height:0;width:20px;height:20px}",
+    "button.l{min-height:36px}",
+    // bottom tab bar
+    "nav{position:fixed;left:0;right:0;bottom:0;z-index:20;margin:0;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:0;background:var(--card);border-top:1px solid var(--line);border-bottom:0;padding:6px 4px calc(8px + env(safe-area-inset-bottom));font-size:15px!important}",
+    "nav button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;min-height:52px;padding:4px 2px;border:0!important;border-radius:10px;font-size:0!important;color:var(--mut);white-space:normal}",
+    "nav button.on{color:var(--acc);font-weight:600}",
+    "nav button.fuori{display:none}",
+    "nav .ico{display:block;order:-1;line-height:0}",
+    "nav .lbM{display:block;font-size:11px;line-height:1.15;text-align:center}",
+    "#navAltro{display:flex}",
+    "nav #navN,nav #navUN,nav #navTN{position:absolute;top:0;left:50%;margin-left:6px;font-size:10px;padding:1px 6px}",
+    // "More" panel
+    "#altroM.aperto{display:block;position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:21;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.25)}",
+    "#altroM button{display:flex;width:100%;align-items:center;gap:12px;min-height:50px;padding:0 14px;background:none;border:0;border-radius:12px;color:var(--tx);font-size:16px;text-align:left}",
+    "#altroM button.on{color:var(--acc);font-weight:600}",
+    // sign-in and registration
+    ".tabs{background:var(--line);border-radius:12px;padding:4px;gap:4px}",
+    ".tabs button{background:transparent;border:0;border-radius:9px;color:var(--mut);min-height:40px}",
+    ".tabs button.on{background:var(--card);color:var(--tx);border:0;font-weight:600;box-shadow:0 1px 2px rgba(20,24,31,.15)}",
+  ].join("") + "}",
 ].join("\n");
