@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Alessandro Pomponi. This program is free software under the GNU Affero General Public License v3 or later; see LICENSE.
 //
-// Orbis Charge Report - Cloudflare Worker (API + pages + scheduled download from the charger + OCPP server)
+// Orbis Viaris Charge Report - Cloudflare Worker (API + pages + scheduled download from the charger + OCPP server)
 // Everything about the installation (charger address, title, time zone, currency, email, legal texts, card fee)
 // is entered from the web page: nothing in the code is specific to one installation.
 import { HTML, LOGIN, INVITO, SETUP } from "./ui.js";
