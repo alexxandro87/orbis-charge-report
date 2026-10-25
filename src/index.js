@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Alessandro Pomponi. This program is free software under the GNU Affero General Public License v3 or later; see LICENSE.
 //
-// Orbis Charge Report - Cloudflare Worker (API + pagine + scarico automatico dalla colonnina + server OCPP)
-// Tutto cio' che riguarda l'impianto (indirizzo della colonnina, titolo, fuso orario, valuta, mail, testi legali, costo tessera)
-// si imposta dalla pagina web: nel codice non c'e' nulla di specifico di una installazione.
+// Orbis Charge Report - Cloudflare Worker (API + pages + scheduled download from the charger + OCPP server)
+// Everything about the installation (charger address, title, time zone, currency, email, legal texts, card fee)
+// is entered from the web page: nothing in the code is specific to one installation.
 import { HTML, LOGIN, INVITO, SETUP } from "./ui.js";
 import { STILE } from "./stile.js";
-// tutte le pagine ricevono lo stile globale (stile.js) in fondo a <head>
+// every page gets the global stylesheet (stile.js) at the end of <head>
 const conStile = (h) => h.replace("</head>", "<style>\n" + STILE + "\n</style>\n</head>");
 const P_HTML = conStile(HTML), P_LOGIN = conStile(LOGIN), P_INVITO = conStile(INVITO), P_SETUP = conStile(SETUP);
 const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const pagina = (h) => h.replaceAll("__TITLE__", () => escHtml(TITOLO));   // titolo del sito dalle Impostazioni
-// controllo anti-robot (Cloudflare Turnstile) nella registrazione, facoltativo: TURNSTILE_SITE_KEY in wrangler.toml e secret TURNSTILE_SECRET
+const pagina = (h) => h.replaceAll("__TITLE__", () => escHtml(TITOLO));   // site title from Settings
+// anti-bot check (Cloudflare Turnstile) on registration, optional: TURNSTILE_SITE_KEY in wrangler.toml and the TURNSTILE_SECRET secret
 const turnstileAttivo = (env) => !!(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET);
 const paginaLogin = (env) => turnstileAttivo(env)
   ? P_LOGIN.replace("__TURNSTILE__", `<div class="cf-turnstile" data-sitekey="${escHtml(env.TURNSTILE_SITE_KEY)}" data-theme="auto"></div><script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`)
@@ -25,7 +25,7 @@ async function verificaTurnstile(env, token, ip) {
     return !!(await r.json()).success;
   } catch (_) { return false; }
 }
-// limite di tentativi per indirizzo IP (oltre a quello per nome utente): max errori in 10 minuti; ritorna true se bloccato
+// attempt limit per IP address (besides the one per user name): max errors in 10 minutes; returns true when blocked
 async function ipBloccato(env, req, cosa, max) {
   const ip = req.headers.get("cf-connecting-ip") || "?", ora = Math.floor(Date.now() / 1000);
   await env.DB.prepare("DELETE FROM tentativi WHERE ts < ?").bind(ora - 600).run();
@@ -35,15 +35,15 @@ async function ipErrore(env, req, cosa) {
   await env.DB.prepare("INSERT INTO tentativi VALUES (?, ?)").bind(cosa + ":" + (req.headers.get("cf-connecting-ip") || "?"), Math.floor(Date.now() / 1000)).run();
 }
 
-let TITOLO = "EV Charger";            // titolo del sito (dalle Impostazioni, impostato da leggiConfig a ogni richiesta)
-let TZ = "Europe/Rome";                // fuso orario per mesi, report e date (dalle Impostazioni)
-let VALUTA = "€";                 // simbolo della valuta (dalle Impostazioni)
+let TITOLO = "EV Charger";            // site title (from Settings, set by leggiConfig on every request)
+let TZ = "Europe/Rome";                // time zone for months, reports and dates (from Settings)
+let VALUTA = "€";                 // currency symbol (from Settings)
 const MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio",
   "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
-// ------------------------------------------------------------ ora locale (qualsiasi fuso IANA)
+// ------------------------------------------------------------ local time (any IANA time zone)
 const tzFmt = new Map();
-function offsetTz(epoch) {             // scarto di TZ rispetto a UTC in quell'istante, in secondi
+function offsetTz(epoch) {             // offset of TZ from UTC at that instant, in seconds
   let f = tzFmt.get(TZ);
   if (!f) {
     f = new Intl.DateTimeFormat("en-US", { timeZone: TZ, hourCycle: "h23", year: "numeric", month: "numeric",
@@ -53,7 +53,7 @@ function offsetTz(epoch) {             // scarto di TZ rispetto a UTC in quell'i
   const p = Object.fromEntries(f.formatToParts(new Date(epoch * 1000)).map((x) => [x.type, x.value]));
   return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) / 1000 - Math.floor(epoch);
 }
-function epochDaLocale(y, mo, d, h = 0, mi = 0) {   // ora locale -> epoch in secondi
+function epochDaLocale(y, mo, d, h = 0, mi = 0) {   // local wall-clock time -> epoch seconds
   const ts = Date.UTC(y, mo - 1, d, h, mi) / 1000;
   let e = ts - offsetTz(ts);
   e = ts - offsetTz(e);
@@ -70,17 +70,17 @@ function fmtLocale(epoch) {
   return `${p2(d.getUTCDate())}/${p2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`;
 }
 
-// -------------------------------------------------------------- blocco dei prezzi
-// Il prezzo di un mese si puo' inserire quando si vuole (anche in ritardo, con la bolletta);
-// appena e' stato salvato il mese e' bloccato e non si puo' piu' modificare.
+// -------------------------------------------------------------- price lock
+// A month's price can be entered whenever you want (even late, when the bill arrives);
+// as soon as it is saved the month is locked and can no longer be changed.
 
-// -------------------------------------------------------------- importi
+// -------------------------------------------------------------- amounts
 const r2 = (x) => Math.round(x * 100 + 1e-7) / 100;
 const euro = (kwh, prezzo) => (prezzo == null ? null : r2(kwh * prezzo));
 const iva = (imp, pct) => (imp == null ? null : r2((imp * pct) / 100));
 
-// Ripartisce un totale in centesimi tra delle voci, in proporzione ai pesi (metodo del resto maggiore):
-// la somma delle singole ricariche coincide sempre con il totale della tessera.
+// Splits a total in cents among items, in proportion to the weights (largest-remainder method):
+// the sum of the single sessions always equals the card total.
 function ripartisci(totCent, pesi) {
   if (!pesi.length) return [];
   const S = pesi.reduce((a, b) => a + b, 0);
@@ -96,8 +96,8 @@ function ripartisci(totCent, pesi) {
   for (let k = 0; k < resto; k++) out[ord[k % ord.length][1]]++;
   return out;
 }
-// Imponibile, IVA e totale di ogni singola ricarica di un gruppo (stessa tessera e stesso mese).
-// perSessione=true per le ricariche da app, che si arrotondano una per una.
+// Net amount, VAT and total of every single session of a group (same card and same month).
+// perSessione=true for app sessions, which are rounded one by one.
 function costiGruppo(whList, prezzo, pct, perSessione) {
   if (prezzo == null) return whList.map(() => ({ imp: null, iva: null, tot: null }));
   const impC = perSessione
@@ -112,11 +112,11 @@ const annoMeseLocale = (epoch) => {
   return d.getUTCFullYear() * 100 + d.getUTCMonth() + 1;
 };
 
-// -------------------------------------------------------------- cronologia dei nomi delle tessere
-// Una tessera restituita puo' essere riassegnata: ogni sessione va attribuita a chi aveva la tessera in quel momento.
-// Ogni riga = un periodo (tag, nome, dal, al); al vuoto = tessera ancora assegnata. Le date si possono correggere dalla scheda Impostazioni.
+// -------------------------------------------------------------- card holder history
+// A returned card can be reassigned: every session belongs to whoever held the card at that time.
+// Each row = one period (tag, nome, dal, al); empty al = card still assigned. Dates can be corrected from the Settings tab.
 let nomiTabellaOk = false;
-const dataLocale = (s) => {                               // accetta gg-mm-aaaa (anche con / o senza separatori) e aaaa-mm-gg
+const dataLocale = (s) => {                               // accepts dd-mm-yyyy (also with / or no separators) and yyyy-mm-dd
   const t = String(s || "").trim();
   let m = /^(\d{1,2})[\/.-]?(\d{1,2})[\/.-]?(\d{4})$/.exec(t);
   if (m) return epochDaLocale(+m[3], +m[2], +m[1]);
@@ -131,19 +131,19 @@ async function syncNomi(env) {
     if (!col.includes("man")) await env.DB.prepare("ALTER TABLE tessere_nomi ADD COLUMN man INTEGER DEFAULT 0").run();
     const colT = (await env.DB.prepare("PRAGMA table_info(tessere)").all()).results.map((c) => c.name);
     if (colT.length && !colT.includes("attiva")) await env.DB.prepare("ALTER TABLE tessere ADD COLUMN attiva INTEGER NOT NULL DEFAULT 1").run();
-    // periodi iniziali (dal 0): partono dal giorno prima della prima sessione della tessera
+    // initial periods (dal 0): start the day before the card's first session
     await env.DB.prepare("UPDATE tessere_nomi SET dal = (SELECT MIN(inizio_utc) - 86400 FROM sessioni WHERE sessioni.tag = tessere_nomi.tag) " +
       "WHERE dal = 0 AND EXISTS (SELECT 1 FROM sessioni WHERE sessioni.tag = tessere_nomi.tag)").run();
-    // periodi senza sessioni e ancora a 1970: partono da adesso
+    // periods with no sessions still at 1970: start now
     await env.DB.prepare("UPDATE tessere_nomi SET dal = ? WHERE dal = 0").bind(Math.floor(Date.now() / 1000)).run();
     nomiTabellaOk = true;
   }
   const cor = (await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results;
   const rs = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='rfid_stato'").first();
-  let presenti = null;                                       // tessere ora sulla colonnina (le eliminate restano in 'tessere' per lo storico)
+  let presenti = null;                                       // cards now on the charger (removed ones stay in 'tessere' for the history)
   if (rs) { try { presenti = new Set(JSON.parse(rs.valore).map((x) => x.id)); } catch (_) { presenti = null; } }
   const pm = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='nomi_presenti'").first();
-  let prev = null;                                           // tessere presenti all'ultimo controllo: serve a riconoscere un rientro
+  let prev = null;                                           // cards present at the last check: needed to recognise a card coming back
   if (pm) { try { prev = new Set(JSON.parse(pm.valore)); } catch (_) { prev = null; } }
   const ult = new Map((await env.DB.prepare(
     "SELECT tag, nome, dal, al FROM tessere_nomi n WHERE dal = (SELECT MAX(dal) FROM tessere_nomi WHERE tag = n.tag)").all()).results.map((r) => [r.tag, r]));
@@ -152,13 +152,13 @@ async function syncNomi(env) {
   for (const c of cor) {
     if (!c.nome || (presenti && !presenti.has(c.tag))) continue;
     const u = ult.get(c.tag);
-    if (!u) {                                                // prima volta che la vedo: vale dal giorno prima del primo utilizzo
+    if (!u) {                                                // first time seen: valid from the day before its first use
       const p = prima.get(c.tag);
       st.push(env.DB.prepare("INSERT OR REPLACE INTO tessere_nomi (tag, nome, dal) VALUES (?,?,?)").bind(c.tag, c.nome, p && p < ora ? p - 86400 : ora));
-    } else if (u.al != null) {                               // dismessa e ora di nuovo sulla colonnina (prima non c'era): nuova assegnazione
+    } else if (u.al != null) {                               // deactivated and now on the charger again (it was not there before): new assignment
       if (prev && !prev.has(c.tag)) st.push(env.DB.prepare("INSERT OR REPLACE INTO tessere_nomi (tag, nome, dal) VALUES (?,?,?)").bind(c.tag, c.nome, ora));
     } else if (u.nome !== c.nome) {
-      if (norm(c.nome).startsWith(norm(u.nome)))            // stesso nome completato: non e' una nuova assegnazione
+      if (norm(c.nome).startsWith(norm(u.nome)))            // same name completed: not a new assignment
         st.push(env.DB.prepare("UPDATE tessere_nomi SET nome=? WHERE tag=? AND dal=?").bind(c.nome, c.tag, u.dal));
       else if (!norm(u.nome).startsWith(norm(c.nome)))
         st.push(env.DB.prepare("INSERT OR REPLACE INTO tessere_nomi (tag, nome, dal) VALUES (?,?,?)").bind(c.tag, c.nome, ora));
@@ -167,7 +167,7 @@ async function syncNomi(env) {
   if (presenti) st.push(env.DB.prepare("INSERT OR REPLACE INTO meta VALUES ('nomi_presenti', ?)").bind(JSON.stringify([...presenti])));
   if (st.length) await env.DB.batch(st);
 }
-// tag -> [{dal, al, nome}] in ordine di data
+// tag -> [{dal, al, nome}] in date order
 async function nomiStorici(env) {
   await syncNomi(env);
   const m = new Map();
@@ -182,10 +182,10 @@ function nomeAl(storia, tag, t) {
   if (!a) return undefined;
   let r = a[0];
   for (const x of a) if (x.dal <= t) r = x;
-  return r.al != null && t >= r.al ? undefined : r.nome;     // dopo la dismissione la tessera non e' di nessuno
+  return r.al != null && t >= r.al ? undefined : r.nome;     // after deactivation the card belongs to nobody
 }
 
-// -------------------------------------------------------------- accesso ai dati
+// -------------------------------------------------------------- data access
 async function reportMese(env, anno, mese, riservato = false) {
   const [ini, fin] = intervalloMese(anno, mese);
   const storia = await nomiStorici(env);
@@ -264,21 +264,21 @@ async function statoArchivio(env) {
     ultimo_scarico: u ? u.valore : null, ultimo_errore: e ? e.valore : null };
 }
 
-// -------------------------------------------------------------- impostazioni dell'installazione (Impostazioni / primo avvio)
-// Salvate in meta 'config'. Le variabili di wrangler.toml (CHARGER_URL, SITE_TITLE, TIMEZONE, CURRENCY, MAIL_FROM, RESEND_API_KEY)
-// fanno da valore iniziale; quello salvato dalla pagina vince.
+// -------------------------------------------------------------- installation settings (Settings tab / first run)
+// Saved in meta 'config'. The wrangler.toml variables (CHARGER_URL, SITE_TITLE, TIMEZONE, CURRENCY, MAIL_FROM, RESEND_API_KEY)
+// are the initial values; what is saved from the page wins.
 const CFG_DEFAULTS = {
   title: "EV Charger", url: "", user: "", password: "", header_name: "", header_value: "",
   history_path: "/modules/modulator/historic?from=0&to=-1", tags_path: "/modules/tags?level=file", status_path: "/modules/evsm/elements",
   timeout: 20, auto: true,
-  // risposta dello storico: oggetto JSON con un campo di testo che contiene le righe CSV (Orbis); campo vuoto = la risposta e' gia' CSV
+  // history response: JSON object whose text field holds the CSV lines (Orbis); empty field = the response itself is CSV
   hist_json_field: "body", hist_sep: ",", hist_skip: 0,
   c_start: 0, c_tag: 7, c_type: 8, c_cont_ini: 9, c_end: 10, c_cont_fin: 13,
   tz: "Europe/Rome", currency: "€", tax_label: "",
-  resend_key: "", mail_from: "",          // mail con Resend (facoltativo)
-  card_fee: 0,                             // costo della tessera mostrato a chi la richiede (0 = non mostrato)
-  contact: "",                             // contatto di chi gestisce il sito (scheda Informazioni e piè di pagina)
-  charger_id: "CHARGER",                   // identificativo della colonnina nell'indirizzo OCPP
+  resend_key: "", mail_from: "",          // email via Resend (optional)
+  card_fee: 0,                             // card fee shown to whoever requests a card (0 = not shown)
+  contact: "",                             // contact of whoever runs the site (Information tab and footer)
+  charger_id: "CHARGER",                   // charger identifier in the OCPP address
 };
 const CFG_NUM = ["timeout", "hist_skip", "c_start", "c_tag", "c_type", "c_cont_ini", "c_end", "c_cont_fin"];
 const CFG_STR = ["title", "url", "user", "password", "header_name", "header_value", "history_path", "tags_path", "status_path",
@@ -290,20 +290,20 @@ async function leggiConfig(env) {
     tz: env.TIMEZONE, currency: env.CURRENCY, resend_key: env.RESEND_API_KEY, mail_from: env.MAIL_FROM };
   for (const [k, v] of Object.entries(E)) if (v) c[k] = v;
   const r = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='config'").first();
-  if (r) { try { Object.assign(c, JSON.parse(r.valore)); } catch (_) { /* valore danneggiato: ignorato */ } }
+  if (r) { try { Object.assign(c, JSON.parse(r.valore)); } catch (_) { /* damaged value: ignored */ } }
   TITOLO = c.title || CFG_DEFAULTS.title;
   VALUTA = c.currency || CFG_DEFAULTS.currency;
   try { new Intl.DateTimeFormat("en-US", { timeZone: c.tz }); TZ = c.tz; } catch (_) { TZ = CFG_DEFAULTS.tz; }
   return c;
 }
-// cio' che il browser puo' vedere: mai la password della colonnina e la chiave Resend
+// what the browser may see: never the charger password or the Resend key
 const configPubblica = (c) => { const { password, resend_key, ...x } = c; return { ...x, password_set: !!password, resend_set: !!resend_key }; };
 
-function pulisciConfig(inp, base) {                      // controlla quello che manda l'admin e lo fonde su `base`
+function pulisciConfig(inp, base) {                      // validates what the admin sends and merges it over `base`
   const out = { ...base };
   for (const k of CFG_STR) {
     if (inp[k] === undefined) continue;
-    if ((k === "password" || k === "resend_key") && inp[k] === null) continue;   // null = tieni il segreto salvato
+    if ((k === "password" || k === "resend_key") && inp[k] === null) continue;   // null = keep the saved secret
     out[k] = String(inp[k]).trim().slice(0, 500);
   }
   for (const k of CFG_NUM) {
@@ -327,9 +327,9 @@ function pulisciConfig(inp, base) {                      // controlla quello che
   if (!out.currency) out.currency = CFG_DEFAULTS.currency;
   return out;
 }
-const costoTessera = (c) => (c.card_fee > 0 ? `${String(c.card_fee).replace(".", ",")} ${c.currency}` : "");   // "" = nessun costo da mostrare
+const costoTessera = (c) => (c.card_fee > 0 ? `${String(c.card_fee).replace(".", ",")} ${c.currency}` : "");   // "" = no fee to show
 
-// -------------------------------------------------------------- scarico dalla colonnina
+// -------------------------------------------------------------- download from the charger
 function parseStorico(testo, c) {
   let body = testo;
   if (c.hist_json_field) {
@@ -350,7 +350,7 @@ function parseStorico(testo, c) {
 }
 function parseTessere(testo) {
   const out = [];
-  for (const riga of testo.split(/\r?\n/).slice(1)) {   // prima riga = versione della lista
+  for (const riga of testo.split(/\r?\n/).slice(1)) {   // first line = list version
     const p = riga.split(";");
     if (p.length >= 3 && p[0].trim()) out.push([p[0].trim().toUpperCase(), p[2].trim()]);
   }
@@ -368,7 +368,7 @@ async function inserisciSessioni(env, sess) {
 }
 
 async function rimuoviDoppioni(env) {
-  // le ricariche da app importate da Viaris vanno marcate 'viaris' come le altre (correzione di una versione precedente)
+  // app sessions imported from Viaris must be marked 'viaris' like the others (fix for an earlier version)
   await env.DB.prepare("UPDATE sessioni SET tag_tipo='viaris' WHERE cont_ini_wh=-1 AND tag_tipo='app'").run();
   const r = await env.DB.prepare(
     "DELETE FROM sessioni WHERE tag_tipo='viaris' AND EXISTS (" +
@@ -377,7 +377,7 @@ async function rimuoviDoppioni(env) {
   return r.meta.changes || 0;
 }
 
-// attiva = 1 solo per le tessere ancora sulla colonnina e in stato accettata (le altre restano nel db per lo storico)
+// attiva = 1 only for cards still on the charger and in state accepted (the others stay in the db for the history)
 const stmtTessereAttive = (env, tags) =>
   env.DB.prepare("UPDATE tessere SET attiva = CASE WHEN tag IN (SELECT value FROM json_each(?)) THEN 1 ELSE 0 END").bind(JSON.stringify(tags));
 
@@ -387,7 +387,7 @@ async function salvaScarico(env, c, testoStorico, testoTessere) {
   const avvisi = [];
   if (testoTessere) {
     const st = env.DB.prepare("INSERT INTO tessere (tag, nome) VALUES (?,?) ON CONFLICT(tag) DO UPDATE SET nome = CASE WHEN excluded.nome <> '' THEN excluded.nome ELSE tessere.nome END");
-    // la colonnina tronca i nomi lunghi: se il nome nel db e' la versione completa dello stesso, lo tengo
+    // the charger truncates long names: if the db name is the full version of the same name, keep it
     const vecchi = new Map((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((r) => [r.tag, r.nome]));
     const t = parseTessere(testoTessere).filter(([tag, nome]) => !vecchi.has(tag) || !norm(vecchi.get(tag)).startsWith(norm(nome)));
     const attive = rfidLeggi(testoTessere).filter((x) => x.id && x.stato === "0").map((x) => x.id);
@@ -400,7 +400,7 @@ async function salvaScarico(env, c, testoStorico, testoTessere) {
   return { lette: sess.length, nuove, avvisi };
 }
 
-// richieste alla colonnina: autenticazione e intestazione facoltative dalle Impostazioni, tempo massimo configurabile
+// requests to the charger: optional authentication and header from Settings, configurable timeout
 function intestazioni(c) {
   const h = { accept: "*/*" };
   if (c.user) h.authorization = "Basic " + btoa(unescape(encodeURIComponent(c.user + ":" + c.password)));
@@ -422,18 +422,18 @@ async function conTimeout(url, c, ms) {
     clearTimeout(t);
   }
 }
-// percorsi dell'elenco tessere: lettura e salvataggio (null = per questa colonnina la gestione tessere non e' disponibile)
+// card list paths: read and save (null = card management is not available for this charger)
 function rfidPercorsi(c) {
   if (!c.url || !/level=file/.test(c.tags_path || "")) return null;
   return { file: urlCompleto(c, c.tags_path), salva: urlCompleto(c, c.tags_path.replace("level=file", "level=save")) };
 }
-async function colonninaConfig(env) {               // configurazione con l'indirizzo della colonnina, o errore chiaro
+async function colonninaConfig(env) {               // configuration with the charger address, or a clear error
   const c = await leggiConfig(env);
   if (!c.url) throw new Error("Indirizzo della colonnina non impostato (scheda Impostazioni)");
   return c;
 }
 
-// IP pubblico a cui risponde il nome della colonnina (DDNS), letto via DNS-over-HTTPS
+// public IP the charger's name (DDNS) resolves to, read over DNS-over-HTTPS
 async function ipDi(host) {
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return host;
   const r = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=A`,
@@ -449,14 +449,14 @@ async function scarica(env) {
     let tessere = null;
     const per = rfidPercorsi(c);
     if (per) {
-      try { tessere = await conTimeout(per.file, c); } catch (_) { /* accessorio */ }
-      if (tessere) { try { await rfidCache(env, rfidLeggi(tessere)); } catch (_) { /* accessorio */ } }
+      try { tessere = await conTimeout(per.file, c); } catch (_) { /* optional */ }
+      if (tessere) { try { await rfidCache(env, rfidLeggi(tessere)); } catch (_) { /* optional */ } }
     }
     const esito = await salvaScarico(env, c, storico, tessere);
-    try {                                                   // accessorio: se il DNS non risponde lo scarico resta valido
+    try {                                                   // optional: if DNS does not answer the download is still valid
       const ip = await ipDi(new URL(c.url).hostname);
       if (ip) await env.DB.prepare("INSERT OR REPLACE INTO meta VALUES ('ultimo_ip', ?)").bind(JSON.stringify({ ip, quando: new Date().toISOString() })).run();
-    } catch (_) { /* ignora */ }
+    } catch (_) { /* ignore */ }
     return esito;
   } catch (e) {
     const msg = `${new Date().toISOString()} ${e.message || e}`;
@@ -465,7 +465,7 @@ async function scarica(env) {
   }
 }
 
-// prova di collegamento dalle Impostazioni: non salva nulla
+// connection test from Settings: nothing is saved
 async function provaColonnina(c) {
   const out = {};
   async function una(nome, path, parse) {
@@ -484,8 +484,8 @@ async function provaColonnina(c) {
   return out;
 }
 
-// -------------------------------------------------------------- tessere RFID sulla colonnina
-// file della colonnina: 1a riga = versione, poi "ID;scadenza;nome;stato" (stato 0 = attiva)
+// -------------------------------------------------------------- RFID cards on the charger
+// charger file: 1st line = version, then "ID;expiry;name;state" (state 0 = active)
 function rfidLeggi(testo) {
   const out = [];
   for (const riga of testo.split(/\r?\n/).slice(1)) {
@@ -494,17 +494,17 @@ function rfidLeggi(testo) {
   }
   return out;
 }
-const rfidTesto = (L) => "1\r\n" + L.map((t) => `${t.id};${t.scad};${t.nome};${t.stato}\r\n`).join("");   // come il pannello Orbis
+const rfidTesto = (L) => "1\r\n" + L.map((t) => `${t.id};${t.scad};${t.nome};${t.stato}\r\n`).join("");   // like the Orbis panel
 const rfidId = (x) => String(x || "").trim().toUpperCase();
 const rfidNome = (x) => String(x || "").replace(/[;\r\n\t]/g, " ").replace(/\s+/g, " ").trim();
-const RFID_NOME_MAX = 25;                       // oltre, il pannello Orbis tronca il nome (e puo' perdere il codice)
-const RFID_SCAD_OK = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d)?$/;   // es. 2026-10-31T08:24:00+01:00, vuota = nessuna
+const RFID_NOME_MAX = 25;                       // beyond that the Orbis panel truncates the name (and may lose the code)
+const RFID_SCAD_OK = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d)?$/;   // e.g. 2026-10-31T08:24:00+01:00, empty = none
 const RFID_ID_OK = /^[0-9A-F]{4,20}$/;
-// stati come in OCPP: 0 Accepted, 1 Blocked, 2 Expired, 3 Invalid (i nomi sono quelli del CSV di Viaris)
+// states as in OCPP: 0 Accepted, 1 Blocked, 2 Expired, 3 Invalid (the names are those of the Viaris CSV)
 const RFID_STATI = ["accepted", "blocked", "expired", "invalid"];
 const rfidStato = (x) => { const v = String(x ?? "").trim(); if (/^[0-3]$/.test(v)) return v; const i = RFID_STATI.indexOf(v.toLowerCase()); return i >= 0 ? String(i) : null; };
 
-// import: file della colonnina (ID;scad;nome;stato) oppure CSV esportato da Viaris (Card,Expiry date,Group,Status)
+// import: charger file (ID;expiry;name;state) or CSV exported by Viaris (Card,Expiry date,Group,Status)
 function rfidDaFile(testo) {
   const righe = testo.replace(/^﻿/, "").split(/\r?\n/).filter((r) => r.trim());
   if (!righe.length) return [];
@@ -515,14 +515,14 @@ function rfidDaFile(testo) {
   return rfidLeggi(/;/.test(righe[0]) ? "x\n" + righe.join("\n") : righe.join("\n"));
 }
 
-// stato delle tessere come lo vede il server OCPP: salvato nel db (meta 'rfid_stato'), aggiornato a ogni lettura del file della colonnina.
-// Se cambia qualcosa (tessera bloccata, scaduta, aggiunta...) la lista offline sulla colonnina viene rinviata.
+// card states as the OCPP server sees them: saved in the db (meta 'rfid_stato'), updated at every read of the charger file.
+// If something changes (card blocked, expired, added...) the offline list on the charger is sent again.
 async function rfidCache(env, lista) {
   const nuovo = JSON.stringify(lista.filter((x) => x.id).map((x) => ({ id: x.id, scad: x.scad || "", stato: x.stato })).sort((a, b) => (a.id < b.id ? -1 : 1)));
   const v = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='rfid_stato'").first();
   if (v && v.valore === nuovo) return;
   await env.DB.prepare("INSERT OR REPLACE INTO meta VALUES ('rfid_stato', ?)").bind(nuovo).run();
-  try { await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/sync-differita", { method: "POST" }); } catch (_) { /* non collegata: si allinea al prossimo avvio */ }
+  try { await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/sync-differita", { method: "POST" }); } catch (_) { /* not connected: it is aligned at its next start */ }
 }
 
 async function rfidDallaColonnina(env) {
@@ -531,30 +531,30 @@ async function rfidDallaColonnina(env) {
   return rfidLeggi(await conTimeout(per.file, c, 15000));
 }
 
-// "Conferma collegamento" (Heartbeat OCPP): predefinita 5 minuti, modificabile da Impostazioni (salvata nel Durable Object)
+// "Connection check" (OCPP Heartbeat): default 5 minutes, changeable from Settings (stored in the Durable Object)
 const HEARTBEAT_S = 300;
-// Altri parametri OCPP modificabili da Impostazioni (chiave: [min, max, predefinito della colonnina]); LocalAuthorizeOffline e' un interruttore true/false
+// Other OCPP settings changeable from Settings (key: [min, max, charger default]); LocalAuthorizeOffline is a true/false switch
 const PARAMETRI = {
   ConnectionTimeOut: [10, 300, 60], WebSocketPingInterval: [5, 300, 10], TransactionMessageRetryInterval: [5, 600, 30],
   TransactionMessageAttempts: [1, 10, 3], MeterValueSampleInterval: [10, 3600, 60], ClockAlignedDataInterval: [0, 3600, 900],
 };
 
-// La colonnina, quando riceve la lista offline via OCPP (SendLocalList), riscrive il proprio elenco tessere SENZA nomi.
-// I nomi li rimetto dal database del sito (max 25 caratteri, come accetta il pannello).
+// When the charger receives the offline list over OCPP (SendLocalList) it rewrites its own card list WITHOUT names.
+// The names are put back from the site's database (max 25 characters, as the panel accepts).
 async function nomiDb(env) {
   return new Map((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((r) => [r.tag, r.nome]));
 }
 function riempiNomi(lista, nomi) {
   return lista.map((x) => (x.id && !x.nome && nomi.get(x.id) ? { ...x, nome: rfidNome(nomi.get(x.id)).slice(0, RFID_NOME_MAX) } : x));
 }
-// ritorna: numero di nomi rimessi, 0 se non serviva, -1 se rimandato perche' la colonnina e' occupata
+// returns: number of names put back, 0 if none was needed, -1 if postponed because the charger is busy
 async function ripristinaNomi(env) {
   const c = await colonninaConfig(env);
   if (!rfidPercorsi(c)) return 0;
   if (c.status_path) {
     try {
       const ev = JSON.parse(await conTimeout(urlCompleto(c, c.status_path), c, 15000));
-      if (ev[0] && ev[0].stat && ev[0].stat.state !== 1) return -1;          // scrivo solo a colonnina libera
+      if (ev[0] && ev[0].stat && ev[0].stat.state !== 1) return -1;          // write only when the charger is free
     } catch (_) { return -1; }
   }
   const prima = await rfidDallaColonnina(env);
@@ -566,7 +566,7 @@ async function ripristinaNomi(env) {
 }
 
 async function rfidScrivi(env, prima, dopo, copia = true) {
-  // copia di sicurezza della lista com'era (non se sto solo rimettendo i nomi), poi scrittura e salvataggio come fa il pannello
+  // safety copy of the list as it was (not when only putting names back), then write and save as the panel does
   if (copia) await env.DB.prepare("INSERT OR REPLACE INTO meta VALUES ('rfid_backup', ?)").bind(JSON.stringify({ quando: new Date().toISOString(), lista: prima })).run();
   const c = await colonninaConfig(env), per = rfidPercorsi(c);
   if (!per) throw new Error("Per gestire le tessere serve un percorso elenco tessere che contenga level=file (scheda Impostazioni)");
@@ -576,18 +576,18 @@ async function rfidScrivi(env, prima, dopo, copia = true) {
     if (!r.ok) throw new Error("scrittura: HTTP " + r.status);
   } finally { clearTimeout(t); }
   await conTimeout(per.salva, c, 20000);
-  const letta = await rfidDallaColonnina(env);                 // verifica: rileggo e confronto
+  const letta = await rfidDallaColonnina(env);                 // check: read again and compare
   await rfidCache(env, letta);
   const ok = letta.length === dopo.length && dopo.every((x) => letta.some((y) => y.id === x.id && y.nome === x.nome && y.scad === x.scad));
-  // nel db del sito tengo il nome completo: lo aggiorno solo per le tessere nuove o rinominate davvero
+  // the site's db keeps the full name: update it only for cards that are new or really renamed
   const st = env.DB.prepare("INSERT INTO tessere (tag, nome) VALUES (?,?) ON CONFLICT(tag) DO UPDATE SET nome=excluded.nome");
   const vecchi = new Map((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((r) => [r.tag, r.nome]));
   const da = dopo.filter((x) => x.id && (!vecchi.has(x.id) || !norm(vecchi.get(x.id)).startsWith(norm(x.nome))));
-  if (da.length) { await env.DB.batch(da.map((x) => st.bind(x.id, x.nome))); await syncNomi(env); }   // le eliminate restano nel db per lo storico
+  if (da.length) { await env.DB.batch(da.map((x) => st.bind(x.id, x.nome))); await syncNomi(env); }   // removed cards stay in the db for the history
   return { ok, lista: letta };
 }
 
-// -------------------------------------------------------------- importazione export Viaris
+// -------------------------------------------------------------- Viaris export import
 const norm = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
 async function importaCsv(env, nomeFile, testo) {
@@ -611,7 +611,7 @@ async function importaCsv(env, nomeFile, testo) {
     const m1 = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(c[cIni] || "");
     const m2 = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(c[cFin] || "");
     if (!m1 || !m2) continue;
-    // le date degli export Viaris sono in ora italiana (la 'Z' e' solo un'etichetta)
+    // dates in the Viaris exports are local time (the 'Z' is just a label)
     const ini = epochDaLocale(+m1[1], +m1[2], +m1[3], +m1[4], +m1[5]);
     const fin = epochDaLocale(+m2[1], +m2[2], +m2[3], +m2[4], +m2[5]);
     const k = c[cKwh];
@@ -627,21 +627,21 @@ async function importaCsv(env, nomeFile, testo) {
 const json = (o, status = 200) => new Response(JSON.stringify(o), {
   status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
 
-// -------------------------------------------------------------- utenti e sessioni
+// -------------------------------------------------------------- users and sessions
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-// permessi assegnabili agli utenti (l'admin ha sempre tutto)
+// permissions that can be given to users (the admin always has everything)
 const PERMESSI = ["report", "storico", "sessioni", "prezzo", "stampa", "scarica", "app", "live"];
 const PERMESSI_DEFAULT = { report: 1, storico: 1, sessioni: 1, stampa: 1 };
 const DURATA_INVITO = 48 * 3600;
 function permessiDi(u) {
-  if (u.tessera) return Object.fromEntries(PERMESSI.map((k) => [k, false]));   // utente della colonnina: vede solo le proprie ricariche
+  if (u.tessera) return Object.fromEntries(PERMESSI.map((k) => [k, false]));   // charger user: sees only their own sessions
   if (u.ruolo === "admin") return Object.fromEntries(PERMESSI.map((k) => [k, true]));
   let p = PERMESSI_DEFAULT;
   if (u.permessi) { try { p = JSON.parse(u.permessi); } catch (_) { /* default */ } }
   return Object.fromEntries(PERMESSI.map((k) => [k, !!p[k]]));
 }
-const ITER = 5000;                       // PBKDF2: tenuto basso per stare nel limite di CPU del piano gratuito
-const DURATA_SESSIONE = 30 * 24 * 3600;  // secondi
+const ITER = 5000;                       // PBKDF2: kept low to stay inside the free plan's CPU limit
+const DURATA_SESSIONE = 30 * 24 * 3600;  // seconds
 const enc = (t) => new TextEncoder().encode(t);
 const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 const unhex = (h) => Uint8Array.from(h.match(/../g) || [], (x) => parseInt(x, 16));
@@ -666,14 +666,14 @@ async function preparaTabelle(env) {
   await env.DB.batch([
     env.DB.prepare("CREATE TABLE IF NOT EXISTS utenti (nome TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL, ruolo TEXT NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS tentativi (nome TEXT NOT NULL, ts INTEGER NOT NULL)"),
-    env.DB.prepare("CREATE TABLE IF NOT EXISTS revocati (sig TEXT PRIMARY KEY, exp INTEGER NOT NULL)"),   // sessioni chiuse con "Esci"
-    env.DB.prepare("CREATE TABLE IF NOT EXISTS ticket (id INTEGER PRIMARY KEY AUTOINCREMENT, utente TEXT, tipo TEXT, testo TEXT, extra TEXT, stato TEXT, creato TEXT, gestito TEXT, nota TEXT)"),   // richieste dall'area riservata
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS revocati (sig TEXT PRIMARY KEY, exp INTEGER NOT NULL)"),   // sessions closed with "Log out"
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS ticket (id INTEGER PRIMARY KEY AUTOINCREMENT, utente TEXT, tipo TEXT, testo TEXT, extra TEXT, stato TEXT, creato TEXT, gestito TEXT, nota TEXT)"),   // requests from the reserved area
   ]);
   const col = (await env.DB.prepare("PRAGMA table_info(utenti)").all()).results.map((c) => c.name);
   for (const [nome, tipo] of [["permessi", "TEXT"], ["invito_hash", "TEXT"], ["invito_exp", "INTEGER"], ["tessera", "TEXT"], ["cognome", "TEXT"], ["nome_proprio", "TEXT"], ["tel1", "TEXT"], ["tel2", "TEXT"], ["verifica_hash", "TEXT"], ["verifica_exp", "INTEGER"], ["consensi", "TEXT"], ["registrato_il", "TEXT"], ["profilo_il", "TEXT"], ["tessere_altre", "TEXT"]])
     if (!col.includes(nome)) await env.DB.prepare(`ALTER TABLE utenti ADD COLUMN ${nome} ${tipo}`).run();
   const colT = (await env.DB.prepare("PRAGMA table_info(ticket)").all()).results.map((c) => c.name);
-  if (!colT.includes("integrazioni")) await env.DB.prepare("ALTER TABLE ticket ADD COLUMN integrazioni TEXT").run();   // aggiunte dell'utente al ticket (JSON cifrato)
+  if (!colT.includes("integrazioni")) await env.DB.prepare("ALTER TABLE ticket ADD COLUMN integrazioni TEXT").run();   // user additions to the ticket (encrypted JSON)
   tabelleOk = true;
 }
 async function chiaveSessioni(env) {
@@ -691,18 +691,18 @@ async function firma(env, testo) {
   const k = await crypto.subtle.importKey("raw", enc(await chiaveSessioni(env)), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return hex(await crypto.subtle.sign("HMAC", k, enc(testo)));
 }
-// il token e' legato all'hash della password: cambiare password o cancellare l'utente chiude le sue sessioni
+// the token is bound to the password hash: changing the password or deleting the user closes their sessions
 async function creaToken(env, u) {
   const exp = Math.floor(Date.now() / 1000) + DURATA_SESSIONE;
-  const nonce = hex(crypto.getRandomValues(new Uint8Array(8)));          // ogni accesso ha un token diverso
+  const nonce = hex(crypto.getRandomValues(new Uint8Array(8)));          // every sign-in gets a different token
   return `${u.nome}~${exp}~${nonce}~${await firma(env, `${u.nome}|${exp}|${nonce}|${u.hash.slice(0, 16)}`)}`;
 }
 const cookie = (v, età) => `sess=${encodeURIComponent(v)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${età}`;
 
-// un utente puo' avere piu' tessere: la principale (colonna tessera) e le altre (JSON in tessere_altre)
+// a user may have several cards: the main one (column tessera) and the others (JSON in tessere_altre)
 function tessereDi(u) {
   const l = u && u.tessera ? [u.tessera] : [];
-  try { for (const t of JSON.parse((u && u.tessere_altre) || "[]")) if (t && !l.includes(t)) l.push(t); } catch (_) { /* vuoto */ }
+  try { for (const t of JSON.parse((u && u.tessere_altre) || "[]")) if (t && !l.includes(t)) l.push(t); } catch (_) { /* empty */ }
   return l;
 }
 async function utenteCorrente(req, env) {
@@ -710,7 +710,7 @@ async function utenteCorrente(req, env) {
   const ck = /(?:^|;\s*)sess=([^;]+)/.exec(req.headers.get("cookie") || "");
   if (ck) {
     let val = "";
-    try { val = decodeURIComponent(ck[1]); } catch (_) { /* cookie malformato */ }
+    try { val = decodeURIComponent(ck[1]); } catch (_) { /* malformed cookie */ }
     const p = (/^(.+)~(\d+)~([0-9a-f]{16})~([0-9a-f]{64})$/.exec(val) || []).slice(1);
     if (p.length === 4 && +p[1] > Date.now() / 1000) {
       const u = await env.DB.prepare("SELECT nome, hash, ruolo, permessi, tessera, tessere_altre, verifica_hash FROM utenti WHERE nome=?").bind(p[0]).first();
@@ -720,19 +720,19 @@ async function utenteCorrente(req, env) {
       }
     }
   }
-  // accesso con Basic: solo per gli script che inviano i dati (es. --invia), mai per le pagine
+  // Basic auth: only for scripts that push data (e.g. --invia), never for the pages
   const h = req.headers.get("authorization") || "";
   if (h.startsWith("Basic ") && new URL(req.url).pathname === "/api/ingest") {
     try {
       const [n, ...r] = atob(h.slice(6)).split(":");
       const u = await loginLimitato(env, n.trim().toLowerCase(), r.join(":"));
       if (u && !u.limite && !u.nonVerificato && !u.inAttesa) return u;
-    } catch (_) { /* ignora */ }
+    } catch (_) { /* ignore */ }
   }
   return null;
 }
 
-// controlla nome e password; alla prima volta (nessun utente) admin = APP_PASSWORD
+// checks name and password; the first time (no users) admin = APP_PASSWORD
 async function verificaLogin(env, nome, pw) {
   await preparaTabelle(env);
   const n = (await env.DB.prepare("SELECT COUNT(*) n FROM utenti WHERE ruolo='admin'").first()).n;
@@ -743,12 +743,12 @@ async function verificaLogin(env, nome, pw) {
     } else return null;
   }
   const u = await env.DB.prepare("SELECT nome, salt, hash, ruolo, permessi, tessera, verifica_hash, registrato_il FROM utenti WHERE nome=?").bind(nome).first();
-  if (!u || !u.hash) { await hashPw(pw, "00".repeat(16)); return null; }   // tempo simile anche se l'utente non esiste o non ha ancora scelto la password
+  if (!u || !u.hash) { await hashPw(pw, "00".repeat(16)); return null; }   // similar timing even if the user does not exist or has not chosen a password yet
   return uguali(await hashPw(pw, u.salt), u.hash) ? { nome: u.nome, ruolo: u.ruolo, hash: u.hash, perm: permessiDi(u), tessera: u.tessera || null, nonVerificato: !!u.verifica_hash, inAttesa: !!u.registrato_il && !u.tessera } : null;
 }
 
-// verificaLogin con il limite di tentativi (5 errori ogni 10 minuti per nome utente), usato da /api/login
-// e dall'accesso Basic su /api/ingest. Ritorna l'utente, null, oppure { limite: true }.
+// verificaLogin with the attempt limit (5 errors per 10 minutes per user name), used by /api/login
+// and by Basic auth on /api/ingest. Returns the user, null, or { limite: true }.
 async function loginLimitato(env, nome, pw) {
   await preparaTabelle(env);
   const ora = Math.floor(Date.now() / 1000);
@@ -796,20 +796,20 @@ async function inviaMail(env, a, oggetto, html, cc, allegati) {
 const NOREPLY = `<p style="margin-top:20px"><b>Questa casella non riceve email in ingresso: si prega di non rispondere a questo messaggio.<br>` +
   `This mailbox does not receive incoming email: please do not reply to this message.</b></p>`;
 
-// ---------------------------------------------------- report del prezzo per mail
-const DEST_DEFAULT = { a: [], cc: [] };          // vuoti finche' l'admin non li inserisce: nessuna mail parte
+// ---------------------------------------------------- price report by email
+const DEST_DEFAULT = { a: [], cc: [] };          // empty until the admin enters them: no email goes out
 async function leggiDestinatari(env) {
   const r = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='destinatari_report'").first();
-  if (r) { try { const d = JSON.parse(r.valore); if (Array.isArray(d.a) && Array.isArray(d.cc)) return d; } catch (e) { /* usa i predefiniti */ } }
+  if (r) { try { const d = JSON.parse(r.valore); if (Array.isArray(d.a) && Array.isArray(d.cc)) return d; } catch (e) { /* use the defaults */ } }
   return DEST_DEFAULT;
 }
 const listaEmail = (t) => [...new Set(String(t || "").split(/[,;\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean))];
 const num = (x, d = 2) => x === null || x === undefined ? "-" : x.toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d });
 
 
-// ------------------------------------------------ monitoraggio: controllo ogni 5 minuti, mail ai destinatari e storico degli episodi
-// tipo "durata": scatta quando la condizione dura piu' della soglia (um = minuti per unita' mostrata); "valore": scatta quando la misura raggiunge la soglia;
-// "evento": avviso singolo, senza soglia. Il controllo gira dal cron "*/5 * * * *": soglie sotto i 5 minuti valgono come il controllo successivo.
+// ------------------------------------------------ monitoring: check every 5 minutes, email to the recipients and episode history
+// type "durata": fires when the condition lasts longer than the threshold (um = minutes per displayed unit); "valore": fires when the measure reaches the threshold;
+// "evento": single alert, no threshold. The check runs from the cron "*/5 * * * *": thresholds under 5 minutes mean the next run.
 const MALF = {
   connessione: { g: "Connessione", label: "Colonnina non collegata al server", tipo: "durata", def: 10, min: 5, max: 1440, um: 1, unita: "minuti" },
   battito: { g: "Connessione", label: "Colonnina collegata ma senza messaggi (nemmeno il battito)", tipo: "durata", def: 15, min: 5, max: 1440, um: 1, unita: "minuti" },
@@ -833,7 +833,7 @@ const MALF = {
   scarico: { g: "Sito e sicurezza", label: "Dati non scaricati dalla colonnina", tipo: "durata", def: 720, min: 360, max: 10080, um: 60, unita: "ore" },
   backup: { g: "Sito e sicurezza", label: "Backup del database non fatto da molto", tipo: "durata", def: 10080, min: 1440, max: 86400, um: 1440, unita: "giorni" },
   login: { g: "Sito e sicurezza", label: "Troppi tentativi di accesso falliti", tipo: "durata", def: 0, min: 0, max: 60, um: 1, unita: "minuti" },
-  limiti_cf: { g: "Sito e sicurezza", label: "Consumi Cloudflare vicini al limite giornaliero gratuito", tipo: "valore", def: 80, min: 10, max: 100, um: 1, unita: "% del limite" },   // di serie con la sola notifica attiva
+  limiti_cf: { g: "Sito e sicurezza", label: "Consumi Cloudflare vicini al limite giornaliero gratuito", tipo: "valore", def: 80, min: 10, max: 100, um: 1, unita: "% del limite" },   // on by default with notification only
   token: { g: "Sito e sicurezza", label: "Collegamenti OCPP con codice segreto sbagliato", tipo: "valore", def: 3, min: 1, max: 50, um: 1, unita: "tentativi in un'ora" },
 };
 const ERRORI_OCPP = { ConnectorLockFailure: "blocco del connettore", EVCommunicationError: "comunicazione con l'auto", GroundFailure: "dispersione a terra",
@@ -842,9 +842,9 @@ const ERRORI_OCPP = { ConnectorLockFailure: "blocco del connettore", EVCommunica
   ReaderFailure: "guasto al lettore tessere", ResetFailure: "riavvio non riuscito", UnderVoltage: "tensione bassa", OverVoltage: "tensione alta", WeakSignal: "segnale debole" };
 async function leggiMalf(env) {
   const r = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='malfunzionamenti'").first();
-  let c = {}; try { c = r ? JSON.parse(r.valore) : {}; } catch (_) { /* predefiniti */ }
+  let c = {}; try { c = r ? JSON.parse(r.valore) : {}; } catch (_) { /* defaults */ }
   const regole = {};
-  for (const [id, d] of Object.entries(MALF)) { const x = (c.regole || {})[id] || {}; const mail = x.mail !== undefined ? x.mail === true : x.on === true && !("not" in x), not = x.not !== undefined ? x.not === true : id === "limiti_cf";   // mail e notifica: tutto spento finche' non si accende (salvo i consumi Cloudflare: notifica accesa)
+  for (const [id, d] of Object.entries(MALF)) { const x = (c.regole || {})[id] || {}; const mail = x.mail !== undefined ? x.mail === true : x.on === true && !("not" in x), not = x.not !== undefined ? x.not === true : id === "limiti_cf";   // mail and notification: everything off until switched on (except Cloudflare usage: notification on)
     regole[id] = { on: mail || not, mail, not, min: Number.isFinite(x.min) ? x.min : d.def }; }
   return { a: Array.isArray(c.a) ? c.a : [], cc: Array.isArray(c.cc) ? c.cc : [], regole };
 }
@@ -858,23 +858,23 @@ const durataIt = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return
 function mailMalf(titolo, righe) {
   return `<div style="font-family:Arial,sans-serif;max-width:520px"><h2 style="margin:0 0 16px">${esc(TITOLO)}</h2><p><b>${esc(titolo)}</b></p><p>${righe.map(esc).join("<br>")}</p>${NOREPLY}</div>`;
 }
-// mail all'utente nel formato standard: italiano, poi inglese
+// email to the user in the standard format: Italian, then English
 function mailBil(titIt, righeIt, titEn, righeEn) {
   return `<div style="font-family:Arial,sans-serif;max-width:520px"><h2 style="margin:0 0 16px">${esc(TITOLO)}</h2>` +
     `<p style="color:#555;margin:0 0 8px"><b>Italiano</b> - ${esc(titIt)}</p><p>${righeIt.map(esc).join("<br>")}</p>` +
     `<hr style="border:0;border-top:1px solid #ddd;margin:20px 0">` +
     `<p style="color:#555;margin:0 0 8px"><b>English</b> - ${esc(titEn)}</p><p>${righeEn.map(esc).join("<br>")}</p>${NOREPLY}</div>`;
 }
-// notifiche per l'admin sul sito: avvisi che non partono via mail (nessun destinatario, mail non riuscita, controlli "solo notifica")
+// in-site notifications for the admin: alerts that do not go out by email (no recipient, failed email, "notification only" checks)
 async function notifica(env, titolo, dett, ts = Date.now()) {
   const l = await leggiMeta(env, "notifiche", []);
-  l.unshift({ ts, titolo, dett: await cifra(env, dett, "notifica|dett"), letta: false });   // il dettaglio puo' contenere dati personali
+  l.unshift({ ts, titolo, dett: await cifra(env, dett, "notifica|dett"), letta: false });   // the detail may contain personal data
   l.length = Math.min(l.length, 50);
   await salvaMeta(env, "notifiche", l);
 }
 const energiaKwh = (m) => { const x = m && m.dati && m.dati["Energy.Active.Import.Register"]; if (!x) return null; const v = parseFloat(x.v); return isNaN(v) ? null : /^k/i.test(x.u) ? v : v / 1000; };
-// ------------------------------------------------ avviso agli utenti: ricarica finita ma auto ancora collegata
-const AVVISI_DEF = { on: true, attesa: 10, sollecito: 60 };      // minuti dalla fine della ricarica; sollecito 0 = nessun secondo avviso
+// ------------------------------------------------ reminder to users: charge finished but car still plugged in
+const AVVISI_DEF = { on: true, attesa: 10, sollecito: 60 };      // minutes after the end of the charge; sollecito 0 = no second reminder
 async function leggiAvvisi(env) { return { ...AVVISI_DEF, ...(await leggiMeta(env, "avvisi_utenti_cfg", {})) }; }
 async function avvisiUtenti(env, live, ora) {
   const cfg = await leggiAvvisi(env), pr = live.prese && live.prese["1"], tx = live.ultima_tx;
@@ -882,7 +882,7 @@ async function avvisiUtenti(env, live, ora) {
   if (!fermo) { await env.DB.prepare("DELETE FROM meta WHERE chiave='avvisi_utenti'").run(); return; }
   let rec = await leggiMeta(env, "avvisi_utenti", null);
   if (!rec || rec.chiave !== tx.id) {
-    const t = Date.parse(pr.ts);                          // dall'orario della presa se plausibile, altrimenti da quando lo vedo
+    const t = Date.parse(pr.ts);                          // from the socket's timestamp if plausible, otherwise from when it was first seen
     rec = { chiave: tx.id, da: t && t <= ora + 120000 && ora - t < 6 * 3600e3 ? t : ora };
   }
   const like = `%"${tx.tag}"%`;
@@ -904,16 +904,16 @@ async function avvisiUtenti(env, live, ora) {
 }
 
 async function verificaMalfunzionamenti(env, ora = Date.now()) {
-  try { await migraCifratura(env); } catch (_) { /* accessorio */ }
-  try { await applicaBlocchiPendenti(env); } catch (_) { /* riprova al prossimo giro */ }
+  try { await migraCifratura(env); } catch (_) { /* optional */ }
+  try { await applicaBlocchiPendenti(env); } catch (_) { /* retry at the next run */ }
   const cfg = await leggiMalf(env), stato = await leggiMeta(env, "malfunzionamenti_stato", {}), storico = await leggiMeta(env, "malfunzionamenti_storico", []);
   const ext = stato._ext || (stato._ext = {});
   const DO = env.COLONNINA.get(env.COLONNINA.idFromName("colonnina"));
   let live;
   try { live = await (await DO.fetch("https://do/stato")).json(); } catch (_) { return; }
-  try { await avvisiUtenti(env, live, ora); } catch (_) { /* accessorio */ }
+  try { await avvisiUtenti(env, live, ora); } catch (_) { /* optional */ }
   let eventiDO = [];
-  try { eventiDO = await (await DO.fetch("https://do/malf-eventi", { method: "POST" })).json(); } catch (_) { /* nessun evento */ }
+  try { eventiDO = await (await DO.fetch("https://do/malf-eventi", { method: "POST" })).json(); } catch (_) { /* no events */ }
   const on = (id) => cfg.regole[id].on, v = (id) => cfg.regole[id].min;
   const pr = live.prese && live.prese["1"], tx = live.transazione_aperta, ultimoIn = live.ultimo_in || live.ultimo_msg || null;
   const hbMin = Math.ceil(((live.heartbeat && live.heartbeat.voluto) || 300) / 60);
@@ -934,12 +934,12 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
     lista: { da: live.lista && live.lista.ok === false && !live.sync_pendente ? prima("lista") : null, dett: "L'ultimo invio della lista tessere alla colonnina non e' andato a buon fine" },
     scarico: { da: sc ? Date.parse(sc.valore) : null, dett: "Ultimo scarico riuscito: " + (sc ? dataIt(Date.parse(sc.valore)) : "-") + (er ? ". Ultimo errore: " + er.valore.slice(0, 200) : "") },
   };
-  // energia ferma: il contatore non sale mentre la presa e' in carica
+  // energy not increasing: the meter does not rise while the socket is charging
   if (tx && stP === "Charging" && kwhTot !== null) {
     const st = stato.energia;
     cond.energia = { da: st && st.e === kwhTot ? st.da : ora, extra: { e: kwhTot }, dett: "Contatore fermo a " + kwhTot.toFixed(2) + " kWh durante la ricarica della tessera " + tx.tag };
   } else cond.energia = { da: null };
-  // soglie di misura (scattano subito)
+  // measure thresholds (fire at once)
   const ora1h = ora - 3600e3, cadute = (live.cadute || []).filter((t) => t > ora1h).length;
   cond.riconnessioni = { da: cadute >= v("riconnessioni") ? prima("riconnessioni") : null, dett: cadute + " cadute della connessione nell'ultima ora" };
   const sf = live.sfasa && ora - live.sfasa.ts < 86400e3 ? live.sfasa.ms : null;
@@ -949,7 +949,7 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
   const conta = {}; for (const x of live.rifiuti || []) if (x.ts > ora1h) conta[x.tag] = (conta[x.tag] || 0) + 1;
   const [tagMax, nMax] = Object.entries(conta).sort((a, b) => b[1] - a[1])[0] || ["", 0];
   cond.rifiutata = { da: nMax >= v("rifiutata") ? prima("rifiutata") : null, dett: "Tessera " + tagMax + " rifiutata " + nMax + " volte nell'ultima ora" };
-  // dal sito: tessere, backup, accessi, collegamenti con codice sbagliato
+  // from the site: cards, backup, sign-ins, connections with a wrong token
   if (on("tessere")) {
     const nCol = ((await leggiMeta(env, "rfid_stato", [])) || []).length, nDb = (await env.DB.prepare("SELECT COUNT(*) n FROM tessere").first()).n;
     cond.tessere = { da: nCol !== nDb ? prima("tessere") : null, dett: "Tessere sulla colonnina: " + nCol + ", sul sito: " + nDb };
@@ -960,9 +960,9 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
     try {
       const t = await env.DB.prepare("SELECT nome, COUNT(*) n FROM tentativi WHERE ts > ? GROUP BY nome HAVING n >= 5").bind(Math.floor(ora / 1000) - 600).all();
       cond.login = { da: t.results.length ? prima("login") : null, dett: "Troppi accessi falliti per: " + t.results.map((x) => x.nome).join(", ") };
-    } catch (_) { /* tabella non ancora creata */ }
+    } catch (_) { /* table not created yet */ }
   }
-  if (on("limiti_cf") && env.CF_API_TOKEN && env.CF_ACCOUNT_ID) {          // consumi di oggi (UTC) rispetto ai limiti del piano gratuito
+  if (on("limiti_cf") && env.CF_API_TOKEN && env.CF_ACCOUNT_ID) {          // today's usage (UTC) against the free-plan limits
     const cf = await consumiCloudflare(env), g = cf.giorni && cf.giorni[0];
     if (g) {
       const voci = [["richieste del sito", g.req, cf.limiti.req], ["righe lette D1", g.d1r, cf.limiti.d1r], ["righe scritte D1", g.d1w, cf.limiti.d1w],
@@ -974,7 +974,7 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
   }
   const rt = (await leggiMeta(env, "ocpp_rifiuti", [])).filter((t) => t > ora1h).length;
   cond.token = { da: rt >= v("token") ? prima("token") : null, dett: rt + " tentativi di collegamento OCPP con codice segreto sbagliato nell'ultima ora" };
-  // impostazioni lette dalla colonnina (al massimo una volta all'ora)
+  // settings read from the charger (at most once an hour)
   if (on("parametri") && live.connessa) {
     const e = ext.parametri || (ext.parametri = {});
     if (!e.ultimo || ora - e.ultimo > 3600e3) {
@@ -987,7 +987,7 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
           e.diff = Object.keys(voluti).filter((k) => letti[k] !== undefined && letti[k] !== voluti[k]).map((k) => `${k}: voluto ${voluti[k]}, letto ${letti[k]}`);
           e.ultimo = ora;
         }
-      } catch (_) { /* riprovo al prossimo giro */ }
+      } catch (_) { /* retry at the next run */ }
     }
     cond.parametri = { da: e.diff && e.diff.length ? prima("parametri") : null, dett: (e.diff || []).join("; ") };
   }
@@ -1021,7 +1021,7 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
     } else if (c.da != null && r.on) stato[id] = { da: c.da, notificato: null, ...(c.extra || {}) };
     else delete stato[id];
   }
-  // eventi singoli: riavvio imprevisto (dalla colonnina), cambio di IP pubblico, cambio di firmware
+  // single events: unexpected restart (from the charger), public IP change, firmware change
   const eventi = eventiDO.filter((x) => x.id === "riavvio");
   const ip = await leggiMeta(env, "ultimo_ip", null);
   if (ip && ip.ip) { if (ext.ip && ext.ip !== ip.ip) eventi.push({ id: "ip", ts: ora, dett: "L'indirizzo IP pubblico e' passato da " + ext.ip + " a " + ip.ip }); ext.ip = ip.ip; }
@@ -1042,7 +1042,7 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
   await salvaMeta(env, "monitor_ultimo", ora);
 }
 
-// ------------------------------------------------ PDF minimale (solo testo, senza librerie)
+// ------------------------------------------------ minimal PDF (text only, no libraries)
 function creaPdf() {
   const pagine = [];
   let cur = null, y = 0;
@@ -1076,7 +1076,7 @@ function creaPdf() {
     out += `xref\n0 ${n + 1}\n0000000000 65535 f \n`;
     for (let i = 1; i <= n; i++) out += String(off[i]).padStart(10, "0") + " 00000 n \n";
     out += `trailer\n<< /Size ${n + 1} /Root 1 0 R >>\nstartxref\n${x0}\n%%EOF\n`;
-    return out;                                   // stringa "binaria" (ogni carattere = 1 byte)
+    return out;                                   // "binary" string (every character = 1 byte)
   };
   return { testo, filetto, giu, serve, build, y: () => y };
 }
@@ -1086,7 +1086,7 @@ function pdfReportPrezzo(r) {
   P.testo(40, TITOLO, 13, true); P.giu(1.4);
   P.testo(40, `Ripartizione costi di ricarica - ${r.titolo}`, 11, true); P.giu(1.3);
   P.testo(40, `Prezzo ${N(r.prezzo, 4)} €/kWh   IVA ${N(r.iva_pct, 1)}%   Importi in euro`, 9); P.giu(2);
-  // riepilogo per tessera
+  // summary per card
   const intest = () => {
     P.testo(40, "Tessera", 9, true); P.testo(110, "Utente", 9, true);
     P.testo(330, "Sess.", 9, true, true); P.testo(385, "kWh", 9, true, true); P.testo(450, "Imponibile", 9, true, true);
@@ -1104,7 +1104,7 @@ function pdfReportPrezzo(r) {
   P.testo(330, String(r.tessere.reduce((x, t) => x + t.n, 0)), 9, true, true); P.testo(385, N(r.kwh_tessere), 9, true, true);
   P.testo(450, N(r.imp_tessere), 9, true, true); P.testo(505, N(r.iva_tessere), 9, true, true); P.testo(555, N(r.tot_tessere), 9, true, true);
   P.giu(2.5);
-  // dettaglio sessioni
+  // session details
   P.serve(4); P.testo(40, "Dettaglio delle sessioni", 10, true); P.giu(1.6);
   for (const t of r.tessere) {
     P.serve(Math.min(t.sess.length, 3) + 3);
@@ -1127,7 +1127,7 @@ async function mieRicariche(env, tags, anno) {
   const out = [];
   for (let m = 1; m <= 12; m++) {
     const r = await reportMese(env, anno, m, false);
-    const ts = r.tessere.filter((x) => tags.includes(x.tag));          // se la tessera ha cambiato nome nel mese compare piu' volte
+    const ts = r.tessere.filter((x) => tags.includes(x.tag));          // if the card changed name during the month it appears more than once
     const sm = (k) => ts.reduce((z, x) => z + (x[k] || 0), 0);
     const t = ts.length ? { n: sm("n"), kwh: sm("kwh"), imp: ts[0].imp == null ? null : r2(sm("imp")), iva: ts[0].iva == null ? null : r2(sm("iva")),
       tot: ts[0].tot == null ? null : r2(sm("tot")), sess: ts.flatMap((x) => x.sess.map((z) => ({ ...z, tag: x.tag }))) } : null;
@@ -1205,7 +1205,7 @@ async function inviaReportPrezzo(env, anno, mese, origin) {
     `<p style="color:#555;font-size:13px">Importi in euro. Il prezzo del mese è ora bloccato. Il dettaglio di tutte le sessioni è nel PDF allegato ed è consultabile anche nella pagina: ${esc(origin)}</p>${NOREPLY}</div>`;
   let allegati;
   try { allegati = [{ filename: `Ricariche_${anno}-${String(mese).padStart(2, "0")}.pdf`, content: btoa(pdfReportPrezzo(r)) }]; }
-  catch (e) { allegati = undefined; }                       // se il PDF non si genera, la mail parte lo stesso
+  catch (e) { allegati = undefined; }                       // if the PDF cannot be generated the email goes out anyway
   return inviaMail(env, d.a, `Ripartizione ricariche ${r.titolo} - ${TITOLO}`, html, d.cc, allegati);
 }
 
@@ -1213,7 +1213,7 @@ function leggiPermessi(b) {
   return JSON.stringify(Object.fromEntries(PERMESSI.map((k) => [k, b && b[k] ? 1 : 0])));
 }
 
-// tessera principale + altre tessere dello stesso utente: controlla che esistano; ritorna { tess, altre } oppure { errore }
+// main card + other cards of the same user: checks they exist; returns { tess, altre } or { errore }
 async function leggiTessereForm(env, b) {
   let tess = null; const altre = [];
   if (b.tessera) {
@@ -1283,7 +1283,7 @@ async function gestisciUtenti(env, me, b, origin) {
     const r = await env.DB.prepare("UPDATE utenti SET permessi=?, tessera=? WHERE nome=? AND ruolo<>'admin'").bind(leggiPermessi(b.permessi), tess, nome).run();
     if (r.meta.changes) await env.DB.prepare("UPDATE utenti SET tessere_altre=? WHERE nome=?").bind(tf.altre.length ? JSON.stringify(tf.altre) : null, nome).run();
     let mail;
-    if (r.meta.changes && prima && prima.registrato_il && !prima.tessera && tess && !prima.verifica_hash) mail = await mailAttivazione(env, nome, await decifra(env, prima.nome_proprio, nome + "|nome_proprio"), tess, origin);   // utente registrato da solo: ora e' attivo
+    if (r.meta.changes && prima && prima.registrato_il && !prima.tessera && tess && !prima.verifica_hash) mail = await mailAttivazione(env, nome, await decifra(env, prima.nome_proprio, nome + "|nome_proprio"), tess, origin);   // self-registered user: now active
     return json(r.meta.changes ? { ok: true, mail } : { errore: "utente non trovato" }, r.meta.changes ? 200 : 404);
   }
   if (b.azione === "elimina") {
@@ -1297,10 +1297,10 @@ async function gestisciUtenti(env, me, b, origin) {
   return json({ errore: "azione non valida" }, 400);
 }
 
-// blocco/sblocco di una tessera: vale subito per il server OCPP (stato in meta) e viene scritto anche sulla colonnina;
-// se la colonnina non risponde il blocco resta "in attesa" e il controllo ogni 5 minuti riprova. Ritorna "ok" o "in attesa".
-// La colonnina, ricevuta la lista via OCPP (che non contiene le tessere bloccate), le toglie dal proprio elenco: per questo le tessere bloccate
-// restano annotate nel registro (meta 'tessere_bloccate', con nome e scadenza) e lo sblocco le rimette nell'elenco.
+// block/unblock of a card: effective at once for the OCPP server (state in meta) and also written to the charger;
+// if the charger does not answer the block stays "in attesa" (pending) and the 5-minute check retries. Returns "ok" or "in attesa".
+// When the charger receives the list over OCPP (which does not contain blocked cards) it removes them from its own list: that is why blocked cards
+// are recorded in the register (meta 'tessere_bloccate', with name and expiry) and unblocking puts them back in the list.
 async function bloccaTessera(env, tag, blocca) {
   const stato = blocca ? "1" : "0";
   const regVecchio = await leggiMeta(env, "tessere_bloccate", []);
@@ -1309,15 +1309,15 @@ async function bloccaTessera(env, tag, blocca) {
   const nomeDb = async () => { const r = await env.DB.prepare("SELECT nome FROM tessere WHERE tag=?").bind(tag).first(); return rfidNome(r ? r.nome : tag).slice(0, RFID_NOME_MAX); };
   let nome = salvato && salvato.nome ? salvato.nome : await nomeDb(), scad = salvato ? salvato.scad || "" : "";
   const salvaReg = async () => { if (blocca) reg.push({ tag, nome, scad }); await salvaMeta(env, "tessere_bloccate", reg); };
-  const c = await leggiMeta(env, "rfid_stato", null);      // vista del server OCPP: vale subito
+  const c = await leggiMeta(env, "rfid_stato", null);      // OCPP server view: effective at once
   if (Array.isArray(c)) {
     const x = c.find((t) => t.id === tag);
     if (x) x.stato = stato; else if (!blocca) c.push({ id: tag, scad, stato });
     c.sort((p, q) => (p.id < q.id ? -1 : 1));
     await salvaMeta(env, "rfid_stato", c);
   }
-  // la lista tessere viene rimandata alla colonnina anche via OCPP (invio differito di 30 s): rfidCache non lo farebbe, lo stato in meta e' gia' aggiornato
-  try { await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/sync-differita", { method: "POST" }); } catch (_) { /* non collegata: si allinea al prossimo avvio */ }
+  // the card list is sent to the charger over OCPP too (deferred by 30 s): rfidCache would not do it, the state in meta is already updated
+  try { await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/sync-differita", { method: "POST" }); } catch (_) { /* not connected: it is aligned at its next start*/ }
   const pend = (await leggiMeta(env, "blocchi_pendenti", [])).filter((p) => p.tag !== tag);
   try {
     const prima = riempiNomi(await rfidDallaColonnina(env), await nomiDb(env));
@@ -1326,7 +1326,7 @@ async function bloccaTessera(env, tag, blocca) {
       if (x.nome) nome = x.nome;
       scad = x.scad || scad;
       if (x.stato !== stato) await rfidScrivi(env, prima, prima.map((t) => (t.id === tag ? { ...t, stato } : t)));
-    } else if (!blocca) {                                   // tolta dalla colonnina dopo il blocco: la rimetto nell'elenco
+    } else if (!blocca) {                                   // removed from the charger after the block: put it back in the list
       await rfidScrivi(env, prima, [...prima, { id: tag, scad, nome, stato: "0" }]);
     }
     await salvaReg();
@@ -1339,7 +1339,7 @@ async function bloccaTessera(env, tag, blocca) {
     return "in attesa";
   }
 }
-// elenco tessere per l'admin: quelle sulla colonnina piu' le bloccate dal sito (la colonnina le toglie dal proprio elenco), con stato "1" (bloccata)
+// card list for the admin: those on the charger plus those blocked by the site (the charger removes them from its list), with state "1" (blocked)
 async function conBloccate(env, lista) {
   const reg = await leggiMeta(env, "tessere_bloccate", []);
   return lista.concat(reg.filter((r) => !lista.some((x) => x.id === r.tag)).map((r) => ({ id: r.tag, scad: r.scad || "", nome: r.nome || "", stato: "1", bloccata_sito: true })));
@@ -1349,13 +1349,13 @@ async function applicaBlocchiPendenti(env) {
   for (const p of pend.slice(0, 5)) await bloccaTessera(env, p.tag, p.stato === "1");
 }
 
-// ------------------------------------------------ ticket: richieste dell'utente all'admin (tessera, dati, cancellazione, colonnina, altro)
+// ------------------------------------------------ tickets: user requests to the admin (card, data, deletion, charger, other)
 const TIPI_TICKET = { tessera: "Tessera smarrita o danneggiata", dati: "Correzione dei dati", cancellazione: "Cancellazione dei dati / dell'utenza", colonnina: "Problema con la colonnina", altro: "Altro", nuova: "Richiesta nuova tessera" };
-const TICKET_GRAVI = ["tessera", "colonnina", "nuova"];      // per questi l'admin riceve anche la mail; gli altri solo la notifica nel sito
+const TICKET_GRAVI = ["tessera", "colonnina", "nuova"];      // for these the admin also gets an email; the others only the in-site notification
 async function ticketLeggi(env, r) {
   const ex = await decifra(env, r.extra, r.utente + "|ticket_extra");
-  let extra = null; try { extra = ex ? JSON.parse(ex) : null; } catch (_) { /* vuoto */ }
-  let integr = []; try { const x = await decifra(env, r.integrazioni, r.utente + "|ticket_integr"); integr = x ? JSON.parse(x) : []; } catch (_) { /* vuoto */ }
+  let extra = null; try { extra = ex ? JSON.parse(ex) : null; } catch (_) { /* empty */ }
+  let integr = []; try { const x = await decifra(env, r.integrazioni, r.utente + "|ticket_integr"); integr = x ? JSON.parse(x) : []; } catch (_) { /* empty */ }
   return { id: r.id, utente: r.utente, tipo: r.tipo, stato: r.stato, creato: r.creato, gestito: r.gestito, extra, integrazioni: integr,
     testo: await decifra(env, r.testo, r.utente + "|ticket_testo"), nota: await decifra(env, r.nota, r.utente + "|ticket_nota") };
 }
@@ -1367,7 +1367,7 @@ async function ticket(req, env, me, url) {
       : (await env.DB.prepare("SELECT * FROM ticket WHERE utente=? ORDER BY id DESC LIMIT 50").bind(me.nome).all()).results;
     const L = [];
     for (const r of righe) L.push(await ticketLeggi(env, r));
-    if (me.ruolo === "admin") {                      // anagrafica per riconoscere chi scrive
+    if (me.ruolo === "admin") {                      // names, to recognise who writes
       const ana = {};
       for (const t of L) if (!ana[t.utente]) {
         const u = await env.DB.prepare("SELECT nome_proprio, cognome FROM utenti WHERE nome=?").bind(t.utente).first();
@@ -1391,7 +1391,7 @@ async function ticket(req, env, me, url) {
       const tag = String(b.tessera || "").toUpperCase();
       if (!(me.tessere || []).includes(tag)) return json({ errore: "Scegli una delle tue tessere" }, 400);
       extra = { tessera: tag, motivo: b.motivo === "danneggiata" ? "danneggiata" : "smarrita" };
-      extra.blocco = await bloccaTessera(env, tag, true);      // per sicurezza la tessera viene bloccata subito; l'admin puo' sbloccarla
+      extra.blocco = await bloccaTessera(env, tag, true);      // for safety the card is blocked at once; the admin can unblock it
 
     } else if (tipo === "dati") {
       const nuovo = {}, nome = nomePulito(b.nome), cognome = nomePulito(b.cognome);
@@ -1416,7 +1416,7 @@ async function ticket(req, env, me, url) {
     const grave = TICKET_GRAVI.includes(tipo);
     const dett = `${me.nome}: ${TIPI_TICKET[tipo]}` + (extra && extra.tessera ? ` (${extra.tessera}, ${extra.motivo}, ${extra.blocco === "ok" ? "bloccata" : "blocco in attesa"})` : "");
     let righeNuova = [];
-    if (tipo === "nuova") {      // l'admin deve poter contattare l'utente per consegna e pagamento
+    if (tipo === "nuova") {      // the admin must be able to contact the user for delivery and payment
       const cfgReq = await leggiConfig(env);
       const uu = await env.DB.prepare("SELECT nome_proprio, cognome, tel1, tel2 FROM utenti WHERE nome=?").bind(me.nome).first();
       const g = async (c) => (uu ? (await decifra(env, uu[c], me.nome + "|" + c)) || "" : "");
@@ -1433,7 +1433,7 @@ async function ticket(req, env, me, url) {
     if (!inviata) await notifica(env, `Nuovo ticket #${id}`, dett + (righeNuova.length ? " - " + righeNuova.join(" - ") : ""));
     return json({ ok: true, id });
   }
-  if (b.azione === "integra") {                      // l'utente aggiunge informazioni a un suo ticket ancora aperto (evita di aprirne altri)
+  if (b.azione === "integra") {                      // the user adds information to one of their open tickets (instead of opening more)
     const r = await env.DB.prepare("SELECT * FROM ticket WHERE id=? AND utente=?").bind(+b.id || 0, me.nome).first();
     if (!r) return json({ errore: "Ticket non trovato" }, 404);
     if (r.stato !== "aperto") return json({ errore: "Ticket gia' gestito: non si puo' piu' integrare" }, 400);
@@ -1447,7 +1447,7 @@ async function ticket(req, env, me, url) {
     return json({ ok: true });
   }
   if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
-  if (b.azione === "sblocca") {                      // sblocco manuale di una tessera bloccata da un ticket (anche gia' gestito)
+  if (b.azione === "sblocca") {                      // manual unblock of a card blocked by a ticket (even one already handled)
     const r = await env.DB.prepare("SELECT * FROM ticket WHERE id=?").bind(+b.id || 0).first();
     if (!r) return json({ errore: "Ticket non trovato" }, 404);
     const t = await ticketLeggi(env, r);
@@ -1472,7 +1472,7 @@ async function ticket(req, env, me, url) {
     if (esito === "approvato" && !["tessera", "dati", "cancellazione", "nuova"].includes(t.tipo)) return json({ errore: "Questo tipo di richiesta si chiude, non si approva" }, 400);
     const nota = String(b.nota || "").trim().slice(0, 500);
     let applicato = "";
-    const dIt = [], dEn = [];                         // dettagli dell'esito per la mail all'utente
+    const dIt = [], dEn = [];                         // outcome details for the email to the user
     const u = await env.DB.prepare("SELECT nome, ruolo, tessera, tessere_altre FROM utenti WHERE nome=?").bind(t.utente).first();
     if (esito === "approvato") {
       if (!u) return json({ errore: "L'utente non esiste piu'" }, 404);
@@ -1524,7 +1524,7 @@ async function ticket(req, env, me, url) {
       }
     }
     let extraNuovo = null;
-    if (t.tipo === "tessera" && t.extra && t.extra.tessera && (esito === "rifiutato" || b.esito === "ritrovata")) {   // richiesta respinta o tessera ritrovata: si sblocca
+    if (t.tipo === "tessera" && t.extra && t.extra.tessera && (esito === "rifiutato" || b.esito === "ritrovata")) {   // request rejected or card found: unblock
       const sb = await bloccaTessera(env, t.extra.tessera, false);
       extraNuovo = await cifra(env, JSON.stringify({ ...t.extra, blocco: "sbloccata" }), t.utente + "|ticket_extra");
       applicato = sb === "in attesa" ? `Tessera ${t.extra.tessera}: sblocco in attesa (colonnina non raggiungibile).` : `Tessera ${t.extra.tessera} sbloccata.`;
@@ -1538,7 +1538,7 @@ async function ticket(req, env, me, url) {
       }
     }
     const intest = { approvato: "approvata", rifiutato: "rifiutata", chiuso: "chiusa" }[esito], intestEn = { approvato: "approved", rifiutato: "rejected", chiuso: "closed" }[esito];
-    if (EMAIL_OK.test(t.utente)) {      // l'utente riceve l'esito (prima dell'eventuale cancellazione dell'utenza)
+    if (EMAIL_OK.test(t.utente)) {      // the user gets the outcome (before the account is possibly deleted)
       const rIt = [`La tua richiesta n. ${r.id} (${TIPI_TICKET[t.tipo]}) è stata ${intest}.`, ...(t.tipo === "cancellazione" && esito === "approvato" ? ["L'utenza e i dati personali associati sono stati cancellati."] : []), ...dIt, ...(nota ? [`Nota dell'Amministratore: ${nota}`] : [])];
       const rEn = [`Your request no. ${r.id} has been ${intestEn}.`, ...(t.tipo === "cancellazione" && esito === "approvato" ? ["Your account and the associated personal data have been deleted."] : []), ...dEn, ...(nota ? [`Administrator's note: ${nota}`] : [])];
       await inviaMail(env, t.utente, `Richiesta n. ${r.id} ${intest} / Request no. ${r.id} ${intestEn} - ${TITOLO}`,
@@ -1557,9 +1557,9 @@ async function ticket(req, env, me, url) {
   return json({ errore: "azione non valida" }, 400);
 }
 
-// ---------------------------------------------------- cifratura dei dati personali (AES-256-GCM)
-// La chiave e' il secret DATA_KEY (32 byte in base64). Ogni valore cifrato e' "enc1:<iv>:<testo cifrato>" e vale solo per quella riga e quel campo
-// (contesto autenticato = email + nome campo). Senza chiave i dati restano in chiaro (e il sito lo segnala); senza chiave i dati cifrati non si leggono.
+// ---------------------------------------------------- encryption of personal data (AES-256-GCM)
+// The key is the DATA_KEY secret (32 bytes in base64). Every encrypted value is "enc1:<iv>:<ciphertext>" and is valid only for that row and field
+// (authenticated context = email + field name). Without the key data stays in clear (and the site says so); without the key encrypted data cannot be read.
 let chiaveDati = null;
 async function chiaveAes(env) {
   if (!env.DATA_KEY) return null;
@@ -1582,7 +1582,7 @@ async function cifra(env, valore, ctx) {
   return "enc1:" + b64u8(iv) + ":" + b64u8(ct);
 }
 async function decifra(env, valore, ctx) {
-  if (typeof valore !== "string" || !valore.startsWith("enc1:")) return valore;      // in chiaro (dati vecchi o cifratura non attiva)
+  if (typeof valore !== "string" || !valore.startsWith("enc1:")) return valore;      // in clear (old data or encryption not active)
   const k = await chiaveAes(env);
   if (!k) return "[cifrato: manca la chiave]";
   try {
@@ -1591,7 +1591,7 @@ async function decifra(env, valore, ctx) {
   } catch (_) { return "[illeggibile]"; }
 }
 const CAMPI_CIFRATI = ["nome_proprio", "cognome", "tel1", "tel2", "consensi"];
-// cifra i dati gia' presenti in chiaro (una volta sola, ripetibile senza danni); ritorna quanti utenti ha aggiornato
+// encrypts data already present in clear (once, harmless to repeat); returns how many users were updated
 async function migraCifratura(env) {
   if (!(await chiaveAes(env))) return 0;
   await preparaTabelle(env);
@@ -1615,16 +1615,16 @@ async function statoCifratura(env) {
   return { attiva: !!(await chiaveAes(env)), cifrati, chiaro, utenti: righe.length, turnstile: turnstileAttivo(env) };
 }
 
-// ---------------------------------------------------- auto-registrazione degli utenti
-// Regolamento e informativa privacy: li scrive chi installa il sito (Impostazioni -> Testi legali), in italiano e inglese,
-// con una "edizione" (es. la data) salvata nei consensi. Senza testi la registrazione resta possibile ma la pagina lo segnala.
+// ---------------------------------------------------- user self-registration
+// Rules and privacy notice: written by whoever installs the site (Settings -> Legal texts), in Italian and English,
+// with an "edition" (e.g. the date) saved in the consents. Without texts registration still works but the page says so.
 const TESTI_VUOTI = { reg_it: "", reg_en: "", priv_it: "", priv_en: "", edizione: "" };
 async function leggiTesti(env) { return { ...TESTI_VUOTI, ...(await leggiMeta(env, "testi_legali", {})) }; }
 const PW_FORTE = (p) => p.length >= 12 && p.length <= 128 && /[a-z]/.test(p) && /[A-Z]/.test(p) && /[0-9]/.test(p) && /[^A-Za-z0-9\s]/.test(p);
 const TEL_OK = /^\+[1-9][0-9]{7,14}$/;
 const nomePulito = (t) => String(t || "").replace(/\s+/g, " ").trim().slice(0, 60);
 
-// mail "Attivazione del servizio": parte quando l'utente registrato da solo ha email confermata e tessera abbinata
+// "Service activation" email: sent when a self-registered user has confirmed the email and has a card linked
 async function mailAttivazione(env, email, nomeP, tess, origin) {
   const t = await env.DB.prepare("SELECT nome FROM tessere WHERE tag=?").bind(tess).first();
   const dett = `${esc(tess)}${t && t.nome ? " (" + esc(t.nome) + ")" : ""}`;
@@ -1638,16 +1638,16 @@ async function mailAttivazione(env, email, nomeP, tess, origin) {
     `<p><a href="${origin}/" style="display:inline-block;background:#0b6bcb;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Sign in</a></p>${NOREPLY}</div>`);
 }
 
-// ---------------------------------------------------- consumi Cloudflare (solo admin)
-// Serve un token API con il permesso "Account Analytics: Read" (secret CF_API_TOKEN) e CF_ACCOUNT_ID in wrangler.toml.
-// Limiti del piano gratuito, per giorno (UTC).
-const LIMITI_CF = { req: 100000, d1r: 5000000, d1w: 100000, dor: 100000, dogbs: 13000, dorr: 5000000, dorw: 100000, spazio: 5000000000 };   // spazio: 5 GB per D1 e 5 GB per il Durable Object, totali (non giornalieri)
+// ---------------------------------------------------- Cloudflare usage (admin only)
+// Needs an API token with the "Account Analytics: Read" permission (secret CF_API_TOKEN) and CF_ACCOUNT_ID in wrangler.toml.
+// Free-plan limits, per day (UTC).
+const LIMITI_CF = { req: 100000, d1r: 5000000, d1w: 100000, dor: 100000, dogbs: 13000, dorr: 5000000, dorw: 100000, spazio: 5000000000 };   // storage: 5 GB for D1 and 5 GB for the Durable Object, totals (not daily)
 async function consumiCloudflare(env) {
   if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID) return { configurato: false };
   const c = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='consumi_cache'").first();
-  if (c) { try { const d = JSON.parse(c.valore); if (Date.now() - d.ts < 600000 && d.mesi) return d; } catch (_) { /* rifai */ } }
+  if (c) { try { const d = JSON.parse(c.valore); if (Date.now() - d.ts < 600000 && d.mesi) return d; } catch (_) { /* redo */ } }
   const oggi = new Date(), iso = (d) => d.toISOString().slice(0, 10);
-  const da = iso(new Date(Math.max(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth() - 1, 1), Date.now() - 31 * 86400000))), a = iso(oggi);   // Cloudflare accetta al massimo 32 giorni per interrogazione
+  const da = iso(new Date(Math.max(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth() - 1, 1), Date.now() - 31 * 86400000))), a = iso(oggi);   // Cloudflare accepts at most 32 days per query
   const filtro = `filter:{date_geq:"${da}",date_leq:"${a}"}`;
   const Q = {
     w: `workersInvocationsAdaptive(limit:2000,${filtro}){dimensions{date} sum{requests errors} quantiles{cpuTimeP99}}`,
@@ -1655,7 +1655,7 @@ async function consumiCloudflare(env) {
     o: `durableObjectsInvocationsAdaptiveGroups(limit:2000,${filtro}){dimensions{date} sum{requests}}`,
     p: `durableObjectsPeriodicGroups(limit:2000,${filtro}){dimensions{date} sum{duration rowsRead rowsWritten}}`,
   };
-  const per = {};                                     // data -> valori del giorno
+  const per = {};                                     // date -> values of the day
   const g = (dt) => per[dt] || (per[dt] = { req: 0, err: 0, cpu99: 0, d1r: 0, d1w: 0, dor: 0, dogbs: 0, dorr: 0, dorw: 0 });
   try {
     for (const [k, q] of Object.entries(Q)) {
@@ -1673,7 +1673,7 @@ async function consumiCloudflare(env) {
       }
     }
   } catch (e) { return { configurato: true, errore: "Cloudflare: " + (e.message || e) }; }
-  // storico dei giorni (le interrogazioni coprono solo ~32 giorni): si fondono i giorni letti con quelli gia' salvati, per i riepiloghi mensili
+  // day history (queries cover only ~32 days): the days read are merged with those already saved, for the monthly summaries
   const storico = await leggiMeta(env, "consumi_giorni", {});
   Object.assign(storico, per);
   for (const k of Object.keys(storico).sort().slice(0, Math.max(0, Object.keys(storico).length - 120))) delete storico[k];
@@ -1689,20 +1689,20 @@ async function consumiCloudflare(env) {
     for (const [k, nome] of voci) { t[k] += o[k]; const pct = o[k] / L[k] * 100; if (pct > t.picco.pct) t.picco = { pct, voce: nome, giorno: dt }; }
   }
   let spazio = { d1: null, ocpp: null };
-  try {                                                // archivio D1 (da Cloudflare) e archivio del Durable Object (misurato dentro l'oggetto)
+  try {                                                // D1 storage (from Cloudflare) and Durable Object storage (measured inside the object)
     const r = await fetch("https://api.cloudflare.com/client/v4/graphql", { method: "POST",
       headers: { authorization: "Bearer " + env.CF_API_TOKEN, "content-type": "application/json" },
       body: JSON.stringify({ query: `query($a:String!){viewer{accounts(filter:{accountTag:$a}){x:d1StorageAdaptiveGroups(limit:50,filter:{date_geq:"${iso(new Date(Date.now() - 2 * 86400000))}",date_leq:"${a}"}){max{databaseSizeBytes}}}}}`, variables: { a: env.CF_ACCOUNT_ID } }) });
     const j = await r.json();
     if (j.data) spazio.d1 = Math.max(0, ...j.data.viewer.accounts[0].x.map((x) => x.max.databaseSizeBytes || 0)) || null;
-  } catch (_) { /* resta nullo */ }
-  try { spazio.ocpp = (await (await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/stato")).json()).spazio || null; } catch (_) { /* resta nullo */ }
+  } catch (_) { /* stays null */ }
+  try { spazio.ocpp = (await (await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/stato")).json()).spazio || null; } catch (_) { /* stays null */ }
   const out = { configurato: true, ts: Date.now(), limiti: LIMITI_CF, giorni, spazio, mesi: Object.values(mesi).sort((x, y) => y.mese.localeCompare(x.mese)) };
   await env.DB.prepare("INSERT OR REPLACE INTO meta VALUES ('consumi_cache', ?)").bind(JSON.stringify(out)).run();
   return out;
 }
 
-// dati anagrafici e consensi raccolti da invitati e da utenti gia' attivi (stessi controlli della registrazione); ritorna { errore } oppure { d }
+// personal data and consents collected from invited and already active users (same checks as registration); returns { errore } or { d }
 function datiProfilo(b, edizione) {
   const nomeP = nomePulito(b.nome), cognome = nomePulito(b.cognome);
   const t1 = String(b.tel1 || "").replace(/\s/g, ""), t2 = String(b.tel2 || "").replace(/\s/g, "");
@@ -1723,7 +1723,7 @@ async function registrazione(req, env) {
   let b;
   try { b = await req.json(); } catch (_) { return json({ errore: "Richiesta non valida" }, 400); }
   await preparaTabelle(env);
-  if (b.hp) return json({ ok: true });                                   // campo trappola per i robot: finto successo
+  if (b.hp) return json({ ok: true });                                   // honeypot field for bots: fake success
   const ip = req.headers.get("cf-connecting-ip") || "?";
   const ora = Math.floor(Date.now() / 1000);
   await env.DB.prepare("DELETE FROM tentativi WHERE ts < ?").bind(ora - 600).run();
@@ -1745,10 +1745,10 @@ async function registrazione(req, env) {
   if (b.reg !== true) return json({ errore: "Devi accettare il regolamento" }, 400);
   if (b.priv !== true) return json({ errore: "Devi confermare di aver letto l'informativa privacy" }, 400);
 
-  // registrazioni mai confermate: dopo 48 ore si liberano
+  // registrations never confirmed: freed after 48 hours
   await env.DB.prepare("DELETE FROM utenti WHERE verifica_hash IS NOT NULL AND verifica_exp < ?").bind(ora).run();
   const es = await env.DB.prepare("SELECT nome, verifica_hash FROM utenti WHERE nome=?").bind(email).first();
-  const ok = json({ ok: true });                                         // stessa risposta se l'indirizzo e' gia' usato: non si scopre chi e' registrato
+  const ok = json({ ok: true });                                         // same answer if the address is already used: nobody can find out who is registered
   if (es && !es.verifica_hash) {
     await inviaMail(env, email, `${TITOLO}`,
       `<div style="font-family:Arial,sans-serif;max-width:520px"><h2 style="margin:0 0 16px">${TITOLO}</h2>` +
@@ -1762,7 +1762,7 @@ async function registrazione(req, env) {
   const cf = { cognome: await cifra(env, cognome, email + "|cognome"), nome_proprio: await cifra(env, nomeP, email + "|nome_proprio"), tel1: await cifra(env, t1, email + "|tel1"),
     tel2: await cifra(env, t2 || null, email + "|tel2"), consensi: await cifra(env, consensi, email + "|consensi") };
   const exp = ora + DURATA_INVITO;
-  const perm = leggiPermessi({});                                         // nessun permesso finche' l'Amministratore non abbina la tessera
+  const perm = leggiPermessi({});                                         // no permissions until the Administrator links the card
   if (es) {
     await env.DB.prepare("UPDATE utenti SET salt=?, hash=?, cognome=?, nome_proprio=?, tel1=?, tel2=?, verifica_hash=?, verifica_exp=?, consensi=?, registrato_il=? WHERE nome=?")
       .bind(c.salt, c.hash, cf.cognome, cf.nome_proprio, cf.tel1, cf.tel2, await sha256(tok), exp, cf.consensi, new Date().toISOString(), email).run();
@@ -1799,7 +1799,7 @@ async function confermaEmail(url, env) {
     const x = await env.DB.prepare("SELECT tessera, nome_proprio, cognome, tel1, tel2 FROM utenti WHERE nome=?").bind(email).first();
     if (x) for (const c of ["nome_proprio", "cognome", "tel1", "tel2"]) x[c] = await decifra(env, x[c], email + "|" + c);
     if (x && x.tessera) await mailAttivazione(env, email, x.nome_proprio, x.tessera, url.origin);
-    else if (x) {                       // avvisa l'amministratore (destinatari malfunzionamenti): c'e' una tessera da abbinare
+    else if (x) {                       // notify the administrator (malfunction recipients): there is a card to link
       const m = await leggiMalf(env);
       if (!m.a.length) await notifica(env, "Nuova registrazione da attivare", `${x.nome_proprio} ${x.cognome} (${email}, ${x.tel1}): abbina la tessera in Utenti`);
       else await inviaMail(env, m.a, `Nuova registrazione da attivare - ${TITOLO}`,
@@ -1835,8 +1835,8 @@ async function accettaInvito(req, env) {
   return r;
 }
 
-// ------------------------------------------------ server OCPP 1.6J (prova: riceve e registra, nessun comando)
-// La colonnina apre la connessione verso di noi; un Durable Object la tiene aperta (in sospensione tra un messaggio e l'altro).
+// ------------------------------------------------ OCPP 1.6J server
+// The charger opens the connection to us; a Durable Object keeps it open (hibernating between messages).
 export class Colonnina {
   constructor(state, env) {
     this.state = state; this.env = env; this.sql = state.storage.sql;
@@ -1852,10 +1852,10 @@ export class Colonnina {
     this.sql.exec("INSERT INTO eventi (ts, dir, testo) VALUES (?, ?, ?)", ora, dir, String(testo).slice(0, 2000));
     this.sql.exec("DELETE FROM eventi WHERE id < (SELECT MAX(id) FROM eventi) - 300");
     if (dir !== "sys") this.put("ultimo_msg", ora);
-    if (dir === "<") this.put("ultimo_in", ora);          // solo messaggi arrivati dalla colonnina (per il controllo malfunzionamenti)
+    if (dir === "<") this.put("ultimo_in", ora);          // only messages coming from the charger (for the monitoring check)
   }
-  // avvisi singoli per il monitoraggio (riavvio imprevisto): il controllo ogni 5 minuti li ritira
-  rifiuto(idTag, st) {                                       // tessere rifiutate (la 000000 e' l'avvio a vuoto, non conta)
+  // single alerts for monitoring (unexpected restart): the 5-minute check collects them
+  rifiuto(idTag, st) {                                       // refused cards (000000 is the empty start, does not count)
     const tag = String(idTag || "").toUpperCase();
     if (st === "Accepted" || /^0+$/.test(tag)) return;
     const l = (this.get("rifiuti") || []).filter((x) => x.ts > Date.now() - 86400000); l.push({ tag, ts: Date.now(), st }); this.put("rifiuti", l.slice(-100));
@@ -1866,28 +1866,28 @@ export class Colonnina {
     if (req.headers.get("upgrade") !== "websocket") {
       if (req.method === "POST") {
         if (new URL(req.url).pathname === "/malf-eventi") { const l = this.get("malf_eventi") || []; this.put("malf_eventi", []); return json(l); }
-        if (new URL(req.url).pathname === "/heartbeat") {        // nuovo intervallo dalle Impostazioni
+        if (new URL(req.url).pathname === "/heartbeat") {        // new interval from Settings
           const b = await req.json(); this.put("hb_voluto", b.s); await this.applicaHeartbeat(); return json({ ok: true });
         }
-        if (new URL(req.url).pathname === "/parametro") {        // altro parametro OCPP dalle Impostazioni
+        if (new URL(req.url).pathname === "/parametro") {        // another OCPP setting from Settings
           const b = await req.json(); this.put("par_voluti", { ...(this.get("par_voluti") || {}), [b.k]: b.v }); await this.applicaHeartbeat(); return json({ ok: true });
         }
-        if (new URL(req.url).pathname === "/lista-opzione") {    // invio della lista tessere via OCPP: acceso/spento dall'admin (spento di serie)
+        if (new URL(req.url).pathname === "/lista-opzione") {    // card list over OCPP: switched on/off by the admin (off by default)
           const b = await req.json(); this.put("lista_on", b.attiva === true);
           if (b.attiva !== true) { this.put("sync_pendente", false); this.put("nomi_pendenti", false); await this.state.storage.deleteAlarm(); }
           return json({ ok: true });
         }
-        if (new URL(req.url).pathname === "/sync-differita") {   // modifiche alle tessere: aspetto 30 s, cosi' piu' modifiche di fila diventano un solo invio
+        if (new URL(req.url).pathname === "/sync-differita") {   // card changes: wait 30 s, so several changes in a row become one send
           if (!this.get("lista_on")) return json({ ok: false });
           await this.state.storage.setAlarm(Date.now() + 30000); return json({ ok: true });
         }
-        if (new URL(req.url).pathname === "/comando") { const b = await req.json(); return json(await this.inviaComando(b.azione, b.payload)); }   // comando dell'admin, attende la risposta
+        if (new URL(req.url).pathname === "/comando") { const b = await req.json(); return json(await this.inviaComando(b.azione, b.payload)); }   // admin command, waits for the answer
         if (!this.get("lista_on")) return json({ errore: "Invio della lista tessere disattivato: attivalo prima dalla scheda OCPP" }, 400);
-        await this.avviaComandi(); return json({ ok: true });                                                                                          // "sincronizza": rimanda config e lista tessere
+        await this.avviaComandi(); return json({ ok: true });                                                                                          // "sync": sends config and card list again
       }
       return json(this.stato());
     }
-    for (const w of this.state.getWebSockets()) { try { w.close(1012, "sostituita da una nuova connessione"); } catch (_) { /* gia' chiusa */ } }
+    for (const w of this.state.getWebSockets()) { try { w.close(1012, "sostituita da una nuova connessione"); } catch (_) { /* already closed */ } }
     const [client, server] = Object.values(new WebSocketPair());
     this.state.acceptWebSocket(server);
     const proto = (req.headers.get("sec-websocket-protocol") || "").split(",").map((x) => x.trim()).find((x) => /^ocpp1\.6$/i.test(x));
@@ -1900,8 +1900,8 @@ export class Colonnina {
     this.log("<", JSON.stringify(m));
     if (!Array.isArray(m)) return;
     const [tipo, id, azione, payload] = m;
-    if (tipo === 3 || tipo === 4) {                          // risposta a un comando nostro
-      if (this.attese && this.attese.has(id)) {              // comando dell'admin (scheda OCPP): restituisco la risposta a chi aspetta
+    if (tipo === 3 || tipo === 4) {                          // answer to one of our commands
+      if (this.attese && this.attese.has(id)) {              // admin command (OCPP tab): hand the answer to whoever is waiting
         const ris = this.attese.get(id); this.attese.delete(id);
         ris(tipo === 3 ? { ok: true, risposta: azione } : { errore: "La colonnina risponde con errore: " + azione + (payload ? " - " + String(payload).slice(0, 120) : "") });
         return;
@@ -1909,7 +1909,7 @@ export class Colonnina {
       const a = this.get("attesa");
       if (a && a.id === id) {
         this.put("attesa", null);
-        if (a.azione === "SendLocalList") {                     // tengo traccia dell'esito dell'invio della lista offline
+        if (a.azione === "SendLocalList") {                     // keep track of the outcome of the offline list send
           const l = this.get("lista") || {};
           if (tipo === 3 && azione && azione.status === "Accepted") l.inviate = (l.inviate || 0) + a.n; else l.ok = false;
           if (!(this.get("coda") || []).length && l.ok !== false) { l.ok = true; this.put("nomi_pendenti", true); this.put("nomi_pendenti_da", Date.now()); this.state.waitUntil(this.rimettiNomi()); }
@@ -1925,13 +1925,13 @@ export class Colonnina {
     catch (e) { this.log("sys", "errore in " + azione + ": " + (e.message || e)); ws.send(JSON.stringify([4, id, "InternalError", String(e.message || e).slice(0, 100), {}])); return; }
     const out = r === undefined ? [4, id, "NotImplemented", "", {}] : [3, id, r];
     this.log(">", JSON.stringify(out)); ws.send(JSON.stringify(out));
-    if (azione === "BootNotification") await this.avviaComandi(true);   // dopo l'avvio mando le impostazioni offline e la lista tessere
+    if (azione === "BootNotification") await this.avviaComandi(true);   // after the start send the offline settings and the card list
     else if (azione === "Heartbeat" && this.get("nomi_pendenti")) this.state.waitUntil(this.rimettiNomi());
-    if (azione === "BootNotification") { /* gia' gestito */ }
+    if (azione === "BootNotification") { /* already handled */ }
     else await this.applicaHeartbeat();
   }
   hbVoluto() { return this.get("hb_voluto") || HEARTBEAT_S; }
-  // intervallo della "conferma collegamento": lo mando subito, senza aspettare un riavvio della colonnina
+  // "connection check" interval: sent at once, without waiting for a charger restart
   async applicaHeartbeat() {
     const s = this.hbVoluto();
     if ((this.get("coda") || []).length || this.get("attesa")) return;
@@ -1944,8 +1944,8 @@ export class Colonnina {
     this.put("coda", cmd);
     await this.prossimo();
   }
-  // comandi del server verso la colonnina, uno alla volta (si attende la risposta prima del successivo)
-  // comando singolo dell'admin: lo invia e aspetta la risposta (max 15 s)
+  // server commands to the charger, one at a time (the answer is awaited before the next one)
+  // single admin command: sends it and waits for the answer (max 15 s)
   async inviaComando(azione, payload) {
     const ws = this.state.getWebSockets()[0];
     if (!ws) return { errore: "Colonnina non collegata al server" };
@@ -1960,12 +1960,12 @@ export class Colonnina {
     this.log(">", JSON.stringify(out)); ws.send(JSON.stringify(out));
     return await p;
   }
-  // conConfig: all'avvio della colonnina anche le impostazioni offline; nelle sincronizzazioni successive solo la lista.
-  // Con una ricarica in corso non si manda nulla: si rimanda a quando la presa e' libera.
+  // conConfig: at the charger's start also the offline settings; in later syncs only the list.
+  // With a charge in progress nothing is sent: postponed until the socket is free.
   async alarm() { await this.avviaComandi(); }
 
   async rimettiNomi() {
-    await new Promise((r) => setTimeout(r, 5000));               // lascio alla colonnina il tempo di riscrivere il suo elenco
+    await new Promise((r) => setTimeout(r, 5000));               // give the charger time to rewrite its list
     try {
       const n = await ripristinaNomi(this.env);
       if (n >= 0) { this.put("nomi_pendenti", false); if (n > 0) this.log("sys", `Nomi tessere rimessi sulla colonnina: ${n}`); }
@@ -1973,19 +1973,19 @@ export class Colonnina {
     } catch (e) { this.log("sys", "nomi tessere non rimessi: " + (e.message || e)); }
   }
 
-  // La lista tessere (SendLocalList) parte SOLO se l'admin ha acceso l'opzione nella scheda OCPP (spenta di serie):
-  // senza, il server manda alla colonnina solo le impostazioni scelte dall'admin e nessun elenco tessere.
+  // The card list (SendLocalList) goes out ONLY if the admin switched the option on in the OCPP tab (off by default):
+  // otherwise the server sends the charger only the settings chosen by the admin and no card list.
   async avviaComandi(conConfig = false) {
     const listaOn = !!this.get("lista_on");
     if (!conConfig && !listaOn) { this.put("sync_pendente", false); return; }
     const aperta = [...this.sql.exec("SELECT 1 FROM transazioni WHERE fine IS NULL LIMIT 1")].length > 0;
-    const occupata = [...this.sql.exec("SELECT v FROM kv WHERE k LIKE 'presa_%'")].some((r) => /Charging|Suspended|Preparing|Finishing/.test(r.v));   // anche auto collegata in attesa: l'invio della lista le fa tentare un avvio a vuoto
+    const occupata = [...this.sql.exec("SELECT v FROM kv WHERE k LIKE 'presa_%'")].some((r) => /Charging|Suspended|Preparing|Finishing/.test(r.v));   // also a car plugged in and waiting: sending the list makes it attempt an empty start
     if (!conConfig && (aperta || occupata)) { this.put("sync_pendente", true); return; }
     this.put("sync_pendente", false);
     let tessere = [];
     if (listaOn) {
       const c = await this.env.DB.prepare("SELECT valore FROM meta WHERE chiave='rfid_stato'").first();
-      if (c) tessere = JSON.parse(c.valore).filter((t) => t.stato === "0" && (!t.scad || Date.parse(t.scad) > Date.now()));   // solo attive e non scadute
+      if (c) tessere = JSON.parse(c.valore).filter((t) => t.stato === "0" && (!t.scad || Date.parse(t.scad) > Date.now()));   // only active and not expired
       else tessere = (await this.env.DB.prepare("SELECT tag AS id, '' AS scad FROM tessere WHERE attiva<>0 ORDER BY tag LIMIT 500").all()).results;
       tessere = tessere.slice(0, 500);
     }
@@ -1998,7 +1998,7 @@ export class Colonnina {
     ] : [];
     if (conConfig) { this.put("hb", this.hbVoluto()); this.put("par_inviati", { ...pv }); }
     if (listaOn) {
-      for (let i = 0; i < Math.max(1, Math.ceil(tessere.length / 10)); i++) {   // max 10 tessere per invio (SendLocalListMaxLength): prima Full, poi Differential
+      for (let i = 0; i < Math.max(1, Math.ceil(tessere.length / 10)); i++) {   // max 10 cards per send (SendLocalListMaxLength): first Full, then Differential
         cmd.push({ azione: "SendLocalList", payload: { listVersion: v + i, updateType: i === 0 ? "Full" : "Differential",
           localAuthorizationList: tessere.slice(i * 10, i * 10 + 10).map((t) => ({ idTag: t.id, idTagInfo: t.scad ? { status: "Accepted", expiryDate: new Date(t.scad).toISOString() } : { status: "Accepted" } })) } });
       }
@@ -2020,13 +2020,13 @@ export class Colonnina {
     const out = [2, id, n.azione, n.payload];
     this.log(">", JSON.stringify(out)); ws.send(JSON.stringify(out));
   }
-  webSocketClose(ws, code, reason) { const cd = (this.get("cadute") || []).filter((t) => t > Date.now() - 86400000); cd.push(Date.now()); this.put("cadute", cd.slice(-50)); try { ws.close(code, reason); } catch (_) { /* gia' chiusa */ } this.log("sys", "connessione chiusa (" + code + ")"); }
+  webSocketClose(ws, code, reason) { const cd = (this.get("cadute") || []).filter((t) => t > Date.now() - 86400000); cd.push(Date.now()); this.put("cadute", cd.slice(-50)); try { ws.close(code, reason); } catch (_) { /* already closed */ } this.log("sys", "connessione chiusa (" + code + ")"); }
   webSocketError(ws, e) { this.log("sys", "errore connessione: " + (e && e.message || e)); }
 
   async tagOk(idTag) {
     const tag = String(idTag || "").toUpperCase();
     const c = await this.env.DB.prepare("SELECT valore FROM meta WHERE chiave='rfid_stato'").first();
-    if (c) {                                                 // stato letto dalla colonnina: rispetta blocco e scadenza
+    if (c) {                                                 // state read from the charger: honours block and expiry
       const x = JSON.parse(c.valore).find((t) => t.id === tag);
       if (!x) return "Invalid";
       if (x.stato === "1") return "Blocked";
@@ -2035,7 +2035,7 @@ export class Colonnina {
       if (x.scad && Date.parse(x.scad) <= Date.now()) return "Expired";
       return "Accepted";
     }
-    const r = await this.env.DB.prepare("SELECT * FROM tessere WHERE tag=?").bind(tag).first();   // senza stato noto: db del sito
+    const r = await this.env.DB.prepare("SELECT * FROM tessere WHERE tag=?").bind(tag).first();   // no known state: site db
     return r && r.attiva !== 0 ? "Accepted" : "Invalid";
   }
   async chiamata(azione, p) {
@@ -2049,15 +2049,15 @@ export class Colonnina {
       case "Heartbeat": return { currentTime: adesso };
       case "StatusNotification":
         this.put("presa_" + (p.connectorId || 0), { status: p.status, errore: p.errorCode, ts: p.timestamp || adesso });
-        // presa libera o in chiusura: una ricarica rimasta "aperta" (es. avviata offline) si considera finita
+        // socket free or finishing: a charge left "open" (e.g. started offline) is considered finished
         if (p.status === "Available" || p.status === "Finishing") this.sql.exec("UPDATE transazioni SET fine=? WHERE fine IS NULL", Date.parse(p.timestamp) || Date.now());
         if (p.status === "Available" && this.get("sync_pendente")) this.state.waitUntil(this.avviaComandi());
-        else if (p.status === "Available" && this.get("nomi_pendenti")) this.state.waitUntil(this.rimettiNomi());   // sincronizzazione rimandata durante la ricarica
+        else if (p.status === "Available" && this.get("nomi_pendenti")) this.state.waitUntil(this.rimettiNomi());   // sync postponed during the charge
         return {};
       case "Authorize": { const st = await this.tagOk(p.idTag); this.rifiuto(p.idTag, st); return { idTagInfo: { status: st } }; }
       case "StartTransaction": {
         const st = await this.tagOk(p.idTag); this.rifiuto(p.idTag, st);
-        this.sql.exec("UPDATE transazioni SET fine=? WHERE fine IS NULL", Date.parse(p.timestamp) || Date.now());   // una nuova ricarica chiude eventuali rimaste aperte
+        this.sql.exec("UPDATE transazioni SET fine=? WHERE fine IS NULL", Date.parse(p.timestamp) || Date.now());   // a new charge closes any left open
         const r = [...this.sql.exec("INSERT INTO transazioni (tag, connettore, inizio, meter_ini) VALUES (?, ?, ?, ?) RETURNING id",
           String(p.idTag || "").toUpperCase(), p.connectorId || 1, Date.parse(p.timestamp) || Date.now(), p.meterStart ?? null)][0];
         return { transactionId: r.id, idTagInfo: { status: st } };
@@ -2066,7 +2066,7 @@ export class Colonnina {
       {
         const ts = Date.parse(p.timestamp) || Date.now();
         let id = p.transactionId;
-        if (![...this.sql.exec("SELECT 1 FROM transazioni WHERE id=?", id)].length) {   // ricarica avviata offline: la colonnina non conosceva ancora l'id (manda 0)
+        if (![...this.sql.exec("SELECT 1 FROM transazioni WHERE id=?", id)].length) {   // charge started offline: the charger did not know the id yet (sends 0)
           const r = [...this.sql.exec("SELECT id FROM transazioni WHERE meter_fin IS NULL AND inizio<=? ORDER BY id DESC LIMIT 1", ts)][0];
           id = r ? r.id : null;
         }
@@ -2092,11 +2092,11 @@ export class Colonnina {
       default: return undefined;
     }
   }
-  // righe leggibili al posto dei messaggi grezzi: le risposte del server (->) non si mostrano, tranne gli errori
+  // readable rows instead of raw messages: the server's answers (->) are not shown, except errors
   eventiBrevi() {
     const out = [];
     const righe = [...this.sql.exec("SELECT ts, dir, testo FROM eventi ORDER BY id DESC LIMIT 120")];
-    const cmdDi = {};                                        // id del comando -> nome, per dire a cosa risponde la colonnina
+    const cmdDi = {};                                        // command id -> name, to say what the charger is answering
     for (const r of righe) { const k = /^\[2,"([^"]+)","([A-Za-z]+)"/.exec(r.testo); if (r.dir === ">" && k) cmdDi[k[1]] = k[2]; }
     const NOMI_CMD = { Reset: "riavvio", GetConfiguration: "lettura configurazione", ChangeConfiguration: "modifica impostazione", SendLocalList: "invio lista tessere",
       GetLocalListVersion: "versione lista tessere", TriggerMessage: "richiesta messaggio", RemoteStopTransaction: "stop ricarica da remoto" };
@@ -2163,13 +2163,13 @@ export class Colonnina {
       heartbeat: { voluto: this.hbVoluto(), inviato: this.get("hb") || null },
       parametri: { def: PARAMETRI, voluti: this.get("par_voluti") || {}, inviati: this.get("par_inviati") || {} },
       eventi: this.eventiBrevi(),
-      spazio: this.sql.databaseSize,                                  // byte occupati dal database del Durable Object
+      spazio: this.sql.databaseSize,                                  // bytes used by the Durable Object database
     };
   }
 }
 
-// -------------------------------------------------------------- primo avvio
-async function setupAperto(env) {              // true finche' non esiste un amministratore (e non si usa APP_PASSWORD)
+// -------------------------------------------------------------- first run
+async function setupAperto(env) {              // true until an administrator exists (and APP_PASSWORD is not used)
   await preparaTabelle(env);
   if (env.APP_PASSWORD) return false;
   return (await env.DB.prepare("SELECT COUNT(*) n FROM utenti WHERE ruolo='admin'").first()).n === 0;
@@ -2187,7 +2187,7 @@ async function eseguiSetup(req, env, cfg) {
   if (!PW_FORTE(pw)) return json({ errore: "La password non rispetta i requisiti" }, 400);
   const nuova = pulisciConfig(b, cfg);
   const c = await nuovaCredenziale(pw);
-  // atomico: inserisce solo se non c'e' ancora un amministratore
+  // atomic: inserts only if there is still no administrator
   const r = await env.DB.prepare("INSERT INTO utenti (nome, salt, hash, ruolo) SELECT ?, ?, ?, 'admin' WHERE NOT EXISTS (SELECT 1 FROM utenti WHERE ruolo='admin')")
     .bind(nome, c.salt, c.hash).run();
   if (!r.meta.changes) return json({ errore: "Configurazione gia' completata" }, 409);
@@ -2210,17 +2210,17 @@ async function ocppConnessione(req, env, url) {
   const [, , token, sigla] = url.pathname.split("/");
   if (req.headers.get("upgrade") !== "websocket") return new Response("Upgrade Required", { status: 426 });
   if (!sigla || !/^[A-Za-z0-9._-]{1,40}$/.test(sigla) || !uguali(token || "", await tokenOcpp(env))) {
-    try {                                                   // per il monitoraggio: conto i collegamenti con codice sbagliato (una scrittura ogni 5 secondi al massimo)
+    try {                                                   // for monitoring: count connections with a wrong token (at most one write every 5 seconds)
       const l = await leggiMeta(env, "ocpp_rifiuti", []), ora = Date.now();
       if (!l.length || ora - l[l.length - 1] > 5000) { l.push(ora); await salvaMeta(env, "ocpp_rifiuti", l.filter((t) => t > ora - 86400000).slice(-100)); }
-    } catch (_) { /* accessorio */ }
+    } catch (_) { /* optional */ }
     return new Response("Not found", { status: 404 });
   }
   return await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch(req);
 }
 
 export default {
-  // Forza https (tranne in sviluppo locale) e chiede ai browser di usare sempre https (HSTS)
+  // Forces https (except in local development) and asks browsers to always use https (HSTS)
   async fetch(req, env, ctx) {
     const u = new URL(req.url);
     if (u.protocol === "http:" && !u.pathname.startsWith("/ocpp/") && u.hostname !== "localhost" && u.hostname !== "127.0.0.1" && u.hostname !== "[::1]") {
@@ -2229,8 +2229,8 @@ export default {
     }
     const r = await this.gestisci(req, env, ctx);
     let out = new Response(r.body, r);
-    // Content Security Policy: gli script girano solo se portano il nonce generato per questa risposta (niente script iniettati),
-    // le connessioni restano verso il sito stesso; Turnstile (controllo anti-robot) e' l'unico esterno ammesso.
+    // Content Security Policy: scripts run only if they carry the nonce generated for this response (no injected scripts),
+    // connections stay towards the site itself; Turnstile (anti-bot check) is the only external service allowed.
     const nonce = hex(crypto.getRandomValues(new Uint8Array(16)));
     if ((out.headers.get("content-type") || "").startsWith("text/html")) {
       const html = (await out.text()).replace(/<(script|style)(?=[\s>])/g, `<$1 nonce="${nonce}"`);
@@ -2239,9 +2239,9 @@ export default {
     const TS = "https://challenges.cloudflare.com";
     out.headers.set("content-security-policy", `default-src 'self'; script-src 'nonce-${nonce}' ${TS}; style-src 'unsafe-inline'; style-src-elem 'nonce-${nonce}'; style-src-attr 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${TS}; frame-src ${TS}; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'`);
     if (u.protocol === "https:") out.headers.set("strict-transport-security", "max-age=31536000");
-    out.headers.set("x-frame-options", "DENY");                       // niente sito dentro iframe altrui
+    out.headers.set("x-frame-options", "DENY");                       // never inside someone else's iframe
     out.headers.set("x-content-type-options", "nosniff");
-    out.headers.set("referrer-policy", "no-referrer");               // il link di invito non esce nel Referer
+    out.headers.set("referrer-policy", "no-referrer");               // the invitation link never leaks through Referer
     return out;
   },
 
@@ -2250,8 +2250,8 @@ export default {
     const q = url.searchParams;
     try {
       if (url.pathname.startsWith("/ocpp/")) return await ocppConnessione(req, env, url);
-      const cfg = await leggiConfig(env);            // imposta anche TITOLO, TZ e VALUTA per questa richiesta
-      if (await setupAperto(env)) {                  // primo avvio: nessun amministratore ancora creato
+      const cfg = await leggiConfig(env);            // also sets TITOLO, TZ and VALUTA for this request
+      if (await setupAperto(env)) {                  // first run: no administrator created yet
         const html = (h) => new Response(pagina(h), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
         if (url.pathname === "/" && req.method === "GET") return html(P_SETUP);
         if (url.pathname === "/api/setup" && req.method === "GET") return json({ code_required: !!env.SETUP_CODE });
@@ -2263,7 +2263,7 @@ export default {
         return json({ errore: "Configurazione iniziale non completata: apri la pagina principale" }, 403);
       }
       if (url.pathname === "/api/setup" && req.method === "GET") return json({ done: true });
-      if (url.pathname === "/api/testi" && req.method === "GET") {       // regolamento e informativa (servono anche prima dell'accesso)
+      if (url.pathname === "/api/testi" && req.method === "GET") {       // rules and privacy notice (needed before sign-in too)
         const t = await leggiTesti(env);
         return json({ ...t, titolo: TITOLO, costo: costoTessera(cfg), contatto: cfg.contact });
       }
@@ -2282,16 +2282,16 @@ export default {
       if (url.pathname === "/" && req.method === "GET" && q.get("completa"))
         return new Response(pagina(P_INVITO), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
       if (me.ruolo !== "admin" && url.pathname.startsWith("/api/") && !["/api/me", "/api/profilo", "/api/logout", "/api/ingest"].includes(url.pathname)) {
-        const pr = await env.DB.prepare("SELECT registrato_il, profilo_il FROM utenti WHERE nome=?").bind(me.nome).first();   // profilo da completare: niente dati finche' non e' compilato
+        const pr = await env.DB.prepare("SELECT registrato_il, profilo_il FROM utenti WHERE nome=?").bind(me.nome).first();   // profile to complete: no data until it is filled in
         if (pr && !pr.registrato_il && !pr.profilo_il) return json({ errore: "Completa il profilo per continuare", completa: true }, 403);
       }
-      const P = me.perm, ris = P.app;               // ricariche senza tessera: solo con il permesso "app" (l'admin ce l'ha)
+      const P = me.perm, ris = P.app;               // sessions without a card: only with the "app" permission (the admin has it)
       const nega = () => json({ errore: "non hai il permesso per questa operazione" }, 403);
       if (url.pathname === "/api/logout" && req.method === "POST") {
-        // la sessione viene annullata anche sul server, non solo cancellando il cookie
+        // the session is cancelled on the server too, not just by deleting the cookie
         const ck = /(?:^|;\s*)sess=([^;]+)/.exec(req.headers.get("cookie") || "");
         let val = "";
-        try { val = ck ? decodeURIComponent(ck[1]) : ""; } catch (_) { /* cookie malformato */ }
+        try { val = ck ? decodeURIComponent(ck[1]) : ""; } catch (_) { /* malformed cookie */ }
         const pp = (/^(.+)~(\d+)~([0-9a-f]{16})~([0-9a-f]{64})$/.exec(val) || []).slice(1);
         const adesso = Math.floor(Date.now() / 1000);
         await env.DB.prepare("DELETE FROM revocati WHERE exp < ?").bind(adesso).run();
@@ -2302,9 +2302,9 @@ export default {
         r.headers.set("cache-control", "no-store");
         return r;
       }
-      if (url.pathname === "/api/profilo") {                // profilo e consensi dell'utente che ha fatto la registrazione da solo
+      if (url.pathname === "/api/profilo") {                // profile and consents of the self-registered user
         const r = await env.DB.prepare("SELECT nome, nome_proprio, cognome, tel1, tel2, consensi, registrato_il, profilo_il FROM utenti WHERE nome=?").bind(me.nome).first();
-        if (r && !r.registrato_il && !r.profilo_il && me.ruolo !== "admin" && req.method === "POST") {   // utente attivo prima della raccolta dati: schermata obbligatoria "Completa il profilo"
+        if (r && !r.registrato_il && !r.profilo_il && me.ruolo !== "admin" && req.method === "POST") {   // user active before the data collection: mandatory "Complete your profile" screen
           const b = await req.json();
           const p = datiProfilo(b, (await leggiTesti(env)).edizione);
           if (p.errore) return json({ errore: p.errore }, 400);
@@ -2314,7 +2314,7 @@ export default {
           return json({ ok: true });
         }
         if (!r || (!r.registrato_il && !r.profilo_il)) return json({ registrato: false });
-        let c = {}; try { c = JSON.parse((await decifra(env, r.consensi, r.nome + "|consensi")) || "{}"); } catch (_) { /* vuoto */ }
+        let c = {}; try { c = JSON.parse((await decifra(env, r.consensi, r.nome + "|consensi")) || "{}"); } catch (_) { /* empty */ }
         if (req.method === "POST") {
           const b = await req.json();
           const wa = b.whatsapp === true, tg = b.telegram === true;
@@ -2337,7 +2337,7 @@ export default {
         return json({ nome: me.nome, nome_completo: nomeCompleto, ruolo: me.ruolo, perm: P, senzaTessera: !!(reg && reg.registrato_il) && me.ruolo !== "admin" && !(me.tessere || []).length, registrato: !!(reg && (reg.registrato_il || reg.profilo_il)), completa: !!(reg && !reg.registrato_il && !reg.profilo_il && me.ruolo !== "admin"), titolo: TITOLO, valuta: VALUTA, tz: TZ, tax_label: cfg.tax_label, costo_tessera: costoTessera(cfg), contatto: cfg.contact, tessera: t || (me.tessera ? { tag: me.tessera, nome: "" } : null),
           tessere: await Promise.all((me.tessere || []).map(async (tag) => ({ tag, nome: ((await env.DB.prepare("SELECT nome FROM tessere WHERE tag=?").bind(tag).first()) || {}).nome || "" }))) });
       }
-      if (url.pathname === "/api/pagamento") {         // dove pagare la tessera: account PayPal, Satispay, Revolut dell'admin (contanti sempre disponibili)
+      if (url.pathname === "/api/pagamento") {         // where to pay for the card: the admin's PayPal, Satispay, Revolut accounts (cash always available)
         if (req.method === "POST") {
           if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
           const bp = await req.json(), out = {};
@@ -2358,7 +2358,7 @@ export default {
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
         return json(await statoCifratura(env));
       }
-      if (url.pathname === "/api/config") {             // impostazioni dell'installazione (solo admin)
+      if (url.pathname === "/api/config") {             // installation settings (admin only)
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
         if (req.method === "POST") {
           const nuova = pulisciConfig(await req.json(), cfg);
@@ -2368,15 +2368,15 @@ export default {
         }
         return json({ config: configPubblica(cfg), defaults: configPubblica(CFG_DEFAULTS), fonti: { url_env: !!env.CHARGER_URL, title_env: !!env.SITE_TITLE, mail_env: !!env.RESEND_API_KEY } });
       }
-      if (url.pathname === "/api/colonnina-info") {     // IP pubblico a cui rispondeva la colonnina all'ultimo scarico
+      if (url.pathname === "/api/colonnina-info") {     // public IP the charger answered from at the last download
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
         return json({ ultimo_ip: await leggiMeta(env, "ultimo_ip", null) });
       }
-      if (url.pathname === "/api/config/test" && req.method === "POST") {   // prova di collegamento con i valori nel modulo (non salva)
+      if (url.pathname === "/api/config/test" && req.method === "POST") {   // connection test with the values in the form (does not save)
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
         return json(await provaColonnina(pulisciConfig(await req.json(), cfg)));
       }
-      if (url.pathname === "/api/testi" && req.method === "POST") {       // regolamento e informativa privacy (solo admin)
+      if (url.pathname === "/api/testi" && req.method === "POST") {       // rules and privacy notice (admin only)
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
         const b = await req.json(), t = { ...TESTI_VUOTI };
         for (const k of Object.keys(TESTI_VUOTI)) t[k] = String(b[k] || "").trim().slice(0, k === "edizione" ? 40 : 60000);
@@ -2386,7 +2386,7 @@ export default {
       if (url.pathname === "/api/utenti") {
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
         if (req.method === "GET") {
-          try { await migraCifratura(env); } catch (_) { /* riprova al prossimo giro */ }
+          try { await migraCifratura(env); } catch (_) { /* retry at the next run */ }
           const righe = (await env.DB.prepare(
             "SELECT u.nome, u.ruolo, u.permessi, u.hash, u.invito_exp, u.tessera, u.cognome, u.nome_proprio, u.tel1, u.tel2, u.verifica_hash, u.verifica_exp, u.consensi, u.registrato_il, u.profilo_il, u.tessere_altre, t.nome AS tessera_nome " +
             "FROM utenti u LEFT JOIN tessere t ON t.tag = u.tessera ORDER BY u.ruolo, u.nome").all()).results;
@@ -2396,7 +2396,7 @@ export default {
             let an = null;
             if (u.registrato_il || u.profilo_il) {
               const d = {}; for (const c of CAMPI_CIFRATI) d[c] = await decifra(env, u[c], u.nome + "|" + c);
-              let msg = false; try { const cc = JSON.parse(d.consensi || "{}"); msg = !!(cc.whatsapp || cc.telegram || (cc.whatsapp === undefined && cc.messaggi)); } catch (_) { /* illeggibile */ }
+              let msg = false; try { const cc = JSON.parse(d.consensi || "{}"); msg = !!(cc.whatsapp || cc.telegram || (cc.whatsapp === undefined && cc.messaggi)); } catch (_) { /* unreadable */ }
               an = { nome: d.nome_proprio, cognome: d.cognome, tel1: d.tel1, tel2: d.tel2, data: u.registrato_il || u.profilo_il, messaggi: msg, da_confermare: !!u.verifica_hash };
             }
             lista.push({ nome: u.nome, ruolo: u.ruolo, perm: permessiDi(u), attivo: !!u.hash && !u.verifica_hash && !(u.registrato_il && !u.tessera), in_attesa_tessera: !!u.registrato_il && !u.tessera && !u.verifica_hash,
@@ -2418,7 +2418,7 @@ export default {
           out += def.sql.replace(/^CREATE TABLE\s+(IF NOT EXISTS\s+)?/i, "CREATE TABLE IF NOT EXISTS ") + ";\n";
           const rows = (await env.DB.prepare("SELECT * FROM " + t).all()).results;
           for (const r of rows) {
-            if (t === "meta" && r.chiave === "chiave_sessioni") continue;   // si rigenera da sola
+            if (t === "meta" && r.chiave === "chiave_sessioni") continue;   // regenerates by itself
             const cols = Object.keys(r);
             out += "INSERT OR REPLACE INTO " + t + " (" + cols.join(", ") + ") VALUES (" + cols.map((c) => q1(r[c])).join(", ") + ");\n";
           }
@@ -2486,7 +2486,7 @@ export default {
           regole: Object.entries(MALF).map(([id, d]) => ({ id, g: d.g, label: d.label, tipo: d.tipo, on: c.regole[id].on, mail: c.regole[id].mail, not: c.regole[id].not, unita: d.unita || "", valore: d.tipo === "evento" ? null : c.regole[id].min / d.um, da: d.tipo === "evento" ? null : d.min / d.um, a: d.tipo === "evento" ? null : d.max / d.um })),
           storico: storico.slice(0, 40).map((x) => ({ ...x, label: MALF[x.id] ? MALF[x.id].label : x.id })) });
       }
-      if (url.pathname === "/api/live") {                  // ricarica in corso: tutti vedono "occupata da chi", i dettagli solo admin, chi ha il permesso e chi sta caricando con la propria tessera
+      if (url.pathname === "/api/live") {                  // charge in progress: everyone sees "busy by whom", details only admin, whoever has the permission and whoever is charging with their own card
         const live = await (await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/stato")).json();
         const tx = live.transazione_aperta, pr = live.prese && live.prese["1"];
         const out = { connessa: live.connessa, stato: pr ? pr.status : null, occupata: !!tx || !!(pr && /Charging|Suspended/.test(pr.status)) };
@@ -2503,11 +2503,11 @@ export default {
         }
         return json(out);
       }
-      if (url.pathname === "/api/ocpp") {                  // server OCPP (prova): stato e indirizzo da dare alla colonnina
+      if (url.pathname === "/api/ocpp") {                  // OCPP server: state and address to give to the charger
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
         if (req.method === "POST") {
           const b = await req.json();
-          if (b.azione === "comando") {                      // scheda OCPP: comandi da una lista fissa (3 di lettura + RemoteStop)
+          if (b.azione === "comando") {                      // OCPP tab: commands from a fixed list (3 read-only + RemoteStop)
             const mess = ["MeterValues", "StatusNotification", "Heartbeat", "DiagnosticsStatusNotification", "FirmwareStatusNotification"];
             const CMD = {
               GetConfiguration: () => ({}),
@@ -2515,11 +2515,11 @@ export default {
               TriggerMessage: (x) => mess.includes(x.richiesta) ? { requestedMessage: x.richiesta, ...(x.richiesta === "Heartbeat" ? {} : { connectorId: 1 }) } : null,
             };
             let payload = null;
-            if (b.comando === "RemoteStopTransaction") {       // agisce: ferma la ricarica aperta (l'id lo prende il server, non l'utente)
+            if (b.comando === "RemoteStopTransaction") {       // acts: stops the open charge (the server takes the id, not the user)
               const st = await (await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/stato")).json();
               if (!st.transazione_aperta) return json({ errore: "Nessuna ricarica in corso da fermare" }, 400);
               payload = { transactionId: st.transazione_aperta.id };
-            } else if (b.comando === "Reset") {                // riavvio (soft): solo a colonnina libera, mai durante una ricarica
+            } else if (b.comando === "Reset") {                // restart (soft): only when the charger is free, never during a charge
               const st = await (await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/stato")).json();
               const occ = Object.values(st.prese || {}).some((p) => /Charging|Suspended|Preparing|Finishing/.test(p.status));
               if (st.transazione_aperta || occ) return json({ errore: "Colonnina occupata: riavvio non consentito" }, 400);
@@ -2532,12 +2532,12 @@ export default {
             const r = await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/comando", { method: "POST", body: JSON.stringify({ azione: b.comando, payload }) });
             return json(await r.json());
           }
-          if (b.azione === "heartbeat") {                    // intervallo conferma collegamento, in minuti (1-60)
+          if (b.azione === "heartbeat") {                    // connection check interval, in minutes (1-60)
             const m = Math.round(Number(b.minuti));
             if (!(m >= 1 && m <= 60)) return json({ errore: "Intervallo non valido: da 1 a 60 minuti" }, 400);
             await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/heartbeat", { method: "POST", body: JSON.stringify({ s: m * 60 }) });
           }
-          if (b.azione === "parametro") {                    // altri parametri OCPP, con limiti
+          if (b.azione === "parametro") {                    // other OCPP settings, with limits
             let v;
             if (b.chiave === "LocalAuthorizeOffline") v = b.valore === true || b.valore === "true";
             else {
@@ -2549,7 +2549,7 @@ export default {
             await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/parametro", { method: "POST", body: JSON.stringify({ k: b.chiave, v }) });
           }
           if (b.azione === "rigenera") await tokenOcpp(env, true);
-          if (b.azione === "lista") await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/lista-opzione", { method: "POST", body: JSON.stringify({ attiva: b.attiva === true }) });   // invio lista tessere on/off
+          if (b.azione === "lista") await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/lista-opzione", { method: "POST", body: JSON.stringify({ attiva: b.attiva === true }) });   // card list sending on/off
           if (b.azione === "sincronizza") { const r = await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/sync", { method: "POST" }); if (!r.ok) return json(await r.json(), 400); }
         }
         const token = await tokenOcpp(env);
@@ -2566,20 +2566,20 @@ export default {
         const d = await leggiDestinatari(env);
         return json({ ok: true, mail, destinatari: mail === "inviata" ? d.a.concat(d.cc) : undefined });
       }
-      if (url.pathname === "/api/rfid") {                  // tessere programmate sulla colonnina (solo admin)
+      if (url.pathname === "/api/rfid") {                  // cards programmed on the charger (admin only)
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
         let prima;
         try {
           const letta = await rfidDallaColonnina(env);
           prima = riempiNomi(letta, await nomiDb(env));
-          // nomi mancanti sulla colonnina (cancellati dall'invio OCPP della lista): li rimetto in background
+          // names missing on the charger (erased by the OCPP list send): put them back in the background
           if (req.method === "GET" && prima.some((x, i) => x.nome !== letta[i].nome)) ctx.waitUntil(ripristinaNomi(env).catch(() => {}));
         }
         catch (e) { return json({ errore: "Colonnina non raggiungibile: " + (e.message || e) }, 502); }
         const bk = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='rfid_backup'").first();
         const backup = bk ? JSON.parse(bk.valore) : null;
         if (req.method === "GET") {
-          // per le voci senza codice propongo il codice dal db del sito, cercando per nome
+          // for entries without a code suggest the code from the site db, searching by name
           const db = (await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results;
           const lista = prima.map((x) => {
             if (x.id) return x;
@@ -2601,10 +2601,10 @@ export default {
           return null;
         };
         const regB = await leggiMeta(env, "tessere_bloccate", []);
-        const soloReg = id && !dopo.some((x) => x.id === id) && regB.some((x) => x.tag === id);      // tessera bloccata dal sito, tolta dall'elenco della colonnina
+        const soloReg = id && !dopo.some((x) => x.id === id) && regB.some((x) => x.tag === id);      // card blocked by the site, removed from the charger's list
         if (soloReg && b.azione === "modifica") {
           if (stato !== "0") return json({ ok: true, lista: await conBloccate(env, prima) });
-          await bloccaTessera(env, id, false);                                                        // stato "accettata": la rimetto nell'elenco
+          await bloccaTessera(env, id, false);                                                        // state "accepted": put it back in the list
           return json({ ok: true, lista: await conBloccate(env, riempiNomi(await rfidDallaColonnina(env), await nomiDb(env))) });
         }
         if (b.azione === "aggiungi" || b.azione === "modifica") {
@@ -2612,7 +2612,7 @@ export default {
           const es = dopo.find((x) => x.id === id);
           if (b.azione === "aggiungi") { if (es) return json({ errore: "Tessera già presente" }, 400); dopo.push({ id, scad, nome, stato }); }
           else { if (!es) return json({ errore: "Tessera non trovata" }, 404); Object.assign(es, { nome, scad, stato }); }
-        } else if (b.azione === "ripara") {                // voce rimasta senza codice: gli rimetto il codice
+        } else if (b.azione === "ripara") {                // entry left without a code: give it the code back
           const x = dopo[+b.indice];
           if (!x || x.id) return json({ errore: "Tessera non trovata" }, 404);
           const err = controlla(); if (err) return json({ errore: err }, 400);
@@ -2623,12 +2623,12 @@ export default {
           const i = soloReg ? -2 : id ? dopo.findIndex((x) => x.id === id) : (dopo[+b.indice] && !dopo[+b.indice].id ? +b.indice : -1);
           if (i === -1) return json({ errore: "Tessera non trovata" }, 404);
           if (i >= 0) dopo.splice(i, 1);
-        } else if (b.azione === "importa") {               // unisce: aggiunge le nuove e aggiorna i nomi, non cancella nulla
+        } else if (b.azione === "importa") {               // merge: adds new cards and updates names, deletes nothing
           const nuove = rfidDaFile(String(b.testo || "")).filter((x) => RFID_ID_OK.test(x.id) && x.nome).map((x) => ({ ...x, nome: x.nome.slice(0, RFID_NOME_MAX) }));
           if (!nuove.length) return json({ errore: "Nel file non ho trovato tessere valide" }, 400);
-          for (const n of nuove) {                                // il CSV di Viaris toglie gli spazi: se il nome e' lo stesso tengo quello esistente
+          for (const n of nuove) {                                // the Viaris CSV strips spaces: if the name is the same keep the existing one
             const es = dopo.find((x) => x.id === n.id);
-            if (!es) dopo.push(n); else { if (norm(es.nome) !== norm(n.nome) || n.nome.length > es.nome.length) es.nome = n.nome; /* a parita' tengo la grafia con gli spazi */ if (n.scad) es.scad = n.scad; es.stato = n.stato; }
+            if (!es) dopo.push(n); else { if (norm(es.nome) !== norm(n.nome) || n.nome.length > es.nome.length) es.nome = n.nome; /* on a tie keep the spelling with spaces */ if (n.scad) es.scad = n.scad; es.stato = n.stato; }
           }
         } else if (b.azione === "ripristina") {
           if (!backup) return json({ errore: "Nessuna copia precedente" }, 400);
@@ -2637,11 +2637,11 @@ export default {
         try {
           const r = await rfidScrivi(env, prima, dopo);
           if (b.azione === "aggiungi") await syncNomi(env);
-          if (b.azione === "aggiungi" && dataLocale(b.dal)) {      // data di assegnazione scelta dall'utente
+          if (b.azione === "aggiungi" && dataLocale(b.dal)) {      // assignment date chosen by the user
             await env.DB.prepare("UPDATE tessere_nomi SET dal=? WHERE tag=? AND dal=(SELECT MAX(dal) FROM tessere_nomi WHERE tag=?) AND al IS NULL")
               .bind(dataLocale(b.dal), id, id).run().catch(() => {});
           }
-          if (b.azione === "elimina" && id) {                      // dismissione: chiude il periodo aperto della tessera
+          if (b.azione === "elimina" && id) {                      // deactivation: closes the card's open period
             await syncNomi(env);
             await env.DB.prepare("UPDATE tessere_nomi SET al=? WHERE tag=? AND dal=(SELECT MAX(dal) FROM tessere_nomi WHERE tag=?) AND al IS NULL")
               .bind(dataLocale(b.al) ?? Math.floor(Date.now() / 1000), id, id).run();
@@ -2649,7 +2649,7 @@ export default {
           return json({ ok: r.ok, lista: await conBloccate(env, r.lista), avviso: r.ok ? null : "La colonnina ha risposto, ma la lista riletta non coincide: controlla" });
         } catch (e) { return json({ errore: "Scrittura sulla colonnina non riuscita: " + (e.message || e) }, 502); }
       }
-      if (url.pathname === "/api/nomi") {                  // cronologia assegnazioni delle tessere (solo admin)
+      if (url.pathname === "/api/nomi") {                  // card assignment history (admin only)
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
         await syncNomi(env);
         if (req.method === "GET") {
@@ -2670,11 +2670,11 @@ export default {
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
         return json((await env.DB.prepare("SELECT tag, nome FROM tessere ORDER BY nome").all()).results);
       }
-      if (url.pathname === "/api/mie") {                 // le ricariche dell'utente della colonnina (solo la sua tessera)
+      if (url.pathname === "/api/mie") {                 // the charger user's sessions (only their own cards)
         if (!me.tessera) return nega();
         return json(await mieRicariche(env, me.tessere, +q.get("anno") || new Date().getUTCFullYear()));
       }
-      if (url.pathname === "/api/mie.pdf") {             // PDF delle proprie ricariche (mese o anno intero)
+      if (url.pathname === "/api/mie.pdf") {             // PDF of one's own sessions (month or whole year)
         if (!me.tessera) return nega();
         const anno = +q.get("anno") || new Date().getUTCFullYear();
         const mese = Math.min(12, Math.max(0, +q.get("mese") || 0));
@@ -2690,7 +2690,7 @@ export default {
         const b = await req.json();
         if (!PW_FORTE(String(b.nuova || ""))) return json({ errore: "La nuova password deve avere almeno 12 caratteri con minuscola, maiuscola, numero e carattere speciale" }, 400);
         if (b.ripeti !== b.nuova) return json({ errore: "Le due nuove password non coincidono" }, 400);
-        const u = await loginLimitato(env, me.nome, String(b.vecchia || ""));       // stesso limite dell'accesso: 5 errori ogni 10 minuti
+        const u = await loginLimitato(env, me.nome, String(b.vecchia || ""));       // same limit as sign-in: 5 errors per 10 minutes
         if (u && u.limite) return json({ errore: "Troppi tentativi: riprova tra 10 minuti" }, 429);
         if (!u) return json({ errore: "Password attuale errata" }, 400);
         const c = await nuovaCredenziale(String(b.nuova));
@@ -2716,7 +2716,7 @@ export default {
         const prz = new Map((await env.DB.prepare("SELECT anno, mese, eur_kwh, iva FROM prezzi").all()).results.map((p) => [p.anno * 100 + p.mese, p]));
         const r = (await env.DB.prepare("SELECT inizio_utc, fine_utc, tag, tag_tipo, energia_wh FROM sessioni ORDER BY inizio_utc DESC").all()).results
           .filter((s) => ris || !(s.tag === "" || s.tag_tipo === "app"));
-        const gruppi = new Map();                       // stessa tessera (o app) e stesso mese
+        const gruppi = new Map();                       // same card (or app) and same month
         for (const s of r) {
           const k = (s.tag === "" || s.tag_tipo === "app" ? "app" : s.tag) + "|" + annoMeseLocale(s.inizio_utc);
           if (!gruppi.has(k)) gruppi.set(k, []);
@@ -2755,10 +2755,10 @@ export default {
           try { return json({ ok: true, ...(await scarica(env)) }); }
           catch (e) { return json({ ok: false, errore: String(e.message || e) }, 502); }
         }
-        if (url.pathname === "/api/ingest") {          // per chi spinge i dati da fuori (vedi README)
+        if (url.pathname === "/api/ingest") {          // for whoever pushes the data from outside (see README)
           let b;
           const cIn = await leggiConfig(env);
-          try { b = await req.json(); if (!parseStorico(String(b.storico), cIn).length && !String(b.storico).trim()) throw new Error("vuoto"); }   // dati vuoti o malformati -> 400
+          try { b = await req.json(); if (!parseStorico(String(b.storico), cIn).length && !String(b.storico).trim()) throw new Error("vuoto"); }   // empty or malformed data -> 400
           catch (_) { return json({ ok: false, errore: "Dati non validi: serve 'storico' con il testo letto dalla colonnina" }, 400); }
           return json({ ok: true, ...(await salvaScarico(env, cIn, b.storico, typeof b.tessere === "string" ? b.tessere : null)) });
         }
@@ -2775,7 +2775,7 @@ export default {
   },
 
   async scheduled(ev, env, ctx) {
-    if (ev.cron === "*/5 * * * *") { ctx.waitUntil(verificaMalfunzionamenti(env).catch(() => {})); return; }   // controllo malfunzionamenti
-    ctx.waitUntil(leggiConfig(env).then((c) => (c.auto && c.url ? scarica(env).catch(() => { /* l'errore e' salvato in meta */ }).then(() => ripristinaNomi(env)) : null)).catch(() => {}));
+    if (ev.cron === "*/5 * * * *") { ctx.waitUntil(verificaMalfunzionamenti(env).catch(() => {})); return; }   // monitoring check
+    ctx.waitUntil(leggiConfig(env).then((c) => (c.auto && c.url ? scarica(env).catch(() => { /* the error is saved in meta */ }).then(() => ripristinaNomi(env)) : null)).catch(() => {}));
   },
 };

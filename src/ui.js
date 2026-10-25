@@ -1,4 +1,4 @@
-// Pagina unica (HTML + JS senza librerie). Nel codice della pagina non usare apici inversi.
+// Single-page UI (HTML + JS, no libraries). Never use backticks inside the page code (it lives in String.raw templates).
 export const HTML = String.raw`<!doctype html>
 <html lang="it">
 <head>
@@ -720,13 +720,26 @@ var EN={"una tantum":"one-off","costo":"cost",
 "prezzo o IVA non validi":"Invalid price or VAT",
 "non trovato":"Not found"
 };
+// messages built by the server with a variable part: prefix/pattern translated, the detail kept as is
+var EN_PAT=[[/^Prezzo bloccato: il mese e' chiuso dal (.+) e non si puo' piu' modificare$/,"Price locked: the month has been closed since $1 and can no longer be changed"],
+  [/^non riconosco la tessera dal nome del file \((.*)\): scarica prima dalla colonnina$/,"cannot recognise the card from the file name ($1): download from the charger first"],
+  [/^La colonnina risponde con errore: /,"The charger answered with an error: "],[/^Colonnina non raggiungibile: /,"Charger not reachable: "],[/^Scrittura sulla colonnina non riuscita: /,"Writing to the charger failed: "],
+  [/^Cloudflare: /,"Cloudflare: "],[/^Mail non inviata: /,"Email not sent: "],[/^Numero non valido: /,"Invalid number: "],[/^nessuna risposta entro (\d+) s$/,"no answer within $1 s"],[/^HTTP (\d+)$/,"HTTP $1"],[/^scrittura: HTTP (\d+)$/,"write: HTTP $1"],
+  [/^La risposta dello storico non ha il campo di testo "(.*)"$/,"The history response has no text field \"$1\""],[/^Valore non valido: da (\S+) a (\S+)$/,"Invalid value: from $1 to $2"],
+  [/^(.+): valore da (\S+) a (\S+) (.+)$/,function(m,a,b,c,d){return T(a)+": value from "+b+" to "+c+" "+T(d)}],
+  [/^Tessera (\S+) abbinata\.$/,"Card $1 linked."],[/^Tessera (\S+) scollegata(?:, abbinata (\S+))?\.$/,function(m,a,b){return "Card "+a+" unlinked"+(b?", "+b+" linked":"")+"."}],
+  [/^Tessera (\S+): sblocco in attesa \(colonnina non raggiungibile\)\.$/,"Card $1: unblock pending (charger not reachable)."],[/^Tessera (\S+) sbloccata\.$/,"Card $1 unblocked."],
+  [/^Dati aggiornati\.$/,"Data updated."],[/^Nessun dato da aggiornare: la richiesta era solo testuale\.$/,"No data to update: the request was text only."],[/^Utenza e dati cancellati\.$/,"Account and data deleted."],
+  [/^Sblocco in attesa: la colonnina non risponde, riprovo ogni 5 minuti\.$/,"Unblock pending: the charger does not answer, retrying every 5 minutes."],[/^Tessera sbloccata\.$/,"Card unblocked."],
+  [/^non configurata$/,"not configured"],[/^inviata$/,"sent"],[/^nessun destinatario$/,"no recipient"],[/^errore (\d+): /,"error $1: "],[/^errore: /,"error: "],
+  [/^Dura da: /,"Since: "],[/^Soglia impostata: /,"Threshold: "]];
 function T(s){
   if(LANG!=="en"||s===null||s===undefined)return s;
   if(EN.hasOwnProperty(s))return EN[s];
-  var m=/^Prezzo bloccato: il mese e' chiuso dal (.+) e non si puo' piu' modificare$/.exec(s);
-  if(m)return "Price locked: the month has been closed since "+m[1]+" and can no longer be changed";
-  m=/^non riconosco la tessera dal nome del file \((.*)\): scarica prima dalla colonnina$/.exec(s);
-  if(m)return "cannot recognise the card from the file name ("+m[1]+"): download from the charger first";
+  if(typeof s!=="string")return s;
+  for(var i=0;i<EN_PAT.length;i++){var p=EN_PAT[i];if(p[0].test(s)){var rest=s.replace(p[0],p[1]);
+    var m=/^(.*?: )(.+)$/.exec(rest);if(m&&m[2].length<s.length)return m[1]+T(m[2]);   // the detail may itself be a known message
+    return rest}}
   return s;
 }
 function Tm(s){var p=String(s).split(" ");p[0]=T(p[0]);return p.join(" ")}
@@ -947,7 +960,7 @@ $("bReinvia").onclick=function(){
   post("/api/reinvia",{anno:+$("selAnno").value,mese:+$("selMese").value}).then(function(r){
     $("esito").textContent=r.errore?T(r.errore):esitoMail(r,"")});
 };
-/* ---- impostazioni dell'installazione (admin) ---- */
+/* ---- installation settings (admin) ---- */
 var CUR="€",FEE="",CONTATTO="",cfg=null;
 var CF_TXT=["url","user","header_name","header_value","history_path","tags_path","status_path","timeout","hist_json_field","hist_sep","hist_skip","c_start","c_end","c_tag","c_type","c_cont_ini","c_cont_fin","title","tz","currency","tax_label","card_fee","contact","charger_id","mail_from"];
 function feeTesto(){return FEE?" ("+FEE+")":""}
@@ -1004,7 +1017,7 @@ function bloccoProva(nome,x){
   if(x.sample)h+='<pre style="white-space:pre-wrap;font-size:12px;max-height:160px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px">'+esc(x.sample)+"</pre>";
   return h+"</div>";
 }
-/* ---- testi legali (admin) ---- */
+/* ---- legal texts (admin) ---- */
 var TL=["edizione","reg_it","reg_en","priv_it","priv_en"];
 function caricaTesti(){return api("/api/testi").then(function(t){if(!t)return;TL.forEach(function(k){$("tl_"+k).value=t[k]||""})})}
 $("bTesti").onclick=function(){var o={};TL.forEach(function(k){o[k]=$("tl_"+k).value});
@@ -1122,7 +1135,7 @@ function modoR(m){RMOD=m;$("rDalL").classList.toggle("hide",!!(m&&m.indice!==und
 var STATI=["Attiva","Bloccata","Scaduta","Non valida"];
 function statoTxt(v){var t=STATI[+v];return t===undefined?esc(v):(v==="0"?T(t):'<span class="err">'+T(t)+"</span>")}
 var RSEL=-1,NOMI=[],RERR="";
-// un'unica tabella: tessere sulla colonnina (con il periodo di assegnazione) + periodi chiusi (tessere disattivate o riassegnate)
+// one table: cards on the charger (with their assignment period) + closed periods (deactivated or reassigned cards)
 function mostraRfid(r){
   var e=$("rEsito");e.classList.toggle("err",!!r.errore||!!r.avviso);
   RERR=r.errore||"";
@@ -1146,7 +1159,7 @@ function disegnaR(){
       :'<button class="p rr" data-i="'+x.i+'">'+T("Ripara")+'</button> <button class="rd" data-i="'+x.i+'">'+T("Elimina")+'</button>';
     t+='<tr class="rs" data-i="'+x.i+'">'+td(x.id?esc(x.id):'<span class="err">'+T("senza codice")+(x.suggerito?" ("+T("era ")+esc(x.suggerito)+")":"")+"</span>")+td(esc(x.nome))+td(p?esc(p.dal_txt):"")+td("")+tdS(scadTxt(x))+td(statoTxt(x.stato))+'<td class="n">'+az+"</td></tr>";
   });
-  // periodi chiusi, e (se la colonnina non risponde) quelli aperti dal database del sito
+  // closed periods and, if the charger does not answer, the open ones from the site database
   NOMI.map(function(p,n){return {p:p,n:n}}).filter(function(o){return !usati[o.n]&&(o.p.al_txt||RERR)})
     .sort(function(a,b){return a.p.nome.localeCompare(b.p.nome,undefined,{numeric:true})||a.p.dal-b.p.dal})
     .forEach(function(o){var p=o.p;
@@ -1166,7 +1179,7 @@ $("bRAgg").onclick=function(){
     var p=RMOD.p,nd=b.dal?b.dal.split("-").reverse().join("-"):"",cambioData=p&&nd&&nd!==p.dal_txt;
     var cambioCol=b.nome.trim()!==RMOD.nome||b.stato!==RMOD.stato||$("rScad").value!==RMOD.scad;
     var data=function(){return cambioData?post("/api/nomi",{tag:p.tag,dal:p.dal,nuovo_dal:nd,nuovo_al:""}).then(function(r){if(r.errore)alert(T(r.errore))}):Promise.resolve()};
-    if(cambioCol)data().then(function(){rfid(Object.assign(b,{azione:"modifica"}),"Tessera aggiornata")});   // scrive sulla colonnina solo se serve
+    if(cambioCol)data().then(function(){rfid(Object.assign(b,{azione:"modifica"}),"Tessera aggiornata")});   // writes to the charger only when needed
     else data().then(function(){caricaNomi().then(function(){modoR(null);disegnaR();$("rEsito").classList.remove("err");$("rEsito").textContent=T(cambioData?"Data aggiornata":"Nessuna modifica")})});
   }
 };
@@ -1309,7 +1322,7 @@ $("bTk").onclick=function(){
 function badgeUtenti(){
   return api("/api/utenti").then(function(L){
     if(!Array.isArray(L))return;
-    var n=L.filter(function(x){return x.in_attesa_tessera}).length;      // registrati con email confermata, in attesa della tessera
+    var n=L.filter(function(x){return x.in_attesa_tessera}).length;      // registered with confirmed email, waiting for the card
     $("navUN").textContent=n?String(n):"";
     return L;
   });
@@ -1349,7 +1362,7 @@ function caricaCf(){
 function disegnaMal(d){
   if(!d||d.errore)return;
   function statoTxt(r){var st=d.stato[r.id];return !r.on?T("disattivato"):!st?T("regolare"):st.notificato?T("segnalato il ")+oraTxt(st.notificato):T("in corso dal ")+oraTxt(st.da)+(st.esito&&st.esito!=="inviata"?" - "+T("mail non inviata"):"")}
-  if(MALDIRTY){d.regole.forEach(function(r){var c=document.querySelector('#tabMal td[data-s="'+r.id+'"]');if(c){var cb=document.querySelector('#tabMal input[data-m="'+r.id+'"]'),cn=document.querySelector('#tabMal input[data-n="'+r.id+'"]');c.textContent=cb&&!cb.checked&&cn&&!cn.checked?T("disattivato"):statoTxt(Object.assign({},r,{on:true}))}})}   // modifiche non salvate: non ridisegno la tabella
+  if(MALDIRTY){d.regole.forEach(function(r){var c=document.querySelector('#tabMal td[data-s="'+r.id+'"]');if(c){var cb=document.querySelector('#tabMal input[data-m="'+r.id+'"]'),cn=document.querySelector('#tabMal input[data-n="'+r.id+'"]');c.textContent=cb&&!cb.checked&&cn&&!cn.checked?T("disattivato"):statoTxt(Object.assign({},r,{on:true}))}})}   // unsaved changes: do not redraw the table
   else{$("mA").value=d.a.join(", ");$("mCc").value=d.cc.join(", ");
     var h=row([th(T("Mail")),th(T("Notifica")),th(T("Controllo")),th(T("Soglia")),th(T("Stato"))]),g="";
     d.regole.forEach(function(r){
@@ -1644,7 +1657,7 @@ function trDom(){
   document.querySelectorAll("[placeholder]").forEach(function(e){e.placeholder=T(e.placeholder)});
 }
 function cambiaLingua(){try{localStorage.setItem("lang",LANG==="en"?"it":"en")}catch(e){}location.reload()}
-// prefissi: Italia (+39) di default
+// prefixes: Italy (+39) by default
 function riempi(sel){
   var h="";PREFISSI.forEach(function(p,i){h+='<option value="'+p[2]+'"'+(p[2]===39&&p[0]==="Italia"?" selected":"")+'>'+(LANG==="en"?p[1]:p[0])+" (+"+p[2]+")</option>"});
   sel.innerHTML=h;
@@ -1673,7 +1686,7 @@ $("f").onsubmit=function(ev){
   .catch(function(){$("e").textContent=T("Errore di rete")});
 };
 
-// requisiti password (stessi controlli del server)
+// password requirements (same checks as the server)
 function reqPw(p){return{l:p.length>=12,a:/[a-z]/.test(p),A:/[A-Z]/.test(p),d:/[0-9]/.test(p),s:/[^A-Za-z0-9\s]/.test(p)}}
 function pwOk(p){var r=reqPw(p);return r.l&&r.a&&r.A&&r.d&&r.s}
 $("rP").oninput=function(){
@@ -1889,7 +1902,7 @@ $("g").onsubmit=function(ev){
 </body>
 </html>`;
 
-// Prima configurazione: compare finche' non esiste un amministratore (e non si usa il secret APP_PASSWORD).
+// First-run setup: shown until an administrator exists (and the APP_PASSWORD secret is not used).
 export const SETUP = String.raw`<!doctype html>
 <html lang="it">
 <head>
