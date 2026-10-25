@@ -56,6 +56,7 @@ Nothing about a specific installation is in the code: charger address, title, ti
 - **Encryption of personal data** (AES-256-GCM, key in a Worker secret) and encrypted backup from the page.
 - **Cloudflare usage** box: requests, D1 rows, OCPP usage and storage against the free-plan limits, with a monthly summary and an alert near the limit.
 - **English and Italian interface**, day / night / auto theme, no horizontal scrolling, tables that become cards on phones.
+- **App-like layout on phones** (up to 700 px wide): bottom tab bar with icons (the administrator's extra tabs go into a "More" menu), the open tab's title at the top, larger fields and buttons. Nothing changes on a computer.
 - **First-run setup page** and **everything configurable from the web page**.
 - Optional import of the per-card CSV exports of the Viaris desktop program.
 
@@ -82,6 +83,10 @@ All screenshots use made-up demo data.
 | Italian interface | A charger user sees only their own cards |
 |---|---|
 | <img src="docs/monthly-report-it.png" alt="Italian interface"> | <img src="docs/my-charging.png" alt="My charging"> |
+
+| On a phone: monthly report, "More" menu, monitoring, a user's charges |
+|---|
+| <img src="docs/phone.png" alt="Phone layout"> |
 
 ## Tested hardware
 

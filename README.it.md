@@ -56,6 +56,7 @@ Nel codice non c'è nulla di una installazione specifica: indirizzo della colonn
 - **Cifratura dei dati personali** (AES-256-GCM, chiave in un secret del Worker) e backup cifrato dalla pagina.
 - **Consumi Cloudflare**: richieste, righe D1, uso OCPP e spazio rispetto ai limiti del piano gratuito, con riepilogo mensile e avviso a ridosso del limite.
 - **Interfaccia in italiano e inglese**, tema giorno / notte / automatico, niente scorrimento orizzontale, tabelle che diventano schede su telefono.
+- **Aspetto da app sul telefono** (fino a 700 px di larghezza): barra delle schede in basso con icone (le schede in più dell'admin vanno nel menu "Altro"), titolo della scheda aperta in alto, campi e pulsanti più grandi. Sul computer non cambia niente.
 - **Pagina di prima configurazione** e **tutto configurabile dalla pagina web**.
 - Import facoltativo degli export CSV per tessera del programma Viaris.
 
@@ -82,6 +83,10 @@ Tutte le schermate usano dati inventati.
 | Interfaccia inglese | Un utente della colonnina vede solo le proprie tessere |
 |---|---|
 | <img src="docs/monthly-report.png" alt="Interfaccia inglese"> | <img src="docs/my-charging-it.png" alt="Le mie ricariche"> |
+
+| Da telefono: report mensile, menu "Altro", monitoraggio, le ricariche di un utente |
+|---|
+| <img src="docs/phone-it.png" alt="Aspetto da telefono"> |
 
 ## Hardware provato
 
