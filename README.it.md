@@ -311,7 +311,7 @@ npx wrangler dev
 ## Note di sicurezza
 
 - Le password sono salvate con PBKDF2-SHA-256; il numero di iterazioni è volutamente basso (5000) per restare nel limite di CPU del piano gratuito, perciò la password forte è obbligatoria (12+ caratteri con minuscola, maiuscola, numero e simbolo) in registrazione, invito e cambio password.
-- L'accesso ha un limite per nome utente (5 errori in 10 minuti) e per indirizzo IP (20 errori in 10 minuti); lo stesso limite vale per il cambio password e le registrazioni. I cookie di sessione sono `HttpOnly`, `Secure`, `SameSite=Strict`; ogni accesso ha un token firmato diverso; l'uscita lo revoca sul server.
+- L'accesso ha un limite per nome utente e indirizzo IP insieme (5 errori in 10 minuti, cosi' le password sbagliate inviate da altrove non bloccano l'utente vero), per nome utente da tutti gli indirizzi (50 errori in 10 minuti) e per indirizzo IP (20 errori in 10 minuti); lo stesso limite vale per il cambio password e le registrazioni. I cookie di sessione sono `HttpOnly`, `Secure`, `SameSite=Strict`; ogni accesso ha un token firmato diverso; l'uscita lo revoca sul server.
 - Ogni risposta ha le intestazioni di sicurezza: redirect a HTTPS, HSTS, Content Security Policy con nonce per risposta (girano solo gli script del sito; l'unico servizio esterno ammesso è Turnstile), `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`.
 - Tutti i testi inseriti dagli utenti (nomi, ticket, nomi delle tessere) sono mostrati con escape. Senza sessione tutte le API rispondono 401; l'endpoint OCPP risponde 404 a chi non ha il codice.
 - L'accesso HTTP Basic è accettato solo su `/api/ingest`.

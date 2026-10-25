@@ -311,7 +311,7 @@ npx wrangler dev
 ## Security notes
 
 - Passwords are hashed with PBKDF2-SHA-256; the iteration count is deliberately low (5000) to stay inside the free plan's CPU limit, so strong passwords are enforced (12+ characters with lower case, upper case, digit and symbol) on registration, invitation and password change.
-- Sign-in is rate-limited per user name (5 errors in 10 minutes) and per IP address (20 errors in 10 minutes); the same limit applies to password changes and registrations. Session cookies are `HttpOnly`, `Secure`, `SameSite=Strict`; every sign-in gets a different signed token; log out revokes it on the server.
+- Sign-in is rate-limited per user name and IP address together (5 errors in 10 minutes, so wrong passwords sent from elsewhere cannot lock the real user out), per user name from all addresses (50 errors in 10 minutes) and per IP address (20 errors in 10 minutes); the same limit applies to password changes and registrations. Session cookies are `HttpOnly`, `Secure`, `SameSite=Strict`; every sign-in gets a different signed token; log out revokes it on the server.
 - Every response carries security headers: HTTPS redirect, HSTS, a Content Security Policy with a per-response nonce (only the site's own scripts run; the only external service allowed is Turnstile), `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`.
 - All user-entered text (names, tickets, card names) is escaped when shown. Without a session every API answers 401; the OCPP endpoint answers 404 to anyone without the token.
 - HTTP Basic authentication is accepted only on `/api/ingest`.

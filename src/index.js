@@ -725,7 +725,7 @@ async function utenteCorrente(req, env) {
   if (h.startsWith("Basic ") && new URL(req.url).pathname === "/api/ingest") {
     try {
       const [n, ...r] = atob(h.slice(6)).split(":");
-      const u = await loginLimitato(env, n.trim().toLowerCase(), r.join(":"));
+      const u = await loginLimitato(env, n.trim().toLowerCase(), r.join(":"), req.headers.get("cf-connecting-ip"));
       if (u && !u.limite && !u.nonVerificato && !u.inAttesa) return u;
     } catch (_) { /* ignore */ }
   }
@@ -747,17 +747,20 @@ async function verificaLogin(env, nome, pw) {
   return uguali(await hashPw(pw, u.salt), u.hash) ? { nome: u.nome, ruolo: u.ruolo, hash: u.hash, perm: permessiDi(u), tessera: u.tessera || null, nonVerificato: !!u.verifica_hash, inAttesa: !!u.registrato_il && !u.tessera } : null;
 }
 
-// verificaLogin with the attempt limit (5 errors per 10 minutes per user name), used by /api/login
-// and by Basic auth on /api/ingest. Returns the user, null, or { limite: true }.
-async function loginLimitato(env, nome, pw) {
+// verificaLogin with the attempt limit, used by /api/login, by Basic auth on /api/ingest and by the password change.
+// Errors are counted per user name and IP address ("name|ip"): max 5 in 10 minutes, so wrong passwords sent from
+// elsewhere cannot lock the real user out. A second limit of 50 errors for the user name from all addresses together
+// still caps guessing spread over many IPs. Returns the user, null, or { limite: true }.
+async function loginLimitato(env, nome, pw, ip) {
   await preparaTabelle(env);
-  const ora = Math.floor(Date.now() / 1000);
+  const ora = Math.floor(Date.now() / 1000), chiave = nome + "|" + (ip || "?");
   await env.DB.prepare("DELETE FROM tentativi WHERE ts < ?").bind(ora - 600).run();
-  const t = await env.DB.prepare("SELECT COUNT(*) n FROM tentativi WHERE nome=?").bind(nome).first();
-  if (t.n >= 5) return { limite: true };
+  const t = await env.DB.prepare("SELECT SUM(nome=?) mio, COUNT(*) tutti FROM tentativi WHERE substr(nome, 1, ?) = ?")
+    .bind(chiave, nome.length + 1, nome + "|").first();
+  if ((t.mio || 0) >= 5 || (t.tutti || 0) >= 50) return { limite: true };
   const u = await verificaLogin(env, nome, pw);
-  if (!u) await env.DB.prepare("INSERT INTO tentativi VALUES (?, ?)").bind(nome, ora).run();
-  else await env.DB.prepare("DELETE FROM tentativi WHERE nome=?").bind(nome).run();
+  if (!u) await env.DB.prepare("INSERT INTO tentativi VALUES (?, ?)").bind(chiave, ora).run();
+  else await env.DB.prepare("DELETE FROM tentativi WHERE nome=?").bind(chiave).run();
   return u;
 }
 
@@ -765,7 +768,7 @@ async function login(req, env) {
   const b = await req.json();
   const nome = String(b.nome || "").trim().toLowerCase(), pw = String(b.password || "");
   if (await ipBloccato(env, req, "ip", 20)) return json({ errore: "Troppi tentativi da questo indirizzo: riprova tra 10 minuti" }, 429);
-  const u = await loginLimitato(env, nome, pw);
+  const u = await loginLimitato(env, nome, pw, req.headers.get("cf-connecting-ip"));
   if (u && u.limite) return json({ errore: "Troppi tentativi: riprova tra 10 minuti" }, 429);
   if (!u) { await ipErrore(env, req, "ip"); return json({ errore: "Nome o password errati" }, 401); }
   if (u.nonVerificato) return json({ errore: "Devi prima confermare l'indirizzo email: controlla la tua posta" }, 403);
@@ -2730,7 +2733,7 @@ export default {
         const b = await req.json();
         if (!PW_FORTE(String(b.nuova || ""))) return json({ errore: "La nuova password deve avere almeno 12 caratteri con minuscola, maiuscola, numero e carattere speciale" }, 400);
         if (b.ripeti !== b.nuova) return json({ errore: "Le due nuove password non coincidono" }, 400);
-        const u = await loginLimitato(env, me.nome, String(b.vecchia || ""));       // same limit as sign-in: 5 errors per 10 minutes
+        const u = await loginLimitato(env, me.nome, String(b.vecchia || ""), req.headers.get("cf-connecting-ip"));   // same limit as sign-in
         if (u && u.limite) return json({ errore: "Troppi tentativi: riprova tra 10 minuti" }, 429);
         if (!u) return json({ errore: "Password attuale errata" }, 400);
         const c = await nuovaCredenziale(String(b.nuova));
