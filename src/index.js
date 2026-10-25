@@ -820,6 +820,48 @@ const NOREPLY = `<p style="margin-top:20px"><b>Per contattarci usa la sezione As
   `<p style="margin-top:16px"><b>Questa casella non riceve email in ingresso: si prega di non rispondere a questo messaggio.<br>` +
   `This mailbox does not receive incoming email: please do not reply to this message.</b></p>`;
 
+// ---------------------------------------------------- what consumes: calls, D1 queries and outbound calls per page/API (meta "consumo_chi")
+// The D1 binding is wrapped in a proxy that counts the queries of the request; outbound calls are counted by wrapping fetch.
+// Accumulated in memory and saved at most once a minute (2 queries), 7 days; requests above the threshold go to "pesanti".
+let CHI = {}, CHI_PESANTI = [], CHI_ULTIMO = 0, CHI_F = null;
+const SOGLIA_PESANTE = 25;
+function contaDb(DB, c) {
+  const orig = new WeakMap();
+  const wrapS = (s) => { const p = new Proxy(s, { get(t, k) { const v = t[k];
+    if (k === "bind") return (...a) => wrapS(v.apply(t, a));
+    if (k === "first" || k === "all" || k === "run" || k === "raw") return (...a) => { c.q++; return v.apply(t, a); };
+    return typeof v === "function" ? v.bind(t) : v; } }); orig.set(p, s); return p; };
+  return new Proxy(DB, { get(t, k) { const v = t[k];
+    if (k === "prepare") return (...a) => wrapS(v.apply(t, a));
+    if (k === "batch") return (l) => { c.q++; return v.call(t, l.map((s) => orig.get(s) || s)); };
+    return typeof v === "function" ? v.bind(t) : v; } });
+}
+const fetch0 = globalThis.fetch;
+globalThis.fetch = (...a) => { if (CHI_F) CHI_F.f++; return fetch0(...a); };   // approximate when several requests run together in the same isolate
+function chiaveChi(url) {
+  const p = url.pathname;
+  if (p === "/") return "/ (page)";
+  if (p.startsWith("/api/telegram/")) return "/api/telegram/* (bot)";
+  if (p.startsWith("/ocpp/")) return "/ocpp/* (charger)";
+  return p;
+}
+function registraChi(chiave, c) {
+  const d = (CHI[chiave] ||= { n: 0, q: 0, f: 0 }); d.n++; d.q += c.q; d.f += c.f;
+  if (c.q >= SOGLIA_PESANTE || c.f >= SOGLIA_PESANTE) CHI_PESANTI = CHI_PESANTI.concat([{ ts: Date.now(), chiave, q: c.q, f: c.f }]).slice(-20);
+}
+async function salvaChi(env, forza) {
+  if (!Object.keys(CHI).length && !CHI_PESANTI.length) return;
+  if (!forza && Date.now() - CHI_ULTIMO < 60000) return;
+  const chi = CHI, pes = CHI_PESANTI; CHI = {}; CHI_PESANTI = []; CHI_ULTIMO = Date.now();
+  try {
+    const tutti = await leggiMeta(env, "consumo_chi", { giorni: {}, pesanti: [] }), oggi = new Date().toISOString().slice(0, 10);
+    const g = (tutti.giorni[oggi] ||= {});
+    for (const [k, v] of Object.entries(chi)) { const d = (g[k] ||= { n: 0, q: 0, f: 0 }); d.n += v.n; d.q += v.q; d.f += v.f; }
+    for (const k of Object.keys(tutti.giorni).sort().slice(0, -7)) delete tutti.giorni[k];   // 7 days
+    tutti.pesanti = (tutti.pesanti || []).concat(pes).slice(-20);
+    await salvaMeta(env, "consumo_chi", tutti);
+  } catch (_) { /* accessory */ }
+}
 // ---------------------------------------------------- monthly counters of emails and messages (meta "contatori")
 // accumulated in memory during the request or the cron run and saved once at the end (2 queries): a send costs no query
 let CONTA = {};
@@ -2481,8 +2523,10 @@ export default {
       u.protocol = "https:";
       return Response.redirect(u.toString(), 301);
     }
-    const r = await this.gestisci(req, env, ctx);
-    ctx.waitUntil(salvaContatori(env));
+    const c = { q: 0, f: 0 }; CHI_F = c;
+    const r = await this.gestisci(req, { ...env, DB: contaDb(env.DB, c) }, ctx);
+    registraChi(chiaveChi(u), c);
+    ctx.waitUntil(salvaContatori(env).then(() => salvaChi(env)));
     let out = new Response(r.body, r);
     // Content Security Policy: scripts run only if they carry the nonce generated for this response (no injected scripts),
     // connections stay towards the site itself; Turnstile (anti-bot check) is the only external service allowed.
@@ -2737,6 +2781,7 @@ export default {
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
         const d = await consumiCloudflare(env);
         d.messaggi = await leggiMeta(env, "contatori", {}); d.coda = (await leggiMeta(env, "coda_messaggi", [])).length;
+        d.chi = await leggiMeta(env, "consumo_chi", { giorni: {}, pesanti: [] });
         return json(d);
       }
       if (url.pathname === "/api/malfunzionamenti") {
@@ -3068,7 +3113,10 @@ export default {
   },
 
   async scheduled(ev, env, ctx) {
-    if (ev.cron === "*/5 * * * *") { ctx.waitUntil(verificaMalfunzionamenti(env).catch(() => {}).then(() => inviaCodaMessaggi(env)).catch(() => {}).then(() => salvaContatori(env))); return; }   // monitoring check, then the message queue
-    ctx.waitUntil(leggiConfig(env).then((c) => (c.auto && c.url ? scarica(env).catch(() => { /* the error is saved in meta */ }).then(() => ripristinaNomi(env)) : null)).catch(() => {}));
+    const c = { q: 0, f: 0 }; CHI_F = c; const env2 = { ...env, DB: contaDb(env.DB, c) };
+    const chiave = ev.cron === "*/5 * * * *" ? "cron ogni 5 minuti" : "cron ogni 6 ore";
+    const fine = () => { registraChi(chiave, c); return salvaContatori(env).then(() => salvaChi(env, true)); };
+    if (ev.cron === "*/5 * * * *") { ctx.waitUntil(verificaMalfunzionamenti(env2).catch(() => {}).then(() => inviaCodaMessaggi(env2)).catch(() => {}).then(fine)); return; }   // monitoring check, then the message queue
+    ctx.waitUntil(leggiConfig(env2).then((cf) => (cf.auto && cf.url ? scarica(env2).catch(() => { /* the error is saved in meta */ }).then(() => ripristinaNomi(env2)) : null)).catch(() => {}).then(fine));
   },
 };

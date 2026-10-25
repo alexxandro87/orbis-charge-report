@@ -259,6 +259,8 @@ Opening a support request no longer creates a notification here: the Support tab
 
 The "Cloudflare usage" box starts with the table "Emails and messages sent by the site": per month, the emails (with the share of the free Resend limit, 3,000 a month and 100 a day), the Telegram messages and the errors, plus the queued messages. It is the site's own count (`contatori` in `meta`, 13 months), separate from the Cloudflare figures below it.
 
+Below it, "What consumes (site count)": for today and yesterday (UTC) every page or API and the two cron runs with calls, D1 queries and outbound calls, plus the latest heavy requests (over 25 queries or calls). It shows where the usage that Cloudflare only reports as totals comes from; the OCPP server queries are not included. Since 2.8.0, 7 days.
+
 
 The **Monitoring** tab shows the charge in progress to everyone. For the administrator it also holds:
 
