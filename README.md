@@ -320,7 +320,7 @@ npx wrangler dev
 - One charger, one socket, one price per month.
 - Card management and the offline list are built around the Orbis web interface and OCPP behaviour of firmware 7.2.53.
 - WhatsApp / Telegram messages are not sent: only the consent is collected.
-- Code comments and internal names are in Italian; the user interface, emails and documentation are bilingual.
+- Internal names (functions, API fields) are in Italian for historical reasons; code comments, user interface, emails and documentation are in English and Italian.
 
 ## License
 

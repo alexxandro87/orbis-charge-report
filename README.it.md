@@ -320,7 +320,7 @@ npx wrangler dev
 - Una colonnina, una presa, un prezzo al mese.
 - La gestione tessere e la lista offline sono costruite intorno all'interfaccia web e al comportamento OCPP del firmware 7.2.53.
 - I messaggi WhatsApp / Telegram non vengono inviati: si raccoglie solo il consenso.
-- Commenti nel codice e nomi interni sono in italiano; interfaccia, mail e documentazione sono bilingui.
+- I nomi interni (funzioni, campi delle API) sono in italiano per ragioni storiche; commenti del codice in inglese; interfaccia, mail e documentazione bilingui.
 
 ## Licenza
 
