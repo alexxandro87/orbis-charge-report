@@ -793,7 +793,9 @@ async function inviaMail(env, a, oggetto, html, cc, allegati) {
   } catch (e) { return "errore: " + (e.message || e); }
 }
 
-const NOREPLY = `<p style="margin-top:20px"><b>Questa casella non riceve email in ingresso: si prega di non rispondere a questo messaggio.<br>` +
+const NOREPLY = `<p style="margin-top:20px"><b>Per contattarci usa la sezione Assistenza nell'area riservata del sito.<br>` +
+  `To contact us, use the Support section in the reserved area of the site.</b></p>` +
+  `<p style="margin-top:16px"><b>Questa casella non riceve email in ingresso: si prega di non rispondere a questo messaggio.<br>` +
   `This mailbox does not receive incoming email: please do not reply to this message.</b></p>`;
 
 // ---------------------------------------------------- price report by email
