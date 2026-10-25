@@ -44,6 +44,7 @@ Nel codice non c'è nulla di una installazione specifica: indirizzo della colonn
 - **Ricariche avviate da app** (senza tessera) in una sezione a parte, visibile solo a chi ha il permesso.
 - **Prezzo mensile** (prezzo al kWh e IVA); una volta salvato, il mese è bloccato.
 - **Report mensile via mail** con il PDF di tutte le sessioni allegato (Resend), ai destinatari che scegli. Ogni utente della colonnina riceve anche una mail personale con i suoi importi.
+- **Bot Telegram** (facoltativo): avvisi di servizio agli utenti che danno il consenso (ricarica terminata con auto ancora collegata, importi del mese, esito delle richieste, tessera riattivata), fino a due chat per account, e comandi di assistenza (`/smarrita`, `/danneggiata`, `/problema`, `/richieste`).
 - **Utenti e permessi**: amministratore, gestori con permessi per funzione, utenti della colonnina legati a una o più tessere che vedono solo le proprie ricariche e le scaricano in PDF.
 - **Registrazione autonoma**: gli utenti si registrano da soli (password forte, telefoni, accettazione di regolamento e informativa con l'edizione registrata), confermano l'email e vengono attivati quando l'amministratore abbina la tessera. La scheda "Il mio profilo" permette di cambiare o revocare i consensi.
 - **Assistenza (ticket)**: tessera smarrita o danneggiata (bloccata subito sulla colonnina), richiesta di nuova tessera con costo e metodi di pagamento configurabili (PayPal.me, Satispay, Revolut, contanti), correzione dei dati, cancellazione di dati o utenza, problemi con la colonnina. L'amministratore approva o rifiuta; l'utente riceve l'esito per mail.
@@ -158,6 +159,7 @@ Tutte nella scheda **Impostazioni** (solo amministratore), salvate nel database.
 | Tempo massimo di risposta | 20 s | Per richiesta. |
 | Scarico automatico | acceso | Se lo scarico pianificato ogni 6 ore scarica. |
 | Formato dei dati (campo JSON, separatore, righe da saltare, colonne) | valori Orbis | Solo per colonnine con uno storico diverso. |
+| Token del bot / segreto del webhook (Telegram) | vuoti | Da BotFather / una stringa lunga a caso (la pagina Impostazioni la genera); servono entrambi per i messaggi e il bot. |
 | Titolo del sito | `EV Charger` | Pagine, mail, PDF. |
 | Fuso orario | `Europe/Rome` | Nome IANA. Decide a quale mese appartiene una sessione. |
 | Valuta | `€` | Accanto agli importi. |
@@ -205,13 +207,15 @@ Intestatari: ogni tessera ha uno storico di chi l'aveva e quando; i report usano
 L'amministratore vede e fa tutto. Gli altri utenti vengono invitati o si registrano da soli.
 
 - **Invito** (scheda Utenti): inserisci l'email e scegli *gestione* (permessi a scelta) o *utente della colonnina* (una tessera più altre facoltative). L'utente riceve un link monouso valido 48 ore dove sceglie una password forte e compila nome, telefoni e consensi. Senza mail configurata la pagina mostra il link da inviare a mano.
-- **Registrazione autonoma** (scheda Registrati nella pagina di accesso): nome, cognome, email, password forte, uno o due telefoni con prefisso internazionale, accettazione di regolamento e informativa (l'edizione viene registrata con data e ora), consenso facoltativo ai messaggi WhatsApp/Telegram (i messaggi non vengono ancora inviati: si raccoglie solo il consenso). Serve la mail di conferma (link di 48 ore); dopo la conferma l'utente accede. Se ha già la tessera, l'amministratore la abbina da Utenti ("Attiva utenza") e parte la mail di "Attivazione del servizio"; altrimenti vede solo Assistenza e Il mio profilo e può richiedere la tessera. Limite di 5 registrazioni ogni 10 minuti per indirizzo e campo trappola anti-robot; la risposta è uguale sia che l'email esista sia che no.
+- **Registrazione autonoma** (scheda Registrati nella pagina di accesso): nome, cognome, email, password forte, uno o due telefoni con prefisso internazionale, accettazione di regolamento e informativa (l'edizione viene registrata con data e ora), consenso facoltativo ai messaggi Telegram (i messaggi non vengono ancora inviati: si raccoglie solo il consenso). Serve la mail di conferma (link di 48 ore); dopo la conferma l'utente accede. Se ha già la tessera, l'amministratore la abbina da Utenti ("Attiva utenza") e parte la mail di "Attivazione del servizio"; altrimenti vede solo Assistenza e Il mio profilo e può richiedere la tessera. Limite di 5 registrazioni ogni 10 minuti per indirizzo e campo trappola anti-robot; la risposta è uguale sia che l'email esista sia che no.
 - **Completa il profilo**: gli utenti creati prima della raccolta dati devono compilare gli stessi dati al primo accesso.
-- **Il mio profilo**: nome, email, telefoni e consensi WhatsApp / Telegram, modificabili o revocabili in ogni momento (restano le ultime 20 modifiche con data e ora).
+- **Il mio profilo**: nome, email, telefoni e consensi Telegram, modificabili o revocabili in ogni momento (restano le ultime 20 modifiche con data e ora).
 
 Serve Resend per le mail di registrazione: senza mail la registrazione è rifiutata e gli inviti mostrano il link.
 
 **Controllo anti-robot (Cloudflare Turnstile), facoltativo:** su dash.cloudflare.com apri *Turnstile*, aggiungi un widget per il tuo dominio (modalità Managed), metti la **Site Key** in `wrangler.toml` come `TURNSTILE_SITE_KEY` e la **Secret Key** nel secret `TURNSTILE_SECRET`, poi deploy. Nel modulo di registrazione compare il riquadro di verifica; senza chiavi il sito registra come prima e in Utenti compare l'avviso.
+
+Con «Modifica» su un utente che ha già un profilo (registrato o completato) il modulo mostra anche nome, cognome, telefono e telefono facoltativo: «Salva permessi e dati» li aggiorna con gli stessi controlli della registrazione (numero in formato internazionale, cifratura con `DATA_KEY`). Per gli utenti invitati che non hanno ancora completato il profilo i campi non compaiono. La richiesta «Correzione dati» dall'Assistenza continua a funzionare.
 
 ## Assistenza (ticket)
 
@@ -224,7 +228,35 @@ Dalla scheda **Assistenza** l'utente apre una richiesta: tessera smarrita o dann
 
 Per tessera, colonnina e nuova tessera l'amministratore riceve anche la mail (destinatari del monitoraggio); per gli altri solo la notifica nel sito.
 
+## Messaggi e bot Telegram
+Facoltativo. Gli utenti che danno il consenso (registrazione o «Il mio profilo») ricevono, oltre alla mail, un messaggio
+Telegram quando: la ricarica finisce e l'auto resta collegata (e il promemoria), viene inserito il prezzo del mese (i loro
+importi), una loro richiesta viene approvata/rifiutata/chiusa, la tessera viene riattivata. Testo in italiano e inglese.
+
+1. Su Telegram apri BotFather, `/newbot`, scegli nome e username; copia il token.
+2. Impostazioni → Telegram: incolla il token, genera (o scrivi) un segreto lungo a caso per il webhook, salva le impostazioni.
+3. Premi **Attiva Telegram**: registra presso Telegram il webhook `https://<sito>/api/telegram/<segreto>` e il menu dei
+   comandi, e salva lo username del bot. Da rifare se cambia il dominio.
+4. Ogni utente collega la propria chat da «Il mio profilo» → «Collega Telegram»: si apre il bot con un codice monouso (vale
+   15 minuti), premendo Avvia la chat resta associata all'account (id cifrato nel database). Fino a **due chat** per account
+   («Collega un secondo Telegram»). «Scollega Telegram» dal profilo toglie tutte le chat; `/stop` dal bot solo quella chat;
+   se l'utente blocca il bot, quella chat viene tolta al primo invio fallito.
+
+Comandi del bot (solo per le chat collegate; le altre non ricevono risposta): `/smarrita <tessera>` e `/danneggiata <tessera>`
+aprono la richiesta «Tessera smarrita o danneggiata» (la tessera viene bloccata subito sulla colonnina, come dal sito; senza
+codice il bot elenca le tessere dell'utente), `/problema <testo>` apre «Problema con la colonnina», `/richieste` elenca le
+ultime richieste con lo stato, `/aiuto` i comandi. Le richieste passano dalla stessa funzione del sito: limite di 5 aperte,
+mail/notifica all'amministratore, esito via mail e messaggio.
+
+Limiti del piano gratuito: 50 chiamate in uscita e 50 query D1 per esecuzione. Al salvataggio del prezzo le mail partono
+subito (al massimo 44 utenti per volta; oltre, i restanti non ricevono nulla e l'amministratore vede una notifica); i
+messaggi Telegram vanno in una coda (`coda_messaggi` in `meta`, righe cifrate) che il controllo ogni 5 minuti svuota 15 alla
+volta. Se un invio fallisce l'amministratore vede una notifica; la mail parte comunque.
+
+
 ## Monitoraggio, notifiche e avvisi
+L'apertura di una richiesta di assistenza non crea più una notifica qui: la scheda Assistenza mostra già le richieste aperte.
+
 
 La scheda **Monitoraggio** mostra a tutti la ricarica in corso. Per l'amministratore contiene anche:
 
@@ -274,6 +306,7 @@ Non è obbligatorio impostare nulla oltre a ciò che vuoi. Preferisci la pagina 
 | Nome | Tipo | Scopo |
 | --- | --- | --- |
 | `SETUP_CODE` | secret | Protegge la pagina di primo avvio. Consigliato. |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_SECRET` | Valori iniziali del token del bot e del segreto del webhook (facoltativi; le Impostazioni hanno la precedenza). |
 | `RESEND_API_KEY` | secret | Invio mail (oppure inseriscila in Impostazioni). |
 | `DATA_KEY` | secret | Cifratura dei dati personali. Tienine una copia fuori da Cloudflare. |
 | `CF_API_TOKEN` + `CF_ACCOUNT_ID` | secret + variabile | Riquadro consumi Cloudflare. |
@@ -326,7 +359,7 @@ npx wrangler dev
 
 - Una colonnina, una presa, un prezzo al mese.
 - La gestione tessere e la lista offline sono costruite intorno all'interfaccia web e al comportamento OCPP del firmware 7.2.53.
-- I messaggi WhatsApp / Telegram non vengono inviati: si raccoglie solo il consenso.
+- I messaggi Telegram richiedono un bot (Impostazioni → Telegram); senza, si raccoglie solo il consenso.
 - I nomi interni (funzioni, campi delle API) sono in italiano per ragioni storiche; commenti del codice in inglese; interfaccia, mail e documentazione bilingui.
 
 ## Licenza

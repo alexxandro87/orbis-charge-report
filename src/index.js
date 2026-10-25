@@ -40,7 +40,9 @@ async function ipErrore(env, req, cosa) {
 
 let TITOLO = "EV Charger";            // site title (from Settings, set by leggiConfig on every request)
 let TZ = "Europe/Rome";                // time zone for months, reports and dates (from Settings)
+let TG = { token: "", secret: "" };   // Telegram bot settings (from Settings, set by leggiConfig on every request)
 let VALUTA = "€";                 // currency symbol (from Settings)
+const MESI_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];   // English part of emails and messages
 const MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio",
   "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
@@ -250,7 +252,7 @@ async function reportMese(env, anno, mese, riservato = false, pre = null) {
   const ivaA = iva(impA, ivaUsata);
   return {
     bloccato: prezzo != null,
-    riservato, anno, mese, titolo: `${MESI[mese - 1]} ${anno}`, prezzo, iva_pct: ivaPct, iva_prec: prec ? prec.iva : 0, tessere, app,
+    riservato, anno, mese, titolo: `${MESI[mese - 1]} ${anno}`, titolo_en: `${MESI_EN[mese - 1]} ${anno}`, prezzo, iva_pct: ivaPct, iva_prec: prec ? prec.iva : 0, tessere, app,
     kwh_tessere: kT, kwh_app: kA, kwh_tot: kT + kA,
     imp_tessere: impT, iva_tessere: ivaT, tot_tessere: ok ? r2(impT + ivaT) : null,
     imp_app: impA, iva_app: ivaA, tot_app: ok ? r2(impA + ivaA) : null,
@@ -288,34 +290,36 @@ const CFG_DEFAULTS = {
   c_start: 0, c_tag: 7, c_type: 8, c_cont_ini: 9, c_end: 10, c_cont_fin: 13,
   tz: "Europe/Rome", currency: "€", tax_label: "",
   resend_key: "", mail_from: "",          // email via Resend (optional)
+  telegram_token: "", telegram_secret: "", // Telegram bot (optional): token from BotFather and a long random string that protects the webhook
   card_fee: 0,                             // card fee shown to whoever requests a card (0 = not shown)
   contact: "",                             // contact of whoever runs the site (Information tab and footer)
   charger_id: "CHARGER",                   // charger identifier in the OCPP address
 };
 const CFG_NUM = ["timeout", "hist_skip", "c_start", "c_tag", "c_type", "c_cont_ini", "c_end", "c_cont_fin"];
 const CFG_STR = ["title", "url", "user", "password", "header_name", "header_value", "history_path", "tags_path", "status_path",
-  "hist_json_field", "hist_sep", "tz", "currency", "tax_label", "resend_key", "mail_from", "contact", "charger_id"];
+  "hist_json_field", "hist_sep", "tz", "currency", "tax_label", "resend_key", "mail_from", "telegram_token", "telegram_secret", "contact", "charger_id"];
 
 async function leggiConfig(env) {
   const c = { ...CFG_DEFAULTS };
   const E = { url: env.CHARGER_URL, user: env.CHARGER_USER, password: env.CHARGER_PASSWORD, title: env.SITE_TITLE,
-    tz: env.TIMEZONE, currency: env.CURRENCY, resend_key: env.RESEND_API_KEY, mail_from: env.MAIL_FROM };
+    tz: env.TIMEZONE, currency: env.CURRENCY, resend_key: env.RESEND_API_KEY, mail_from: env.MAIL_FROM, telegram_token: env.TELEGRAM_BOT_TOKEN, telegram_secret: env.TELEGRAM_SECRET };
   for (const [k, v] of Object.entries(E)) if (v) c[k] = v;
   const r = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='config'").first();
   if (r) { try { Object.assign(c, JSON.parse(r.valore)); } catch (_) { /* damaged value: ignored */ } }
   TITOLO = c.title || CFG_DEFAULTS.title;
   VALUTA = c.currency || CFG_DEFAULTS.currency;
+  TG = { token: c.telegram_token || "", secret: c.telegram_secret || "" };
   try { new Intl.DateTimeFormat("en-US", { timeZone: c.tz }); TZ = c.tz; } catch (_) { TZ = CFG_DEFAULTS.tz; }
   return c;
 }
 // what the browser may see: never the charger password or the Resend key
-const configPubblica = (c) => { const { password, resend_key, ...x } = c; return { ...x, password_set: !!password, resend_set: !!resend_key }; };
+const configPubblica = (c) => { const { password, resend_key, telegram_token, telegram_secret, ...x } = c; return { ...x, password_set: !!password, resend_set: !!resend_key, telegram_set: !!(telegram_token && telegram_secret) }; };
 
 function pulisciConfig(inp, base) {                      // validates what the admin sends and merges it over `base`
   const out = { ...base };
   for (const k of CFG_STR) {
     if (inp[k] === undefined) continue;
-    if ((k === "password" || k === "resend_key") && inp[k] === null) continue;   // null = keep the saved secret
+    if (["password", "resend_key", "telegram_token", "telegram_secret"].includes(k) && inp[k] === null) continue;   // null = keep the saved secret
     out[k] = String(inp[k]).trim().slice(0, 500);
   }
   for (const k of CFG_NUM) {
@@ -684,7 +688,7 @@ async function preparaTabelle(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS ticket (id INTEGER PRIMARY KEY AUTOINCREMENT, utente TEXT, tipo TEXT, testo TEXT, extra TEXT, stato TEXT, creato TEXT, gestito TEXT, nota TEXT)"),   // requests from the reserved area
   ]);
   const col = (await env.DB.prepare("PRAGMA table_info(utenti)").all()).results.map((c) => c.name);
-  for (const [nome, tipo] of [["permessi", "TEXT"], ["invito_hash", "TEXT"], ["invito_exp", "INTEGER"], ["tessera", "TEXT"], ["cognome", "TEXT"], ["nome_proprio", "TEXT"], ["tel1", "TEXT"], ["tel2", "TEXT"], ["verifica_hash", "TEXT"], ["verifica_exp", "INTEGER"], ["consensi", "TEXT"], ["registrato_il", "TEXT"], ["profilo_il", "TEXT"], ["tessere_altre", "TEXT"]])
+  for (const [nome, tipo] of [["permessi", "TEXT"], ["invito_hash", "TEXT"], ["invito_exp", "INTEGER"], ["tessera", "TEXT"], ["cognome", "TEXT"], ["nome_proprio", "TEXT"], ["tel1", "TEXT"], ["tel2", "TEXT"], ["verifica_hash", "TEXT"], ["verifica_exp", "INTEGER"], ["consensi", "TEXT"], ["registrato_il", "TEXT"], ["profilo_il", "TEXT"], ["tessere_altre", "TEXT"], ["tg_chat", "TEXT"], ["tg_codice", "TEXT"], ["tg_exp", "INTEGER"]])
     if (!col.includes(nome)) await env.DB.prepare(`ALTER TABLE utenti ADD COLUMN ${nome} ${tipo}`).run();
   const colT = (await env.DB.prepare("PRAGMA table_info(ticket)").all()).results.map((c) => c.name);
   if (!colT.includes("integrazioni")) await env.DB.prepare("ALTER TABLE ticket ADD COLUMN integrazioni TEXT").run();   // user additions to the ticket (encrypted JSON)
@@ -815,6 +819,144 @@ const NOREPLY = `<p style="margin-top:20px"><b>Per contattarci usa la sezione As
   `<p style="margin-top:16px"><b>Questa casella non riceve email in ingresso: si prega di non rispondere a questo messaggio.<br>` +
   `This mailbox does not receive incoming email: please do not reply to this message.</b></p>`;
 
+// ---------------------------------------------------- Telegram messages and bot
+// Bot token and webhook secret come from Settings (TG, set by leggiConfig). Users link their chat from the profile
+// (/start with a one-time code, up to two chats per account); the bot webhook is /api/telegram/<secret>.
+const telegramAttivo = () => !!(TG.token && TG.secret);
+async function tgApi(metodo, corpo) {
+  const r = await fetch(`https://api.telegram.org/bot${TG.token}/${metodo}`,
+    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo || {}) });
+  const j = await r.json().catch(() => ({}));
+  if (!j.ok) throw new Error(j.description || "HTTP " + r.status);
+  return j.result;
+}
+// message text: site title, Italian, blank line, English; no HTML
+const msgBil = (righeIt, righeEn) => `${TITOLO}\n\n${righeIt.join("\n")}\n\n${righeEn.join("\n")}`;
+// Telegram chats linked to a user (up to two): an encrypted JSON list in the db
+async function chatTelegram(env, u) {
+  const v = await decifra(env, u.tg_chat, u.nome + "|tg_chat");
+  if (!v) return [];
+  try { const l = JSON.parse(v); return Array.isArray(l) ? l.map(String) : [String(v)]; } catch (_) { return [String(v)]; }
+}
+async function salvaChatTelegram(env, nome, lista) {
+  await env.DB.prepare("UPDATE utenti SET tg_chat=? WHERE nome=?").bind(lista.length ? await cifra(env, JSON.stringify(lista), nome + "|tg_chat") : null, nome).run();
+}
+// the user a chat belongs to: chats are encrypted, so the (few) linked users are scanned and decrypted
+async function utenteDaChat(env, chat) {
+  const righe = (await env.DB.prepare("SELECT nome, ruolo, tessera, tessere_altre, tg_chat FROM utenti WHERE tg_chat IS NOT NULL").all()).results;
+  for (const u of righe) if ((await chatTelegram(env, u)).includes(chat)) return u;
+  return null;
+}
+// sends the message to the user's linked chats if they gave the consent. Returns { telegram }: "inviato", "errore: ..." or null.
+async function inviaMessaggio(env, nomeUtente, righeIt, righeEn) {
+  const out = { telegram: null };
+  const u = await env.DB.prepare("SELECT nome, consensi, tg_chat FROM utenti WHERE nome=?").bind(nomeUtente).first();
+  if (!u) return out;
+  let c = {}; try { c = JSON.parse((await decifra(env, u.consensi, u.nome + "|consensi")) || "{}"); } catch (_) { /* empty */ }
+  const tg = c.telegram !== undefined ? !!c.telegram : !!c.messaggi;
+  const chats = tg && telegramAttivo() ? await chatTelegram(env, u) : [];
+  if (chats.length) {                                     // consent given but Telegram not linked: nothing to do
+    const testo = msgBil(righeIt, righeEn), via = [];
+    for (const ch of chats) {
+      try { await tgApi("sendMessage", { chat_id: ch, text: testo }); if (!out.telegram) out.telegram = "inviato"; }
+      catch (e) {
+        out.telegram = "errore: Telegram: " + msgErrore(e);
+        if (/blocked|chat not found|deactivated/i.test(out.telegram)) via.push(ch);   // the user blocked the bot: unlink that chat
+      }
+    }
+    if (via.length) await salvaChatTelegram(env, u.nome, chats.filter((ch) => !via.includes(ch)));
+  }
+  if (out.telegram && out.telegram.startsWith("errore")) await notifica(env, "Messaggio non consegnato", `${u.nome}: ${out.telegram}`);
+  return out;
+}
+// queue of messages to users: saving the price fills it, the 5-minute check empties it, so one request stays under the
+// 50 outbound calls of the free plan. The lines are encrypted: they contain the user's amounts.
+const MAX_CODA_GIRO = 15;                                   // messages per run: at most 30 outbound calls (two chats each)
+async function codaVoce(env, utente, righeIt, righeEn) {
+  return { utente, righe: await cifra(env, JSON.stringify([righeIt, righeEn]), "coda|" + utente), quando: Date.now() };
+}
+async function accodaMessaggi(env, voci) {
+  const coda = await leggiMeta(env, "coda_messaggi", []);
+  await salvaMeta(env, "coda_messaggi", coda.concat(voci).slice(-200));
+}
+async function inviaCodaMessaggi(env) {
+  const coda = await leggiMeta(env, "coda_messaggi", []);
+  if (!coda.length) return;
+  await leggiConfig(env);                                   // sets TITOLO and TG for this run
+  const giro = coda.splice(0, MAX_CODA_GIRO);
+  await salvaMeta(env, "coda_messaggi", coda);             // saved before sending: if the run is cut short nothing is sent twice
+  for (const v of giro) {
+    try { const [it, en] = JSON.parse(await decifra(env, v.righe, "coda|" + v.utente)); await inviaMessaggio(env, v.utente, it, en); }
+    catch (_) { /* unreadable entry: skipped */ }
+  }
+}
+// Telegram bot webhook. Commands: /start <code> links the chat to the user who generated the code from the profile (up to two
+// chats per account); /stop unlinks this chat; /smarrita and /danneggiata <card> open the "Lost or damaged card" request (the
+// card is blocked at once, as from the site); /problema <text> opens "Charger problem"; /richieste lists the user's requests;
+// /aiuto. Chats that are not linked only get an answer to /start: no outbound calls for random messages.
+const COMANDI_BOT = [
+  ["smarrita", "Tessera smarrita: /smarrita <codice tessera>"], ["danneggiata", "Tessera danneggiata o non funzionante: /danneggiata <codice tessera>"],
+  ["problema", "Problema con la colonnina: /problema <descrizione>"], ["richieste", "Le mie richieste"], ["aiuto", "Elenco dei comandi"], ["stop", "Scollega questa chat"]];
+const AIUTO_BOT = "Comandi / Commands:\n" +
+  "/smarrita <tessera> - tessera smarrita, viene bloccata subito / lost card, blocked at once\n" +
+  "/danneggiata <tessera> - tessera danneggiata o non funzionante / damaged or faulty card\n" +
+  "/problema <testo> - problema con la colonnina / charger problem\n" +
+  "/richieste - le mie richieste / my requests\n" +
+  "/stop - scollega questa chat / unlink this chat";
+async function telegramWebhook(req, env, url) {
+  if (!telegramAttivo() || url.pathname !== "/api/telegram/" + TG.secret
+    || req.headers.get("x-telegram-bot-api-secret-token") !== TG.secret) return new Response("", { status: 404 });
+  let up = {}; try { up = await req.json(); } catch (_) { /* ignored */ }
+  const m = up.message;
+  if (!m || !m.chat || typeof m.text !== "string") return json({ ok: true });
+  const chat = String(m.chat.id), txt = m.text.trim();
+  const rispondi = (testo) => tgApi("sendMessage", { chat_id: chat, text: testo }).catch(() => null);
+  const cmd = /^\/([a-z]+)(?:@\w+)?(?:\s+([\s\S]*))?$/i.exec(txt);
+  const c = cmd ? cmd[1].toLowerCase() : "", arg = cmd && cmd[2] ? cmd[2].trim() : "";
+  if (c === "start") {
+    const u = /^[0-9a-f]{16,64}$/.test(arg) ? await env.DB.prepare("SELECT nome, tg_chat FROM utenti WHERE tg_codice=? AND tg_exp>?").bind(arg, Math.floor(Date.now() / 1000)).first() : null;
+    if (!u) { await rispondi("Codice non valido o scaduto: genera un nuovo collegamento dal profilo del sito.\nInvalid or expired code: generate a new link from your profile on the site."); return json({ ok: true }); }
+    const lista = await chatTelegram(env, u);
+    if (!lista.includes(chat)) {
+      if (lista.length >= 2) { await rispondi("Questo account ha già due chat Telegram collegate: scollegane una con /stop.\nThis account already has two Telegram chats linked: unlink one with /stop."); return json({ ok: true }); }
+      lista.push(chat);
+    }
+    await salvaChatTelegram(env, u.nome, lista);
+    await env.DB.prepare("UPDATE utenti SET tg_codice=NULL, tg_exp=NULL WHERE nome=?").bind(u.nome).run();
+    await rispondi(`${TITOLO}\n\nTelegram collegato: qui riceverai i messaggi di servizio.\nTelegram linked: service messages will arrive here.\n\n${AIUTO_BOT}`);
+    return json({ ok: true });
+  }
+  const u = await utenteDaChat(env, chat);
+  if (!u) return json({ ok: true });
+  if (c === "stop") {
+    await salvaChatTelegram(env, u.nome, (await chatTelegram(env, u)).filter((x) => x !== chat));
+    await rispondi("Chat scollegata: qui non arriveranno più messaggi. Per ricollegarla usa il profilo del sito.\nChat unlinked: no more messages here. Use your profile on the site to link it again.");
+  } else if (c === "smarrita" || c === "danneggiata") {
+    const mie = tessereDi(u), tag = arg.toUpperCase();
+    if (!mie.length) await rispondi("Non hai tessere abbinate.\nYou have no cards linked.");
+    else if (!mie.includes(tag)) await rispondi(`Indica la tessera: ${mie.map((x) => "/" + c + " " + x).join(" oppure ")}` + (c === "smarrita" ? "\nLa tessera verrà bloccata subito sulla colonnina." : "") +
+      `\nSpecify the card: ${mie.map((x) => "/" + c + " " + x).join(" or ")}` + (c === "smarrita" ? "\nThe card will be blocked on the charger at once." : ""));
+    else await rispondi(await ticketDalBot(env, u, url, { azione: "apri", tipo: "tessera", tessera: tag, motivo: c }));
+  } else if (c === "problema") {
+    if (!arg) await rispondi("Scrivi il problema dopo il comando: /problema <descrizione>\nWrite the problem after the command: /problema <description>");
+    else await rispondi(await ticketDalBot(env, u, url, { azione: "apri", tipo: "colonnina", testo: arg }));
+  } else if (c === "richieste") {
+    const r = (await env.DB.prepare("SELECT id, tipo, stato, creato FROM ticket WHERE utente=? ORDER BY id DESC LIMIT 10").bind(u.nome).all()).results;
+    await rispondi(r.length ? "Le tue richieste / Your requests:\n" + r.map((x) => `#${x.id} ${TIPI_TICKET[x.tipo] || x.tipo} - ${x.stato} (${String(x.creato).slice(0, 10)})`).join("\n") : "Nessuna richiesta.\nNo requests.");
+  } else await rispondi(AIUTO_BOT);
+  return json({ ok: true });
+}
+// opens a request as from the site, with the same ticket() function: card block, email/notification to the admin, limit of 5 open
+async function ticketDalBot(env, u, url, corpo) {
+  const me = { nome: u.nome, ruolo: u.ruolo, tessera: u.tessera || null, tessere: tessereDi(u) };
+  const req = new Request(url.origin + "/api/ticket", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) });
+  const r = await (await ticket(req, env, me, url)).json();
+  if (r.errore) return `Richiesta non aperta: ${r.errore}\nRequest not opened: ${r.errore}`;
+  const tess = corpo.tipo === "tessera";
+  return `Richiesta n. ${r.id} aperta: l'amministratore la gestirà dal sito e riceverai l'esito.` + (tess ? ` La tessera ${corpo.tessera} è bloccata (se la colonnina non risponde, il blocco viene ritentato ogni 5 minuti).` : "") +
+    `\nRequest no. ${r.id} opened: the administrator will handle it on the site and you will receive the outcome.` + (tess ? ` Card ${corpo.tessera} is blocked (if the charger does not answer, the block is retried every 5 minutes).` : "");
+}
+
 // ---------------------------------------------------- price report by email
 const DEST_DEFAULT = { a: [], cc: [] };          // empty until the admin enters them: no email goes out
 async function leggiDestinatari(env) {
@@ -909,13 +1051,17 @@ async function avvisiUtenti(env, live, ora) {
     || await env.DB.prepare("SELECT nome FROM utenti WHERE tessera=? OR tessere_altre LIKE ? LIMIT 1").bind(tx.tag, like).first();
   if (u && EMAIL_OK.test(u.nome)) {
     const kwh = tx.meter_fin != null && tx.meter_ini != null ? ((tx.meter_fin - tx.meter_ini) / 1000).toFixed(1).replace(".", ",") + " kWh" : "";
-    const invia = async (promemoria) => inviaMail(env, u.nome, `${promemoria ? "Promemoria: la ricarica" : "La ricarica"} è terminata - ${TITOLO}`,
-      mailBil(promemoria ? "Promemoria: ricarica terminata, auto ancora collegata" : "Ricarica terminata", [
+    const invia = async (promemoria) => {                 // email and, for those who allowed it, Telegram message
+      const a = [promemoria ? "Promemoria: ricarica terminata, auto ancora collegata" : "Ricarica terminata", [
         "La ricarica con la tessera " + tx.tag + " è terminata" + (tx.fine ? " alle " + new Date(tx.fine).toLocaleTimeString("it-IT", { timeZone: TZ, timeStyle: "short" }) : "") + (kwh ? " (" + kwh + ")" : "") + ".",
         "L'auto risulta ancora collegata alla colonnina: per favore scollegala per lasciare il posto agli altri utenti."],
       promemoria ? "Reminder: charging finished, car still plugged in" : "Charging finished", [
         "Charging with card " + tx.tag + " has finished" + (tx.fine ? " at " + new Date(tx.fine).toLocaleTimeString("en-GB", { timeZone: TZ, timeStyle: "short" }) : "") + (kwh ? " (" + kwh.replace(",", ".") + ")" : "") + ".",
-        "The car is still plugged in: please unplug it so others can use the charger."]));
+        "The car is still plugged in: please unplug it so others can use the charger."]];   // [title IT, lines IT, title EN, lines EN]
+      const m = await inviaMail(env, u.nome, `${promemoria ? "Promemoria: la ricarica" : "La ricarica"} è terminata - ${TITOLO}`, mailBil(a[0], a[1], a[2], a[3]));
+      const x = await inviaMessaggio(env, u.nome, [a[0] + ".", ...a[1]], [a[2] + ".", ...a[3]]);
+      return m === "inviata" || x.telegram === "inviato" ? "inviata" : m;
+    };
     if (!rec.m1 && ora - rec.da >= cfg.attesa * 60000) { if ((await invia(false)) === "inviata") rec.m1 = ora; }
     else if (rec.m1 && !rec.m2 && cfg.sollecito > 0 && ora - rec.da >= cfg.sollecito * 60000) { if ((await invia(true)) === "inviata") rec.m2 = ora; }
   }
@@ -1229,19 +1375,21 @@ async function inviaReportPrezzo(env, anno, mese, origin) {
 }
 
 // when the price is entered, every user with cards and charging sessions in that month gets their own amounts (only theirs)
-const MAX_MAIL_UTENTI = 40;                                 // the free plan limits the requests per invocation
+const MAX_RICHIESTE_UTENTI = 45;                            // emails to users (messages go to the queue): the free plan allows 50 outbound calls per invocation
 async function inviaMailUtentiPrezzo(env, anno, mese, origin) {
-  if (!env.RESEND_API_KEY || !env.MAIL_FROM) return { inviate: 0, errori: 0 };
+  const c = await leggiConfig(env), mailOk = !!(c.resend_key && c.mail_from);   // email from Settings; without it the Telegram messages still go out
+  if (!mailOk && !telegramAttivo()) return { inviate: 0, errori: 0 };
   const r = await reportMese(env, anno, mese, false);
   if (r.prezzo == null || !r.tessere.length) return { inviate: 0, errori: 0 };
   const utenti = (await env.DB.prepare("SELECT nome, tessera, tessere_altre FROM utenti WHERE verifica_hash IS NULL").all()).results;
   const E = (v) => num(v, 2) + " " + VALUTA;
-  let inviate = 0, errori = 0, saltate = 0;
+  let inviate = 0, errori = 0, saltate = 0, richieste = 1;   // 1 = the report to the recipients
+  const coda = [];
   for (const u of utenti) {
     if (!EMAIL_OK.test(u.nome)) continue;
     const tags = tessereDi(u), ts = r.tessere.filter((x) => tags.includes(x.tag));
     if (!ts.length) continue;                               // no sessions this month: no email
-    if (inviate + errori >= MAX_MAIL_UTENTI) { saltate++; continue; }
+    if (richieste >= MAX_RICHIESTE_UTENTI) { saltate++; continue; }
     const perTag = {};                                      // a card that changed holder name during the month appears more than once
     for (const x of ts) {
       const d = (perTag[x.tag] ||= { n: 0, kwh: 0, imp: 0, iva: 0, tot: 0 });
@@ -1255,15 +1403,22 @@ async function inviaMailUtentiPrezzo(env, anno, mese, origin) {
       `è stato inserito il prezzo dell'energia di ${r.titolo}: ${num(r.prezzo, 4)} ${VALUTA}/kWh, IVA ${num(r.iva_pct, 1)}%.`,
       ...righe(true), `Totale: ${E(tot)}.`,
       `Il dettaglio di ogni sessione è nell'area riservata, scheda "Le mie ricariche": ${origin}`],
-    `Your charging in ${r.titolo}`, [
-      `the energy price for ${r.titolo} has been entered: ${num(r.prezzo, 4)} ${VALUTA}/kWh, VAT ${num(r.iva_pct, 1)}%.`,
+    `Your charging in ${r.titolo_en}`, [
+      `the energy price for ${r.titolo_en} has been entered: ${num(r.prezzo, 4)} ${VALUTA}/kWh, VAT ${num(r.iva_pct, 1)}%.`,
       ...righe(false), `Total: ${E(tot)}.`,
       `The detail of every session is in the reserved area, "My charging" tab: ${origin}`]);
-    const m = await inviaMail(env, u.nome, `Le tue ricariche ${r.titolo} / Your charging ${r.titolo} - ${TITOLO}`, html);
-    if (m === "inviata") inviate++; else errori++;
+    if (mailOk) {
+      const m = await inviaMail(env, u.nome, `Le tue ricariche ${r.titolo} / Your charging ${r.titolo_en} - ${TITOLO}`, html);
+      richieste++;
+      if (m === "inviata") inviate++; else errori++;
+    }
+    coda.push(await codaVoce(env, u.nome,
+      [`Le tue ricariche di ${r.titolo}: prezzo ${num(r.prezzo, 4)} ${VALUTA}/kWh, IVA ${num(r.iva_pct, 1)}%.`, ...righe(true), `Totale: ${E(tot)}. Dettaglio in "Le mie ricariche": ${origin}`],
+      [`Your charging in ${r.titolo_en}: price ${num(r.prezzo, 4)} ${VALUTA}/kWh, VAT ${num(r.iva_pct, 1)}%.`, ...righe(false), `Total: ${E(tot)}. Details in "My charging": ${origin}`]));
   }
-  if (errori || saltate) await notifica(env, "Mail del prezzo agli utenti", `${r.titolo}: ${inviate} inviate, ${errori} non riuscite, ${saltate} non inviate per il limite di ${MAX_MAIL_UTENTI}.`);
-  return { inviate, errori };
+  if (errori || saltate) await notifica(env, "Mail del prezzo agli utenti", `${r.titolo}: ${inviate} inviate, ${errori} non riuscite, ${saltate} non inviate per il limite di ${MAX_RICHIESTE_UTENTI} richieste.`);
+  if (coda.length) await accodaMessaggi(env, coda);
+  return { inviate, errori, messaggi: coda.length };
 }
 
 function leggiPermessi(b) {
@@ -1336,9 +1491,20 @@ async function gestisciUtenti(env, me, b, origin) {
     const tf = await leggiTessereForm(env, b);
     if (tf.errore) return json({ errore: tf.errore }, 400);
     const tess = tf.tess;
-    const prima = await env.DB.prepare("SELECT tessera, registrato_il, verifica_hash, nome_proprio FROM utenti WHERE nome=?").bind(nome).first();
+    const prima = await env.DB.prepare("SELECT tessera, registrato_il, profilo_il, verifica_hash, nome_proprio FROM utenti WHERE nome=?").bind(nome).first();
+    let an = null;                                          // personal details corrected by the admin (only for users with a profile): same rules as the registration
+    if (b.anagrafica && typeof b.anagrafica === "object" && prima && (prima.registrato_il || prima.profilo_il)) {
+      const nomeP = nomePulito(b.anagrafica.nome), cognome = nomePulito(b.anagrafica.cognome);
+      const t1 = String(b.anagrafica.tel1 || "").replace(/\s/g, ""), t2 = String(b.anagrafica.tel2 || "").replace(/\s/g, "");
+      if (!nomeP || !cognome) return json({ errore: "Inserisci nome e cognome" }, 400);
+      if (!TEL_OK.test(t1)) return json({ errore: "Numero di telefono non valido" }, 400);
+      if (t2 && !TEL_OK.test(t2)) return json({ errore: "Secondo numero di telefono non valido" }, 400);
+      an = { nomeP, cognome, t1, t2 };
+    }
     const r = await env.DB.prepare("UPDATE utenti SET permessi=?, tessera=? WHERE nome=? AND ruolo<>'admin'").bind(leggiPermessi(b.permessi), tess, nome).run();
     if (r.meta.changes) await env.DB.prepare("UPDATE utenti SET tessere_altre=? WHERE nome=?").bind(tf.altre.length ? JSON.stringify(tf.altre) : null, nome).run();
+    if (r.meta.changes && an) await env.DB.prepare("UPDATE utenti SET nome_proprio=?, cognome=?, tel1=?, tel2=? WHERE nome=?")
+      .bind(await cifra(env, an.nomeP, nome + "|nome_proprio"), await cifra(env, an.cognome, nome + "|cognome"), await cifra(env, an.t1, nome + "|tel1"), an.t2 ? await cifra(env, an.t2, nome + "|tel2") : null, nome).run();
     let mail;
     if (r.meta.changes && prima && prima.registrato_il && !prima.tessera && tess && !prima.verifica_hash) mail = await mailAttivazione(env, nome, await decifra(env, prima.nome_proprio, nome + "|nome_proprio"), tess, origin);   // self-registered user: now active
     return json(r.meta.changes ? { ok: true, mail } : { errore: "utente non trovato" }, r.meta.changes ? 200 : 404);
@@ -1487,7 +1653,7 @@ async function ticket(req, env, me, url) {
         mailMalf(`Nuova richiesta #${id}: ${TIPI_TICKET[tipo]}`, [`Utente: ${me.nome}`, ...righeNuova, ...(extra && extra.tessera ? [`Tessera ${extra.motivo}: ${extra.tessera}`, extra.blocco === "ok" ? "La tessera è stata bloccata sulla colonnina." : "Blocco della tessera in attesa: la colonnina non ha risposto, riprovo ogni 5 minuti."] : []), ...(testo ? [`Messaggio: ${testo}`] : []),
           "Gestiscila dalla scheda Ticket del sito."]), m.cc)) === "inviata";
     }
-    if (!inviata) await notifica(env, `Nuovo ticket #${id}`, dett + (righeNuova.length ? " - " + righeNuova.join(" - ") : ""));
+    void inviata; void dett;                                 // no notification in Monitoring: the Support tab already shows the open requests
     return json({ ok: true, id });
   }
   if (b.azione === "integra") {                      // the user adds information to one of their open tickets (instead of opening more)
@@ -1513,6 +1679,7 @@ async function ticket(req, env, me, url) {
     await env.DB.prepare("UPDATE ticket SET extra=? WHERE id=?").bind(await cifra(env, JSON.stringify({ ...t.extra, blocco: "sbloccata" }), t.utente + "|ticket_extra"), r.id).run();
     if (EMAIL_OK.test(t.utente)) {
       const att = sb === "in attesa", tg = t.extra.tessera;
+      await inviaMessaggio(env, t.utente, [`La tessera ${tg} è stata riattivata.` + (att ? " Lo sblocco sulla colonnina è in attesa." : "")], [`Card ${tg} has been reactivated.` + (att ? " Unblocking on the charger is pending." : "")]);
       await inviaMail(env, t.utente, `Tessera ${tg} riattivata / Card ${tg} reactivated - ${TITOLO}`,
         `<div style="font-family:Arial,sans-serif;max-width:520px"><h2 style="margin:0 0 16px">${TITOLO}</h2><p><b>Italiano</b></p><p>${esc(`La tessera ${tg} è stata riattivata a seguito della tua comunicazione di ritrovamento.` + (att ? " La riattivazione sulla colonnina sarà completata entro pochi minuti." : ""))}</p>` +
         `<hr style="border:0;border-top:1px solid #ddd;margin:20px 0"><p><b>English</b></p><p>${esc(`Card ${tg} has been reactivated following your report that it was found.` + (att ? " Reactivation on the charger will be completed within a few minutes." : ""))}</p>${NOREPLY}</div>`);
@@ -1598,6 +1765,7 @@ async function ticket(req, env, me, url) {
     if (EMAIL_OK.test(t.utente)) {      // the user gets the outcome (before the account is possibly deleted)
       const rIt = [`La tua richiesta n. ${r.id} (${TIPI_TICKET[t.tipo]}) è stata ${intest}.`, ...(t.tipo === "cancellazione" && esito === "approvato" ? ["L'utenza e i dati personali associati sono stati cancellati."] : []), ...dIt, ...(nota ? [`Nota dell'Amministratore: ${nota}`] : [])];
       const rEn = [`Your request no. ${r.id} has been ${intestEn}.`, ...(t.tipo === "cancellazione" && esito === "approvato" ? ["Your account and the associated personal data have been deleted."] : []), ...dEn, ...(nota ? [`Administrator's note: ${nota}`] : [])];
+      await inviaMessaggio(env, t.utente, rIt, rEn);
       await inviaMail(env, t.utente, `Richiesta n. ${r.id} ${intest} / Request no. ${r.id} ${intestEn} - ${TITOLO}`,
         `<div style="font-family:Arial,sans-serif;max-width:520px"><h2 style="margin:0 0 16px">${TITOLO}</h2><p><b>Italiano</b></p><p>${rIt.map(esc).join("<br>")}</p><hr style="border:0;border-top:1px solid #ddd;margin:20px 0"><p><b>English</b></p><p>${rEn.map(esc).join("<br>")}</p>${NOREPLY}</div>`);
     }
@@ -1769,7 +1937,7 @@ function datiProfilo(b, edizione) {
   if (b.reg !== true) return { errore: "Devi accettare il regolamento" };
   if (b.priv !== true) return { errore: "Devi confermare di aver letto l'informativa privacy" };
   const msg = b.msg === true;
-  return { d: { nomeP, cognome, t1, t2, consensi: { edizione: edizione || "", regolamento: true, privacy: true, messaggi: msg, whatsapp: msg, telegram: msg, data: new Date().toISOString() } } };
+  return { d: { nomeP, cognome, t1, t2, consensi: { edizione: edizione || "", regolamento: true, privacy: true, messaggi: msg, whatsapp: false, telegram: msg, data: new Date().toISOString() } } };
 }
 async function cifraProfilo(env, email, d) {
   return { cognome: await cifra(env, d.cognome, email + "|cognome"), nome_proprio: await cifra(env, d.nomeP, email + "|nome_proprio"), tel1: await cifra(env, d.t1, email + "|tel1"),
@@ -2330,6 +2498,7 @@ export default {
       if (url.pathname === "/" && req.method === "GET" && q.get("verifica")) return await confermaEmail(url, env);
       if (url.pathname === "/" && req.method === "GET" && q.get("invito"))
         return new Response(pagina(P_INVITO), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+      if (url.pathname.startsWith("/api/telegram/") && req.method === "POST") return await telegramWebhook(req, env, url);
       const me = await utenteCorrente(req, env);
       if (!me) {
         if (url.pathname === "/" && req.method === "GET")
@@ -2384,7 +2553,38 @@ export default {
         const ult = (c.storico || []).slice(-1)[0];
         return json({ registrato: true, email: r.nome, nome: d.nome_proprio, cognome: d.cognome, tel1: d.tel1, tel2: d.tel2,
           whatsapp: c.whatsapp !== undefined ? !!c.whatsapp : !!c.messaggi, telegram: c.telegram !== undefined ? !!c.telegram : !!c.messaggi,
-          aggiornato: ult ? ult.data : c.data || null, edizione: c.edizione || null });
+          aggiornato: ult ? ult.data : c.data || null, edizione: c.edizione || null, tg_attivo: telegramAttivo() });
+      }
+      if (url.pathname === "/api/telegram") {           // the user's own Telegram link: GET status, POST { azione: "collega" | "scollega" }
+        if (!telegramAttivo()) return json({ attivo: false });
+        const bot = await leggiMeta(env, "telegram_bot", null);
+        if (req.method === "POST") {
+          const b = await req.json();
+          if (b.azione === "scollega") { await env.DB.prepare("UPDATE utenti SET tg_chat=NULL, tg_codice=NULL, tg_exp=NULL WHERE nome=?").bind(me.nome).run(); return json({ attivo: true, collegato: false, chat: 0 }); }
+          if (!bot) return json({ errore: "Telegram non ancora attivato dall'amministratore" }, 400);
+          const gia = await env.DB.prepare("SELECT nome, tg_chat FROM utenti WHERE nome=?").bind(me.nome).first();
+          if (gia && (await chatTelegram(env, gia)).length >= 2) return json({ errore: "Hai già due chat Telegram collegate" }, 400);
+          const codice = hex(crypto.getRandomValues(new Uint8Array(12)));      // valid 15 minutes, once
+          await env.DB.prepare("UPDATE utenti SET tg_codice=?, tg_exp=? WHERE nome=?").bind(codice, Math.floor(Date.now() / 1000) + 900, me.nome).run();
+          return json({ attivo: true, collegato: false, bot: bot.username, link: `https://t.me/${bot.username}?start=${codice}` });
+        }
+        const r = await env.DB.prepare("SELECT nome, tg_chat FROM utenti WHERE nome=?").bind(me.nome).first();
+        const n = r ? (await chatTelegram(env, r)).length : 0;
+        return json({ attivo: true, collegato: n > 0, chat: n, bot: bot ? bot.username : null });
+      }
+      if (url.pathname === "/api/messaggi") {           // Telegram channel (admin): status and bot activation
+        if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
+        if (req.method === "POST" && (await req.json()).azione === "attiva_telegram") {
+          if (!telegramAttivo()) return json({ errore: "Telegram non configurato: inserisci token e segreto nelle Impostazioni" }, 400);
+          try {
+            const bot = await tgApi("getMe");
+            await tgApi("setWebhook", { url: `${url.origin}/api/telegram/${TG.secret}`, secret_token: TG.secret, allowed_updates: ["message"], drop_pending_updates: true });
+            await tgApi("setMyCommands", { commands: COMANDI_BOT.map(([command, description]) => ({ command, description })) });
+            await salvaMeta(env, "telegram_bot", { username: bot.username, id: bot.id, quando: new Date().toISOString() });
+          } catch (e) { return json({ errore: "Telegram: " + msgErrore(e) }, 502); }
+        }
+        const bot = await leggiMeta(env, "telegram_bot", null);
+        return json({ telegram: { attivo: telegramAttivo(), bot: bot ? bot.username : null, attivato: bot ? bot.quando : null } });
       }
       if (url.pathname === "/api/me") {
         const reg = await env.DB.prepare("SELECT registrato_il, profilo_il FROM utenti WHERE nome=?").bind(me.nome).first();
@@ -2836,7 +3036,7 @@ export default {
   },
 
   async scheduled(ev, env, ctx) {
-    if (ev.cron === "*/5 * * * *") { ctx.waitUntil(verificaMalfunzionamenti(env).catch(() => {})); return; }   // monitoring check
+    if (ev.cron === "*/5 * * * *") { ctx.waitUntil(verificaMalfunzionamenti(env).catch(() => {}).then(() => inviaCodaMessaggi(env)).catch(() => {})); return; }   // monitoring check, then the message queue
     ctx.waitUntil(leggiConfig(env).then((c) => (c.auto && c.url ? scarica(env).catch(() => { /* the error is saved in meta */ }).then(() => ripristinaNomi(env)) : null)).catch(() => {}));
   },
 };

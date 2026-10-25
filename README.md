@@ -44,6 +44,7 @@ Nothing about a specific installation is in the code: charger address, title, ti
 - **Sessions started from the app** (no RFID card) are kept in a separate section that only authorised users see.
 - **Monthly price entry** (price per kWh and VAT); once saved, the month is locked.
 - **Monthly report by email** with a PDF of every session attached (via Resend), to the recipients you choose. Each charger user also gets a personal email with their own amounts.
+- **Telegram bot** (optional): service notices to the users who consent (charging finished and car still plugged in, monthly amounts, request outcomes, card reactivated), up to two chats per account, and support commands (`/smarrita`, `/danneggiata`, `/problema`, `/richieste`).
 - **Users and permissions**: administrator, managers with per-feature permissions, charger users bound to one or more cards who see only their own sessions and can download them as PDF.
 - **Self-registration**: users can register by themselves (strong password, phone numbers, acceptance of the rules and privacy notice with the edition recorded), confirm their email, and are activated when the administrator links their card. A "My profile" tab lets them change or withdraw consents.
 - **Support tickets**: lost or damaged card (the card is blocked on the charger at once), new card request with the fee and payment options you configure (PayPal.me, Satispay, Revolut, cash), data correction, deletion of data or account, charger problems. The administrator approves or rejects; the user gets the outcome by email.
@@ -158,6 +159,7 @@ All of these are in the **Settings** tab (administrator only) and are saved in t
 | Timeout | 20 s | Per request. |
 | Automatic download | on | Whether the 6-hour scheduled run downloads. |
 | Data format (JSON field, separator, rows to skip, columns) | Orbis values | Only for chargers whose history looks different. |
+| Bot token / webhook secret (Telegram) | empty | From BotFather / a long random string (the Settings page can generate it); both are needed for Telegram messages and the bot. |
 | Site title | `EV Charger` | Pages, emails, PDFs. |
 | Time zone | `Europe/Rome` | IANA name. Decides which month a session belongs to. |
 | Currency | `€` | Shown next to amounts. |
@@ -205,13 +207,15 @@ Card holders: every card has a history of who held it and when; reports use the 
 The administrator sees and does everything. Other users are either invited or register by themselves.
 
 - **Invitation** (Users tab): enter the email and choose a *manager* (pick permissions) or a *charger user* (one card plus optional other cards). The user receives a single-use link, valid 48 hours, where they choose a strong password and fill in name, phone numbers and consents. If email is not configured the page shows the link to send by hand.
-- **Self-registration** (Register tab on the sign-in page): name, surname, email, strong password, one or two phone numbers with international prefix, acceptance of the rules and privacy notice (the edition is recorded with date and time), optional consent to WhatsApp/Telegram service messages (the messages themselves are not sent yet; only the consent is collected). A confirmation email (48-hour link) is required; after confirming, the user can sign in. If they already have a card, the administrator links it from Users ("Activate account") and they receive the "Service activation" email; otherwise they see only Support and My profile and can request a card. Rate-limited (5 registrations per 10 minutes per address) with an anti-bot trap; the response is the same whether the email exists or not.
+- **Self-registration** (Register tab on the sign-in page): name, surname, email, strong password, one or two phone numbers with international prefix, acceptance of the rules and privacy notice (the edition is recorded with date and time), optional consent to Telegram service messages (the messages themselves are not sent yet; only the consent is collected). A confirmation email (48-hour link) is required; after confirming, the user can sign in. If they already have a card, the administrator links it from Users ("Activate account") and they receive the "Service activation" email; otherwise they see only Support and My profile and can request a card. Rate-limited (5 registrations per 10 minutes per address) with an anti-bot trap; the response is the same whether the email exists or not.
 - **Complete your profile**: users created before the data collection must fill in the same data at their next sign-in.
-- **My profile**: name, email, phones, and the WhatsApp / Telegram consents, which can be changed or withdrawn at any time (the last 20 changes are kept with date and time).
+- **My profile**: name, email, phones, and the Telegram consents, which can be changed or withdrawn at any time (the last 20 changes are kept with date and time).
 
 Requires Resend for the registration emails: without email, registration is refused and invitations show the link instead.
 
 **Anti-bot check (Cloudflare Turnstile), optional:** on dash.cloudflare.com open *Turnstile*, add a widget for your domain (Managed mode), put the **Site Key** in `wrangler.toml` as `TURNSTILE_SITE_KEY` and the **Secret Key** in the secret `TURNSTILE_SECRET`, then deploy. The registration form then shows the verification box; without the keys the site registers as before and the Users tab shows a warning.
+
+With "Edit" on a user who already has a profile (self-registered or completed), the form also shows first name, last name, phone and optional phone: "Save permissions and details" updates them with the same checks as the registration (number in international format, encrypted with `DATA_KEY`). For invited users who have not completed their profile yet the fields do not appear. The "Data correction" request from the Support tab keeps working.
 
 ## Support tickets
 
@@ -224,7 +228,35 @@ From the **Support** tab a user opens a request: lost or damaged card, new card 
 
 For card, charger and new-card tickets the administrator also gets an email (monitoring recipients); the others only an in-site notification.
 
+## Telegram messages and bot
+Optional. Users who give the consent (registration or "My profile") get, besides the email, a Telegram message when: charging
+finishes and the car stays plugged in (and the reminder), the monthly price is entered (their amounts), one of their requests
+is approved/rejected/closed, their card is reactivated. Text in Italian and English, no HTML.
+
+1. On Telegram open BotFather, `/newbot`, choose a name and a username; copy the token.
+2. Settings → Telegram: paste the token, generate (or type) a long random webhook secret, save the settings.
+3. Press **Activate Telegram**: it registers the webhook `https://<site>/api/telegram/<secret>` with Telegram and the command
+   menu, and saves the bot username. Repeat if the domain changes.
+4. Each user links their chat from "My profile" → "Link Telegram": the bot opens with a one-time code (valid 15 minutes);
+   pressing Start links the chat to the account (chat id encrypted in the database). Up to **two chats** per account
+   ("Link a second Telegram"). "Unlink Telegram" in the profile removes all chats; `/stop` in the bot removes that chat only;
+   if a user blocks the bot, that chat is removed at the first failed send.
+
+Bot commands (linked chats only; other chats get no answer): `/smarrita <card>` and `/danneggiata <card>` open the "Lost or
+damaged card" request (the card is blocked on the charger at once, as from the site; without the code the bot lists the user's
+cards), `/problema <text>` opens "Charger problem", `/richieste` lists the latest requests with their state, `/aiuto` the
+commands. Requests go through the same function as the site: limit of 5 open, email/notification to the administrator,
+outcome by email and message.
+
+Free-plan limits: 50 outbound calls and 50 D1 queries per invocation. When the price is saved the emails go out at once (at
+most 44 users per save; beyond that the remaining users get nothing and the administrator sees a notification); the Telegram
+messages go to a queue (`coda_messaggi` in `meta`, encrypted lines) that the 5-minute check empties 15 at a time. If a send
+fails the administrator gets a notification; the email goes out anyway.
+
+
 ## Monitoring, notifications and reminders
+Opening a support request no longer creates a notification here: the Support tab already shows the open requests.
+
 
 The **Monitoring** tab shows the charge in progress to everyone. For the administrator it also holds:
 
@@ -274,6 +306,7 @@ Nothing has to be set except what you want. Prefer the web page; use these for a
 | Name | Kind | Purpose |
 | --- | --- | --- |
 | `SETUP_CODE` | secret | Protects the first-run page. Recommended. |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_SECRET` | Initial values of the Telegram bot token and webhook secret (optional; the Settings page overrides them). |
 | `RESEND_API_KEY` | secret | Email sending (or enter it in Settings). |
 | `DATA_KEY` | secret | Encryption of personal data. Keep a copy outside Cloudflare. |
 | `CF_API_TOKEN` + `CF_ACCOUNT_ID` | secret + variable | Cloudflare usage box. |
@@ -326,7 +359,7 @@ npx wrangler dev
 
 - One charger, one socket, one price per month.
 - Card management and the offline list are built around the Orbis web interface and OCPP behaviour of firmware 7.2.53.
-- WhatsApp / Telegram messages are not sent: only the consent is collected.
+- Telegram messages need a bot (Settings → Telegram); without it only the consent is collected.
 - Internal names (functions, API fields) are in Italian for historical reasons; code comments, user interface, emails and documentation are in English and Italian.
 
 ## License
