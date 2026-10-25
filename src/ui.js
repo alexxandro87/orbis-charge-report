@@ -1386,10 +1386,10 @@ $("bNotLette").onclick=function(){caricaNot(true)};
 setInterval(function(){if(MONADM&&!document.hidden){caricaNot();badgeUtenti()}},30000);
 function caricaCf(){
   return api("/api/consumi").then(function(d){
-    if(d&&d.messaggi){var K=Object.keys(d.messaggi).sort().reverse(),M2=row([th(T("Mese")),th("Mail"),th("Telegram"),th(T("Errori"))]);
+    if(d&&d.messaggi){var K=Object.keys(d.messaggi).sort().reverse(),M2=row([th(T("Mese")),th("Mail",1),th("Telegram",1),th(T("Errori"),1)]);
       K.forEach(function(k){var c=d.messaggi[k];M2+=row([td(esc(k.split("-").reverse().join("-"))),td((c.mail||0).toLocaleString(LOC)+' <small>('+((c.mail||0)/3000*100).toLocaleString(LOC,{maximumFractionDigits:1})+'%)</small>',1),td(String(c.tg||0),1),td(String((c.mail_err||0)+(c.wa_err||0)+(c.tg_err||0)),1)])});
       $("tabMsg").innerHTML=K.length?M2:"";$("msgNota").textContent=(K.length?"":T("Nessun invio contato finora. "))+T("Resend gratuito: 3.000 mail al mese e 100 al giorno (tra parentesi la quota mensile); Telegram non ha limiti di costo.")+(d.coda?" "+T("Messaggi in coda: ")+d.coda:"")}
-    if(d&&d.chi){var G=d.chi.giorni||{},gg=Object.keys(G).sort().reverse().slice(0,2),C=row([th(T("Giorno (UTC)")),th(T("Pagina / API")),th(T("Chiamate")),th(T("Query D1")),th(T("Chiamate in uscita"))]);
+    if(d&&d.chi){var G=d.chi.giorni||{},gg=Object.keys(G).sort().reverse().slice(0,2),C=row([th(T("Giorno (UTC)")),th(T("Pagina / API")),th(T("Chiamate"),1),th(T("Query D1"),1),th(T("Chiamate in uscita"),1)]);
       gg.forEach(function(g){Object.keys(G[g]).sort(function(a,b){return G[g][b].q-G[g][a].q}).forEach(function(k){var x=G[g][k];C+=row([td(esc(g.split("-").reverse().join("-"))),td(esc(k)),td(x.n.toLocaleString(LOC),1),td(x.q.toLocaleString(LOC),1),td(x.f.toLocaleString(LOC),1)])})});
       var PP=(d.chi.pesanti||[]).slice().reverse();
       $("tabChi").innerHTML=gg.length?C:"";
@@ -1398,11 +1398,11 @@ function caricaCf(){
     if(!d.configurato){$("tabCf").innerHTML="";$("cfNota").textContent=T("Per vedere i consumi serve un token Cloudflare con il permesso Account Analytics: Read (secret CF_API_TOKEN) e CF_ACCOUNT_ID in wrangler.toml.");return}
     if(d.errore){$("tabCf").innerHTML="";$("cfNota").textContent=d.errore;return}
     function pc(v,l){var p=v/l*100;return v.toLocaleString(LOC)+' <small>('+(p<0.1?"<0,1":p.toLocaleString(LOC,{maximumFractionDigits:1}))+"%)</small>"}
-    var L=d.limiti,t=row([th(T("Giorno (UTC)")),th(T("Richieste sito")),th(T("Errori")),th("CPU 99% ms"),th(T("D1 righe lette")),th(T("D1 righe scritte")),th(T("Richieste OCPP")),th("OCPP GB-s"),th(T("OCPP righe lette")),th(T("OCPP righe scritte"))]);
+    var L=d.limiti,t=row([th(T("Giorno (UTC)")),th(T("Richieste sito"),1),th(T("Errori"),1),th("CPU 99% ms",1),th(T("D1 righe lette"),1),th(T("D1 righe scritte"),1),th(T("Richieste OCPP"),1),th("OCPP GB-s",1),th(T("OCPP righe lette"),1),th(T("OCPP righe scritte"),1)]);
     t+=row([td("<b>"+T("Limite giornaliero")+"</b>"),td(L.req.toLocaleString(LOC),1),td("-",1),td("-",1),td(L.d1r.toLocaleString(LOC),1),td(L.d1w.toLocaleString(LOC),1),td(L.dor.toLocaleString(LOC),1),td(L.dogbs.toLocaleString(LOC),1),td(L.dorr.toLocaleString(LOC),1),td(L.dorw.toLocaleString(LOC),1)]);
     d.giorni.forEach(function(g){t+=row([td(esc(g.giorno.split("-").reverse().join("-"))),td(pc(g.req,L.req),1),td(String(g.err),1),td(g.cpu99.toLocaleString(LOC,{maximumFractionDigits:1}),1),td(pc(g.d1r,L.d1r),1),td(pc(g.d1w,L.d1w),1),td(pc(g.dor,L.dor),1),td(pc(Math.round(g.dogbs),L.dogbs),1),td(pc(g.dorr,L.dorr),1),td(pc(g.dorw,L.dorw),1)])});
     $("tabCf").innerHTML=t;
-    var M=row([th(T("Mese")),th(T("Richieste sito")),th(T("D1 righe lette")),th(T("D1 righe scritte")),th(T("Richieste OCPP")),th("OCPP GB-s"),th(T("OCPP righe lette")),th(T("OCPP righe scritte")),th(T("Giorno di picco"))]);
+    var M=row([th(T("Mese")),th(T("Richieste sito"),1),th(T("D1 righe lette"),1),th(T("D1 righe scritte"),1),th(T("Richieste OCPP"),1),th("OCPP GB-s",1),th(T("OCPP righe lette"),1),th(T("OCPP righe scritte"),1),th(T("Giorno di picco"))]);
     d.mesi.forEach(function(m){var p=m.picco,mm=m.mese.split("-").reverse().join("-");
       M+=row([td(esc(mm)),td(m.req.toLocaleString(LOC),1),td(m.d1r.toLocaleString(LOC),1),td(m.d1w.toLocaleString(LOC),1),td(m.dor.toLocaleString(LOC),1),td(Math.round(m.dogbs).toLocaleString(LOC),1),td(m.dorr.toLocaleString(LOC),1),td(m.dorw.toLocaleString(LOC),1),
         td(p.voce?esc(p.giorno.split("-").reverse().join("-"))+" - "+esc(T(p.voce))+" "+p.pct.toLocaleString(LOC,{maximumFractionDigits:1})+"%":"-")])});
