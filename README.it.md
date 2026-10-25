@@ -257,6 +257,8 @@ volta. Se un invio fallisce l'amministratore vede una notifica; la mail parte co
 ## Monitoraggio, notifiche e avvisi
 L'apertura di una richiesta di assistenza non crea più una notifica qui: la scheda Assistenza mostra già le richieste aperte.
 
+Il riquadro «Consumi Cloudflare» inizia con la tabella «Mail e messaggi inviati dal sito»: per ogni mese le mail (con la quota del limite gratuito di Resend, 3.000 al mese e 100 al giorno), i messaggi Telegram e gli errori, più i messaggi in coda. È il conteggio del sito (`contatori` in `meta`, 13 mesi), separato dai consumi Cloudflare sotto.
+
 
 La scheda **Monitoraggio** mostra a tutti la ricarica in corso. Per l'amministratore contiene anche:
 

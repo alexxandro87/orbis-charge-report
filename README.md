@@ -257,6 +257,8 @@ fails the administrator gets a notification; the email goes out anyway.
 ## Monitoring, notifications and reminders
 Opening a support request no longer creates a notification here: the Support tab already shows the open requests.
 
+The "Cloudflare usage" box starts with the table "Emails and messages sent by the site": per month, the emails (with the share of the free Resend limit, 3,000 a month and 100 a day), the Telegram messages and the errors, plus the queued messages. It is the site's own count (`contatori` in `meta`, 13 months), separate from the Cloudflare figures below it.
+
 
 The **Monitoring** tab shows the charge in progress to everyone. For the administrator it also holds:
 

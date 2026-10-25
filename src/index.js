@@ -810,6 +810,7 @@ async function inviaMail(env, a, oggetto, html, cc, allegati) {
       headers: { authorization: "Bearer " + c.resend_key, "content-type": "application/json" },
       body: JSON.stringify(corpo),
     });
+    conta("mail", r.ok);
     return r.ok ? "inviata" : "errore " + r.status + ": " + (await r.text()).slice(0, 200);
   } catch (e) { return "errore: " + msgErrore(e); }
 }
@@ -819,6 +820,21 @@ const NOREPLY = `<p style="margin-top:20px"><b>Per contattarci usa la sezione As
   `<p style="margin-top:16px"><b>Questa casella non riceve email in ingresso: si prega di non rispondere a questo messaggio.<br>` +
   `This mailbox does not receive incoming email: please do not reply to this message.</b></p>`;
 
+// ---------------------------------------------------- monthly counters of emails and messages (meta "contatori")
+// accumulated in memory during the request or the cron run and saved once at the end (2 queries): a send costs no query
+let CONTA = {};
+function conta(canale, ok) { const k = canale + (ok ? "" : "_err"); CONTA[k] = (CONTA[k] || 0) + 1; }
+async function salvaContatori(env) {
+  if (!Object.keys(CONTA).length) return;
+  const nuovi = CONTA; CONTA = {};
+  try {
+    const tutti = await leggiMeta(env, "contatori", {}), mese = new Date().toISOString().slice(0, 7);
+    const m = (tutti[mese] ||= {});
+    for (const [k, v] of Object.entries(nuovi)) m[k] = (m[k] || 0) + v;
+    for (const k of Object.keys(tutti).sort().slice(0, -13)) delete tutti[k];   // keeps 13 months
+    await salvaMeta(env, "contatori", tutti);
+  } catch (_) { /* accessory */ }
+}
 // ---------------------------------------------------- Telegram messages and bot
 // Bot token and webhook secret come from Settings (TG, set by leggiConfig). Users link their chat from the profile
 // (/start with a one-time code, up to two chats per account); the bot webhook is /api/telegram/<secret>.
@@ -858,8 +874,9 @@ async function inviaMessaggio(env, nomeUtente, righeIt, righeEn) {
   if (chats.length) {                                     // consent given but Telegram not linked: nothing to do
     const testo = msgBil(righeIt, righeEn), via = [];
     for (const ch of chats) {
-      try { await tgApi("sendMessage", { chat_id: ch, text: testo }); if (!out.telegram) out.telegram = "inviato"; }
+      try { await tgApi("sendMessage", { chat_id: ch, text: testo }); conta("tg", true); if (!out.telegram) out.telegram = "inviato"; }
       catch (e) {
+        conta("tg", false);
         out.telegram = "errore: Telegram: " + msgErrore(e);
         if (/blocked|chat not found|deactivated/i.test(out.telegram)) via.push(ch);   // the user blocked the bot: unlink that chat
       }
@@ -2465,6 +2482,7 @@ export default {
       return Response.redirect(u.toString(), 301);
     }
     const r = await this.gestisci(req, env, ctx);
+    ctx.waitUntil(salvaContatori(env));
     let out = new Response(r.body, r);
     // Content Security Policy: scripts run only if they carry the nonce generated for this response (no injected scripts),
     // connections stay towards the site itself; Turnstile (anti-bot check) is the only external service allowed.
@@ -2717,7 +2735,9 @@ export default {
       }
       if (url.pathname === "/api/consumi") {
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
-        return json(await consumiCloudflare(env));
+        const d = await consumiCloudflare(env);
+        d.messaggi = await leggiMeta(env, "contatori", {}); d.coda = (await leggiMeta(env, "coda_messaggi", [])).length;
+        return json(d);
       }
       if (url.pathname === "/api/malfunzionamenti") {
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
@@ -3048,7 +3068,7 @@ export default {
   },
 
   async scheduled(ev, env, ctx) {
-    if (ev.cron === "*/5 * * * *") { ctx.waitUntil(verificaMalfunzionamenti(env).catch(() => {}).then(() => inviaCodaMessaggi(env)).catch(() => {})); return; }   // monitoring check, then the message queue
+    if (ev.cron === "*/5 * * * *") { ctx.waitUntil(verificaMalfunzionamenti(env).catch(() => {}).then(() => inviaCodaMessaggi(env)).catch(() => {}).then(() => salvaContatori(env))); return; }   // monitoring check, then the message queue
     ctx.waitUntil(leggiConfig(env).then((c) => (c.auto && c.url ? scarica(env).catch(() => { /* the error is saved in meta */ }).then(() => ripristinaNomi(env)) : null)).catch(() => {}));
   },
 };
