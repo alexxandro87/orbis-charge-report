@@ -57,6 +57,7 @@ Nothing about a specific installation is in the code: charger address, title, ti
 - **Cloudflare usage** box: requests, D1 rows, OCPP usage and storage against the free-plan limits, with a monthly summary and an alert near the limit.
 - **English and Italian interface**, day / night / auto theme, no horizontal scrolling, tables that become cards on phones.
 - **App-like layout on phones** (up to 700 px wide): bottom tab bar with icons (the administrator's extra tabs go into a "More" menu), the open tab's title at the top, larger fields and buttons. Nothing changes on a computer.
+- **Version next to the title** (for example `v2.3.1`, from `package.json`), so you can see at a glance which release a site is running; on phones it is shown under the links at the top.
 - **First-run setup page** and **everything configurable from the web page**.
 - Optional import of the per-card CSV exports of the Viaris desktop program.
 
@@ -307,6 +308,7 @@ npx wrangler dev
 | Registration refused with "could not send the confirmation email" | Email is not configured: self-registration needs Resend. |
 | Charger not connected (OCPP) | Check the custom domain, the address on the charger (with the token) and that the charger uses OCPP 1.6-J. |
 | The setup page does not appear | An administrator already exists (or `APP_PASSWORD` is set). |
+| "Internal error: try again…" | Something unexpected failed on the server. The browser only gets a generic message; the details are in the Cloudflare log: run `npx wrangler tail` and repeat the action. |
 
 ## Security notes
 

@@ -57,6 +57,7 @@ Nel codice non c'è nulla di una installazione specifica: indirizzo della colonn
 - **Consumi Cloudflare**: richieste, righe D1, uso OCPP e spazio rispetto ai limiti del piano gratuito, con riepilogo mensile e avviso a ridosso del limite.
 - **Interfaccia in italiano e inglese**, tema giorno / notte / automatico, niente scorrimento orizzontale, tabelle che diventano schede su telefono.
 - **Aspetto da app sul telefono** (fino a 700 px di larghezza): barra delle schede in basso con icone (le schede in più dell'admin vanno nel menu "Altro"), titolo della scheda aperta in alto, campi e pulsanti più grandi. Sul computer non cambia niente.
+- **Versione accanto al titolo** (per esempio `v2.3.1`, da `package.json`), per vedere a colpo d'occhio quale release gira su un sito; da telefono compare sotto i collegamenti in alto.
 - **Pagina di prima configurazione** e **tutto configurabile dalla pagina web**.
 - Import facoltativo degli export CSV per tessera del programma Viaris.
 
@@ -307,6 +308,7 @@ npx wrangler dev
 | Registrazione rifiutata con "non sono riuscito a inviare la mail di conferma" | La mail non è configurata: la registrazione autonoma richiede Resend. |
 | Colonnina non collegata (OCPP) | Controlla il dominio personalizzato, l'indirizzo sulla colonnina (con il codice) e che la colonnina usi OCPP 1.6-J. |
 | La pagina di configurazione non compare | Esiste già un amministratore (o è impostato `APP_PASSWORD`). |
+| "Errore interno: riprova…" | Sul server è andato storto qualcosa di imprevisto. Il browser riceve solo un messaggio generico; il dettaglio è nel log di Cloudflare: avvia `npx wrangler tail` e ripeti l'operazione. |
 
 ## Note di sicurezza
 

@@ -6,8 +6,11 @@
 // is entered from the web page: nothing in the code is specific to one installation.
 import { HTML, LOGIN, INVITO, SETUP } from "./ui.js";
 import { STILE } from "./stile.js";
-// every page gets the global stylesheet (stile.js) at the end of <head>
-const conStile = (h) => h.replace("</head>", "<style>\n" + STILE + "\n</style>\n</head>");
+// version shown next to the title, read from package.json (semver: fix -> patch, new feature -> minor)
+import pkg from "../package.json";
+const VERSIONE = "v" + pkg.version;
+// every page gets the global stylesheet (stile.js) at the end of <head> and the version next to the title
+const conStile = (h) => h.replace("</head>", "<style>\n" + STILE + "\n</style>\n</head>").replace(/__VERSION__/g, VERSIONE);
 const P_HTML = conStile(HTML), P_LOGIN = conStile(LOGIN), P_INVITO = conStile(INVITO), P_SETUP = conStile(SETUP);
 const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const pagina = (h) => h.replaceAll("__TITLE__", () => escHtml(TITOLO));   // site title from Settings

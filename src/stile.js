@@ -23,6 +23,9 @@ export const STILE = [
   ".tabs button.on{background:var(--acc);border-color:var(--acc);color:var(--btx)}",
   // Log out button: red
   "#bEsci{background:var(--esci);border-color:var(--esci);color:#fff}",
+  // version next to the title: small and grey
+  ".ver{font-size:.65em;font-weight:400;color:var(--mut);white-space:nowrap}",
+  ".verM{display:none}",                                    // copy for phones, where the title is hidden
   // ---------- phone (up to 700 px): app-like look ----------
   "#titoloM,nav .ico,nav .lbM,#navAltro,#altroM{display:none}",
   "@media (max-width:700px){" + [
@@ -35,6 +38,7 @@ export const STILE = [
     "header .top:first-child{flex-direction:column-reverse;align-items:stretch;gap:6px}",
     ".utente{justify-content:flex-end;gap:4px 12px;font-size:14px}",
     "#chi{display:none}",
+    ".verM{display:block;order:9;flex-basis:100%;text-align:right;font-size:12px;margin-top:-4px}",   // own line, below the links
     "header button{min-height:36px;font-size:14px}",
     "#bEsci{border-radius:10px;padding:0 14px}",
     ".riga2{flex-direction:column;align-items:stretch;gap:10px;margin-top:10px}",
