@@ -482,9 +482,9 @@ async function provaColonnina(c) {
     try {
       const txt = await conTimeout(urlCompleto(c, path), c);
       let analisi = null, errore = null;
-      try { analisi = parse(txt); } catch (e) { errore = String(e.message || e); }
+      try { analisi = parse(txt); } catch (e) { errore = msgErrore(e); }
       out[nome] = { ok: !errore, ms: Date.now() - t0, bytes: txt.length, sample: txt.slice(0, 500), ...analisi, errore };
-    } catch (e) { out[nome] = { ok: false, ms: Date.now() - t0, errore: String(e.message || e) }; }
+    } catch (e) { out[nome] = { ok: false, ms: Date.now() - t0, errore: msgErrore(e) }; }
   }
   if (!c.url) return { errore: "Indirizzo della colonnina non impostato" };
   await una("history", c.history_path, (t) => { const r = parseStorico(t, c); return { righe: r.length,
@@ -635,6 +635,8 @@ async function importaCsv(env, nomeFile, testo) {
 // -------------------------------------------------------------- HTTP
 const json = (o, status = 200) => new Response(JSON.stringify(o), {
   status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+// error text shown to the administrator: only the message, never the whole error object (no stack trace to the browser)
+const msgErrore = (e) => (e instanceof Error ? e.message : String(e)).slice(0, 300);
 
 // -------------------------------------------------------------- users and sessions
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -802,7 +804,7 @@ async function inviaMail(env, a, oggetto, html, cc, allegati) {
       body: JSON.stringify(corpo),
     });
     return r.ok ? "inviata" : "errore " + r.status + ": " + (await r.text()).slice(0, 200);
-  } catch (e) { return "errore: " + (e.message || e); }
+  } catch (e) { return "errore: " + msgErrore(e); }
 }
 
 const NOREPLY = `<p style="margin-top:20px"><b>Per contattarci usa la sezione Assistenza nell'area riservata del sito.<br>` +
@@ -1724,7 +1726,7 @@ async function consumiCloudflare(env) {
         else { o.dogbs += sm.duration || 0; o.dorr += sm.rowsRead || 0; o.dorw += sm.rowsWritten || 0; }
       }
     }
-  } catch (e) { return { configurato: true, errore: "Cloudflare: " + (e.message || e) }; }
+  } catch (e) { return { configurato: true, errore: "Cloudflare: " + msgErrore(e) }; }
   // day history (queries cover only ~32 days): the days read are merged with those already saved, for the monthly summaries
   const storico = await leggiMeta(env, "consumi_giorni", {});
   Object.assign(storico, per);
@@ -1974,7 +1976,7 @@ export class Colonnina {
     if (tipo !== 2) return;
     let r;
     try { r = await this.chiamata(azione, payload || {}); }
-    catch (e) { this.log("sys", "errore in " + azione + ": " + (e.message || e)); ws.send(JSON.stringify([4, id, "InternalError", String(e.message || e).slice(0, 100), {}])); return; }
+    catch (e) { this.log("sys", "errore in " + azione + ": " + (e.message || e)); ws.send(JSON.stringify([4, id, "InternalError", msgErrore(e).slice(0, 100), {}])); return; }
     const out = r === undefined ? [4, id, "NotImplemented", "", {}] : [3, id, r];
     this.log(">", JSON.stringify(out)); ws.send(JSON.stringify(out));
     if (azione === "BootNotification") await this.avviaComandi(true);   // after the start send the offline settings and the card list
@@ -2627,7 +2629,7 @@ export default {
           // names missing on the charger (erased by the OCPP list send): put them back in the background
           if (req.method === "GET" && prima.some((x, i) => x.nome !== letta[i].nome)) ctx.waitUntil(ripristinaNomi(env).catch(() => {}));
         }
-        catch (e) { return json({ errore: "Colonnina non raggiungibile: " + (e.message || e) }, 502); }
+        catch (e) { return json({ errore: "Colonnina non raggiungibile: " + msgErrore(e) }, 502); }
         const bk = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='rfid_backup'").first();
         const backup = bk ? JSON.parse(bk.valore) : null;
         if (req.method === "GET") {
@@ -2699,7 +2701,7 @@ export default {
               .bind(dataLocale(b.al) ?? Math.floor(Date.now() / 1000), id, id).run();
           }
           return json({ ok: r.ok, lista: await conBloccate(env, r.lista), avviso: r.ok ? null : "La colonnina ha risposto, ma la lista riletta non coincide: controlla" });
-        } catch (e) { return json({ errore: "Scrittura sulla colonnina non riuscita: " + (e.message || e) }, 502); }
+        } catch (e) { return json({ errore: "Scrittura sulla colonnina non riuscita: " + msgErrore(e) }, 502); }
       }
       if (url.pathname === "/api/nomi") {                  // card assignment history (admin only)
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
@@ -2807,7 +2809,7 @@ export default {
         if (["/api/scarica", "/api/ingest", "/api/importa"].includes(url.pathname) && !P.scarica) return nega();
         if (url.pathname === "/api/scarica") {
           try { return json({ ok: true, ...(await scarica(env)) }); }
-          catch (e) { return json({ ok: false, errore: String(e.message || e) }, 502); }
+          catch (e) { return json({ ok: false, errore: msgErrore(e) }, 502); }
         }
         if (url.pathname === "/api/ingest") {          // for whoever pushes the data from outside (see README)
           let b;
@@ -2819,12 +2821,14 @@ export default {
         if (url.pathname === "/api/importa") {
           const b = await req.json();
           try { return json({ ok: true, ...(await importaCsv(env, b.nome, b.csv)) }); }
-          catch (e) { return json({ ok: false, file: b.nome, errore: String(e.message || e) }, 400); }
+          catch (e) { return json({ ok: false, file: b.nome, errore: msgErrore(e) }, 400); }
         }
       }
       return json({ errore: "non trovato" }, 404);
     } catch (e) {
-      return json({ errore: String(e.message || e) }, e.codice ? 400 : 500);
+      if (e && e.codice) return json({ errore: msgErrore(e) }, 400);                 // invalid settings: the message tells the admin what to fix
+      console.error("internal error", url.pathname, e && e.stack || e);             // unexpected: details only in the Cloudflare log
+      return json({ errore: "Errore interno: riprova; se si ripete avvisa l'amministratore" }, 500);
     }
   },
 
