@@ -1,8 +1,8 @@
-# Orbis Charge Report
+# Orbis Viaris Charge Report
 
 **English** | [Italiano](README.it.md)
 
-A free web app that downloads the session history from an **Orbis** EV charging station, stores it for good, and produces monthly and yearly cost-sharing reports per RFID card, with price per kWh and VAT. It was built for condominiums where several people share one charger and the building has to split the electricity bill. It runs on the Cloudflare free tier (one Worker, one D1 database, one Durable Object), works from a phone or a PC, and includes a small OCPP 1.6 server, user self-registration, support tickets, monitoring with email alerts, and encryption of personal data.
+A free web app that downloads the session history from an **Orbis Viaris** EV charging station, stores it for good, and produces monthly and yearly cost-sharing reports per RFID card, with price per kWh and VAT. It was built for condominiums where several people share one charger and the building has to split the electricity bill. It runs on the Cloudflare free tier (one Worker, one D1 database, one Durable Object), works from a phone or a PC, and includes a small OCPP 1.6 server, user self-registration, support tickets, monitoring with email alerts, and encryption of personal data.
 
 > Unofficial community project, not affiliated with or endorsed by Orbis or Viaris. Product names are used only to describe compatibility. **Tested only on Orbis firmware 7.2.53** (see [Tested hardware](#tested-hardware)).
 

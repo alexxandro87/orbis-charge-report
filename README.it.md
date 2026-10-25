@@ -1,8 +1,8 @@
-# Orbis Charge Report
+# Orbis Viaris Charge Report
 
 [English](README.md) | **Italiano**
 
-Una webapp libera che scarica lo storico delle ricariche da una colonnina **Orbis**, lo conserva per sempre e produce i report mensili e annuali di ripartizione dei costi per tessera RFID, con prezzo al kWh e IVA. È nata per i condomini dove più persone usano la stessa colonnina e la bolletta va divisa. Gira sul piano gratuito di Cloudflare (un Worker, un database D1, un Durable Object), funziona da telefono e da PC, e include un piccolo server OCPP 1.6, la registrazione autonoma degli utenti, i ticket di assistenza, il monitoraggio con avvisi via mail e la cifratura dei dati personali.
+Una webapp libera che scarica lo storico delle ricariche da una colonnina **Orbis Viaris**, lo conserva per sempre e produce i report mensili e annuali di ripartizione dei costi per tessera RFID, con prezzo al kWh e IVA. È nata per i condomini dove più persone usano la stessa colonnina e la bolletta va divisa. Gira sul piano gratuito di Cloudflare (un Worker, un database D1, un Durable Object), funziona da telefono e da PC, e include un piccolo server OCPP 1.6, la registrazione autonoma degli utenti, i ticket di assistenza, il monitoraggio con avvisi via mail e la cifratura dei dati personali.
 
 > Progetto non ufficiale, non affiliato né approvato da Orbis o Viaris. I nomi dei prodotti sono usati solo per descrivere la compatibilità. **Provato solo su firmware Orbis 7.2.53** (vedi [Hardware provato](#hardware-provato)).
 
