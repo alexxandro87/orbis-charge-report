@@ -1,206 +1,12 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2026 Alessandro Pomponi. This program is free software under the GNU Affero General Public License v3 or later; see LICENSE.
-// Single-page UI (plain HTML + JS, no libraries). Do not use backticks or dollar-brace in page code: pages are String.raw templates.
-// The I18N block (EN/IT dictionary) is shared by all three pages and injected where __I18N__ appears.
-export const I18N = String.raw`var TR={en:{
-lang_name:"English",
-setup_title:"first setup",setup_h:"Welcome - first setup",setup_intro:"Create the administrator account and enter how to reach the charger. Everything can be changed later in the Settings tab; optional fields can stay empty.",
-setup_code:"Setup code",setup_code_h:"Required: the SETUP_CODE secret is set on this installation.",setup_admin:"Administrator user name",setup_pass:"Administrator password (min. 8)",setup_pass2:"Repeat the password",
-setup_btn:"Create administrator and finish",setup_sec:"Security: until this step is done, anyone who opens this page can create the administrator. Set the SETUP_CODE secret before the first visit (see the README).",
-s_email:"Email invitations (optional)",s_email_h:"Invitations are sent with Resend (free up to 3,000 emails a month): create an account at resend.com, verify your sending domain and create an API key.",s_rkey:"Resend API key",s_rclear:"Remove the saved API key",s_mfrom:"Sender address (for example Charger <charge@example.com>)",
-e_setup_code:"Wrong setup code",e_setup_done:"Setup already completed",e_setup_required:"Setup not completed: open the home page",e_bad_name:"Invalid user name (1-64 characters, no spaces)",
-pw_change:"Change password",logout:"Log out",loading:"Loading...",dl:"Download from the charger",imp:"Import Viaris CSV...",
-pw_cur:"Current password",pw_new:"New password (min. 8)",pw_new2:"Repeat the new password",save:"Save",
-n_month:"Monthly report",n_year:"Yearly history",n_all:"All sessions",n_users:"Users",n_mine:"My charging",n_set:"Settings",
-price_lbl:"Price {cur}/kWh",tax_lbl:"{tax} %",save_price:"Save price",
-h_cards:"Charging with a card",h_app:"Sessions started from the app (not assigned to a card)",
-print:"Print / PDF",csv:"Export CSV",tap_year:"Tap a month to open it. Months without a price only show kWh.",tap_mine:"Tap a month to see the single sessions.",
-c_card:"Card",c_user:"User",c_sess:"Sess.",c_kwh:"kWh",c_net:"Net",c_tax:"VAT",c_total:"Total",c_start:"Start",c_end:"End",c_month:"Month",
-c_kwh_cards:"kWh cards",c_kwh_app:"kWh app",c_kwh_tot:"kWh total",c_charges:"Sessions",c_state:"Status",c_perm:"Permissions / card",
-tax_default:"VAT",
-st_empty:"Archive is empty",st_n:"{n} sessions from {a} to {b}",st_n1:"1 session from {a} to {b}",st_upd:" - updated {t}",st_err:"Last download failed: {e}",
-rep_title:"Charging cost sharing - {t}",rep_noprice:"Price not entered yet",rep_sub:"Price {p} {cur}/kWh, {tax} {i}% - sessions: {n}",
-adv_enter:"Enter this month's price per kWh and press Save price to compute the amounts.",
-adv_locked:"Price locked since {d}: the month is closed and can no longer be changed.",adv_open:"The price can be corrected until the day before {d}, then it is locked.",
-click_sess:"Click to see the sessions",tot_cards:"Cards total",tot_app:"App total",no_app:"No app sessions this month.",
-tot_all:"TOTAL {t}: {k} kWh - net {n} + {tax} {v} = {e}",tot_cards_l:"TOTAL cards {t}: {k} kWh - net {n} + {tax} {v} = {e}",
-tot_year:"TOTAL {y}: {k} kWh - {e} ({tax} included)",tot_year_kwh:"TOTAL {y}: {k} kWh",
-all_users:"All",user_filter:"User",n1:"1 session",nn:"{n} sessions",from_app:"Started from app",unknown_card:"(card not in list)",app_short:"(app)",
-alert_price:"Invalid price: write for example 0.2845",alert_tax:"Invalid tax: write for example 10 or 0",
-dl_running:"Downloading...",dl_ok:"Download: {l} sessions read, {n} new",dl_skipped:", {s} rows skipped",dl_fail:"Charger not reachable: {e}",err_net:"Error: {e}",
-imp_ok:"{t}: {l} sessions, {n} new",imp_fail:"{f}: NOT imported - {e}",
-my_title:"My charging",c_charges_n:"Sessions",
-u_title:"Users",u_invite:"Invite a user or change permissions",u_email:"user's email",u_type:"User type",u_t_mgr:"Manager (choose the permissions)",u_t_cus:"Charger user (sees only their own sessions)",
-u_card:"Card",u_pick_card:"- choose the card -",
-p_report:"See the monthly report",p_storico:"See the yearly history",p_sessioni:"See all sessions",p_prezzo:"Enter price per kWh and tax",p_stampa:"Print and export the reports",p_scarica:"Download from the charger and import CSV",p_app:"See sessions started from the app",
-pe_report:"report",pe_storico:"history",pe_sessioni:"sessions",pe_prezzo:"price",pe_stampa:"print",pe_scarica:"download",pe_app:"app",
-u_send:"Send invitation",u_saveperm:"Save permissions only",u_hint:"The user receives an email with a single-use link (valid 48 hours) to choose their password on first access.",
-u_edit:"Edit",u_reset:"Reset",u_resend:"Resend",u_delete:"Delete",u_resend_t:"Send again the invitation link",u_reset_t:"Send a link to reset the password",
-u_admin:"admin",u_all:"all",u_none:"none",u_active:"active",u_expired:"invitation expired",u_pending:"invitation pending",
-u_confirm_send:"Send a new link to {u}?",u_confirm_del:"Delete user {u}?",u_pick:"Choose the card to link",u_saved:"Permissions saved",
-inv_sent:"Invitation sent to {e}",inv_notsent:"Email not sent ({r}). Copy the link and send it yourself:",mail_nc:"email not configured",
-pw_mismatch:"The two new passwords do not match",pw_changed:"Password changed",
-s_conn:"Charger connection",s_url:"Charger address (URL)",s_url_h:"Base address of the charger web interface, for example http://charger.example.com. Cloudflare Workers can only reach ports 80 and 443 reliably.",
-s_user:"User name (HTTP Basic)",s_pass:"Password (HTTP Basic)",s_pass_set:"(saved - leave empty to keep)",s_pass_clear:"Remove the saved password",
-s_hname:"Extra header name",s_hval:"Extra header value",s_h_h:"For example Authorization / Bearer xxxx, or Cookie / session=xxxx",
-s_hist:"Session history path",s_tags:"Card list path (empty = skip)",s_timeout:"Timeout (seconds)",s_auto:"Download automatically (schedule set in wrangler.toml)",
-s_fmt:"Data format",s_fmt_h:"The default values match Orbis chargers. Use the test button to see the raw response and adjust the column numbers (first column is 0).",
-s_jf:"JSON field containing the CSV (empty = response is CSV itself)",s_hsep:"Column separator",s_hskip:"Header lines to skip",
-s_c_start:"Column: start time (epoch)",s_c_end:"Column: end time (epoch)",s_c_tag:"Column: card",s_c_type:"Column: start type (card/app)",s_c_ci:"Column: meter at start (Wh)",s_c_cf:"Column: meter at end (Wh)",
-s_tsep:"Card list: separator",s_tskip:"Card list: lines to skip",s_tc_tag:"Card list: card column",s_tc_name:"Card list: name column",
-s_gen:"General",s_title:"Site title",s_tz:"Time zone (IANA)",s_tz_h:"For example Europe/Rome, Europe/London, America/New_York. Decides which month a session belongs to.",s_cur:"Currency symbol",s_taxl:"Tax label (empty = VAT / IVA)",
-s_test:"Test connection",s_save:"Save settings",s_reset:"Restore defaults",s_saved:"Settings saved",s_testing:"Testing...",s_ok:"OK",s_fail:"Failed",
-s_t_hist:"Session history",s_t_tags:"Card list",s_t_rows:"{r} rows read, {s} skipped",s_t_first:"First row: {f}",s_t_ms:"{ms} ms, {b} bytes",s_t_raw:"Raw response (first 500 characters)",
-s_t_rows_tags:"{r} cards read",s_env_url:"The address is also set by an environment variable (settings saved here win).",
-login_h:"Sign in to see the charging sessions",login_user:"User",login_pass:"Password",login_btn:"Sign in",login_title:"sign in",
-inv_h:"Choose your password",inv_user:"User: {m}",inv_p1:"New password (min. 8 characters)",inv_p2:"Repeat the password",inv_btn:"Save and sign in",inv_title:"choose the password",
-e_generic:"Error",e_network:"Network error",
-e_forbidden:"You do not have permission for this operation",e_unauthorized:"Not authorized",e_too_many:"Too many attempts: try again in 10 minutes",e_bad_login:"Wrong user name or password",
-e_bad_email:"Invalid email address",e_is_admin:"This user is the admin",e_card_not_found:"Card not found: download from the charger first",e_user_not_found:"User not found",
-e_cant_delete_admin:"The admin cannot be deleted",e_bad_action:"Invalid action",e_pw_short:"The password must be at least 8 characters",e_pw_mismatch:"The two new passwords do not match",
-e_pw_wrong:"Current password is wrong",e_invite_invalid:"Invalid or expired link: ask for a new invitation",e_bad_period:"Invalid month/year",
-e_price_locked:"Price locked: the month has been closed since {d} and can no longer be changed",e_bad_price:"Invalid price or tax",e_not_found:"Not found",
-e_empty_file:"Empty file",e_not_viaris:"This does not look like a per-card Viaris export",e_card_unknown:"Cannot match the card from the file name ({f}): download from the charger first",
-e_bad_url:"The charger address must start with http:// or https://",e_bad_tz:"Unknown time zone",e_bad_config:"Invalid number in field {k}",e_no_url:"Set the charger address first",
-e_no_price:"Price not entered yet",
-rep_resend:"Email report again",rep_resend_c:"Email the {t} report again to the report recipients?",rep_mailed:"Report emailed to the recipients",rep_notmailed:"Report email not sent: {r}",rep_norec:"no report recipients in Settings",
-s_rto:"Monthly report recipients (To)",s_rcc:"Monthly report recipients (CC)",s_rep_h:"When a month's price is saved, the split per card is emailed here with a PDF of every session. Separate addresses with commas; leave To empty to send nothing.",
-s_bk:"Database backup",s_bk_h:"A .sql file with sessions, cards, prices, users and settings (including the saved charger password and Resend key): keep it private. Restore with: npx wrangler d1 execute <database> --remote --file=<file>",s_bk_btn:"Download backup (.sql)",
-m_pdf:"Download PDF",m_year:"Whole year",
-n_live:"Charger",p_live:"See who is charging now and the live measures",pe_live:"live",
-lv_title:"Charging now",lv_off:"Live data is not enabled (OCPP): see the README.",lv_disc:"Charger not connected to the server: no data available",lv_free:"Charger free",lv_wait:"Car plugged in, waiting for the card",lv_busy:"In use",lv_unknown:"unknown card",
-lv_power:"Power",lv_current:"Current",lv_volt:"Voltage",lv_energy:"Energy charged",lv_since:"Started",lv_upd:"Updated",
-oc_title:"Connection to the server (OCPP)",oc_help:"In the charger's OCPP settings enter this address (port 443, protocol OCPP 1.6-J). Keep it private: it contains the access token.",oc_url:"Address for the charger",
-oc_conn:"Charger connected",oc_noconn:"Charger not connected",oc_last:"last message: {t}",oc_socket:"socket: {s}",oc_tx:"charging, card {c}, since {t}",
-oc_regen:"Generate a new address",oc_regen_c:"The old address stops working and you must enter the new one in the charger. Continue?",
-oc_c_cfg:"Read settings",oc_c_meter:"Ask for a measure",oc_c_status:"Ask for the status",oc_c_stop:"Stop the charge",oc_c_reset:"Restart the charger",oc_c_stop_c:"Stop the charging session in progress?",oc_c_reset_c:"Restart the charger?",oc_sent:"Command sent",oc_events:"Latest messages",
-ev_sys:"Connection: {a0}",ev_boot:"Charger started ({a0}, firmware {a1})",ev_hb:"Heartbeat",ev_status:"Socket {a0}: {a1} {a2}",ev_auth:"Authorization request, card {a0}",ev_start:"Charge started, card {a0}, meter {a1} kWh",ev_stop:"Charge ended {a0}, meter {a1} kWh",ev_meter:"Measure: {a0}",ev_other:"{a0}",
-ev_resp:"Answer to {a0}: {a1}",ev_err:"Error from the charger: {a0} {a1}",ev_cmd:"Command to the charger: {a0} {a1}",ev_srverr:"Error sent to the charger: {a0}",
-cmd_Reset:"restart",cmd_GetConfiguration:"read settings",cmd_ChangeConfiguration:"change setting",cmd_TriggerMessage:"request message",cmd_RemoteStopTransaction:"stop charge",cmd_GetLocalListVersion:"card list version",
-res_ok:"ok",res_config:"settings read ({n})",res_list:"list version {n}",res_Accepted:"accepted",res_Rejected:"rejected",res_NotSupported:"not supported",res_Failed:"failed",
-cn_title:"Card holders",cn_help:"Who held each card and when. Reports use the holder at the time of each session, so handing a card to someone else never changes the past months.",cn_tag:"Card",cn_name:"Holder",cn_from:"From",cn_to:"To",cn_open:"in use",cn_edit:"Dates",
-cn_assign:"Assign a card to someone",cn_assign_btn:"Assign",cn_name_ph:"Name of the new holder",cn_p_from:"Start date (YYYY-MM-DD)",cn_p_to:"End date (YYYY-MM-DD), empty = still in use",cn_saved:"Saved",
-e_no_ocpp:"OCPP is not enabled: add the Durable Object binding shown in wrangler.toml.example and deploy again",e_bad_cmd:"Command not allowed",e_no_tx:"No charging session to stop",e_ocpp_busy:"The charger is in use: restart not allowed",
-e_not_connected:"Charger not connected to the server",e_no_answer:"No answer from the charger within 15 seconds",e_charger_error:"The charger answered with an error: {d}",
-rf_title:"Cards on the charger",rf_help:"The cards the charger accepts, read from the charger and written back to it (nothing is sent over OCPP). Before every change the current list is saved so you can go back. The charger keeps names up to 25 characters.",rf_code:"Code",rf_name:"Name",rf_exp:"Expiry",rf_state:"State",rf_st0:"Accepted",rf_st1:"Blocked",rf_st2:"Expired",rf_st3:"Invalid",rf_id_ph:"Card code",rf_name_ph:"Name",rf_since:"Holder since",rf_add:"Add a card",rf_edit_t:"Edit the card",rf_fix_t:"Repair the card",rf_save_add:"Add",rf_save:"Save",rf_cancel:"Cancel",rf_edit:"Edit",rf_fix:"Repair",rf_del:"Remove",rf_del_c:"Remove this card from the charger?",rf_none:"No cards",rf_reading:"Reading the charger...",rf_writing:"Writing to the charger...",rf_noexp:"never",rf_nocode:"(unreadable code)",rf_restore:"Restore the previous list",rf_restore_c:"Put back the list saved before the last change?",rf_bk:"Previous list: {n} cards, saved {t}",rf_done:"Done",rf_mismatch:"The charger answered, but the list read back does not match: check it",e_rfid_unsupported:"Managing cards needs the charger URL and a card list path containing level=file (Settings tab)",e_rfid_unreachable:"Charger not reachable",e_rfid_write_failed:"Writing to the charger failed",e_rfid_bad_id:"Invalid card code (digits and letters A-F only, 4 to 20 characters)",e_rfid_bad_name:"Enter the name",e_rfid_name_long:"Name too long (maximum 25 characters)",e_rfid_bad_expiry:"Invalid expiry",e_rfid_bad_state:"Invalid state",e_rfid_exists:"Card already present",e_rfid_missing:"Card not found",e_rfid_no_backup:"No previous copy",par_title:"OCPP settings of the charger",par_help:"Optional. Only the values you set here are sent to the charger (ChangeConfiguration), when you save and again after every restart. Leave a field empty and save to go back to the charger's own value. Card lists, charging profiles, current limits and the server address are never sent.",par_name:"Setting",par_range:"Allowed",par_def:"Charger default",par_value:"Value",par_state:"State",par_save:"Save",par_saved:"Saved: it is sent to the charger now, or as soon as it connects",par_on:"Yes",par_off:"No",par_def_opt:"Charger's value",par_st_def:"charger's value",par_st_ok:"set on the charger",par_st_reboot:"set, applied at the next restart",par_st_pending:"being sent",par_st_wait:"waiting for the charger to connect",par_st_refused:"refused by the charger ({s})",par_HeartbeatInterval:"Connection check (heartbeat), seconds",par_ConnectionTimeOut:"Time to present the card after plugging in, seconds",par_WebSocketPingInterval:"Connection check (ping), seconds",par_TransactionMessageRetryInterval:"Retry interval for unsent messages, seconds",par_TransactionMessageAttempts:"Attempts for unsent messages",par_MeterValueSampleInterval:"Measures during charging, every ... seconds",par_ClockAlignedDataInterval:"Measures at fixed times, every ... seconds (0 = never)",par_LocalAuthorizeOffline:"Cards on the charger's list valid when the server does not answer",rf_reload:"Read again from the charger",e_bad_param:"Value not allowed for this setting",e_bad_date:"Invalid date",e_bad_period:"Invalid period: check the dates",e_dup_period:"A period with that start date already exists",e_bad_card:"Card and name are required"
-},it:{
-lang_name:"Italiano",
-setup_title:"prima configurazione",setup_h:"Benvenuto - prima configurazione",setup_intro:"Crea l'account amministratore e indica come raggiungere la colonnina. Tutto si puo' cambiare dopo nella scheda Impostazioni; i campi facoltativi possono restare vuoti.",
-setup_code:"Codice di installazione",setup_code_h:"Obbligatorio: su questa installazione e' impostato il segreto SETUP_CODE.",setup_admin:"Nome utente dell'amministratore",setup_pass:"Password dell'amministratore (min. 8)",setup_pass2:"Ripeti la password",
-setup_btn:"Crea l'amministratore e termina",setup_sec:"Sicurezza: finche' questo passaggio non e' completato, chiunque apra questa pagina puo' creare l'amministratore. Imposta il segreto SETUP_CODE prima del primo accesso (vedi il README).",
-s_email:"Inviti via email (facoltativo)",s_email_h:"Gli inviti partono da Resend (gratis fino a 3.000 email al mese): crea un account su resend.com, verifica il dominio del mittente e crea una chiave API.",s_rkey:"Chiave API di Resend",s_rclear:"Rimuovi la chiave API salvata",s_mfrom:"Indirizzo mittente (per esempio Colonnina <ricariche@example.com>)",
-e_setup_code:"Codice di installazione errato",e_setup_done:"Configurazione gia' completata",e_setup_required:"Configurazione non completata: apri la pagina principale",e_bad_name:"Nome utente non valido (1-64 caratteri, senza spazi)",
-pw_change:"Cambia password",logout:"Esci",loading:"Caricamento...",dl:"Scarica dalla colonnina",imp:"Importa CSV Viaris...",
-pw_cur:"Password attuale",pw_new:"Nuova password (min. 8)",pw_new2:"Ripeti la nuova password",save:"Salva",
-n_month:"Report mensile",n_year:"Storico annuale",n_all:"Tutte le sessioni",n_users:"Utenti",n_mine:"Le mie ricariche",n_set:"Impostazioni",
-price_lbl:"Prezzo {cur}/kWh",tax_lbl:"{tax} %",save_price:"Salva prezzo",
-h_cards:"Ricariche con tessera",h_app:"Ricariche avviate da app (non attribuite a una tessera)",
-print:"Stampa / PDF",csv:"Esporta CSV",tap_year:"Tocca un mese per aprirlo. I mesi senza prezzo mostrano solo i kWh.",tap_mine:"Tocca un mese per vedere le singole ricariche.",
-c_card:"Tessera",c_user:"Utente",c_sess:"Sess.",c_kwh:"kWh",c_net:"Imponibile",c_tax:"IVA",c_total:"Totale",c_start:"Inizio",c_end:"Fine",c_month:"Mese",
-c_kwh_cards:"kWh tess.",c_kwh_app:"kWh app",c_kwh_tot:"kWh tot.",c_charges:"Ricariche",c_state:"Stato",c_perm:"Permessi / tessera",
-tax_default:"IVA",
-st_empty:"Archivio vuoto",st_n:"{n} sessioni dal {a} al {b}",st_n1:"1 sessione dal {a} al {b}",st_upd:" - aggiornato il {t}",st_err:"Ultimo scarico non riuscito: {e}",
-rep_title:"Ripartizione costi ricarica - {t}",rep_noprice:"Prezzo non ancora inserito",rep_sub:"Prezzo {p} {cur}/kWh, {tax} {i}% - sessioni: {n}",
-adv_enter:"Inserisci il prezzo del kWh di questo mese e premi Salva prezzo per calcolare gli importi.",
-adv_locked:"Prezzo bloccato dal {d}: il mese e' chiuso e non si puo' piu' modificare.",adv_open:"Il prezzo si puo' correggere fino al giorno prima del {d}, poi viene bloccato.",
-click_sess:"Clicca per vedere le sessioni",tot_cards:"Totale tessere",tot_app:"Totale app",no_app:"Nessuna ricarica da app in questo mese.",
-tot_all:"TOTALE {t}: {k} kWh - imponibile {n} + {tax} {v} = {e}",tot_cards_l:"TOTALE tessere {t}: {k} kWh - imponibile {n} + {tax} {v} = {e}",
-tot_year:"TOTALE {y}: {k} kWh - {e} ({tax} inclusa)",tot_year_kwh:"TOTALE {y}: {k} kWh",
-all_users:"Tutti",user_filter:"Utente",n1:"1 sessione",nn:"{n} sessioni",from_app:"Avviata da app",unknown_card:"(tessera non in elenco)",app_short:"(app)",
-alert_price:"Prezzo non valido: scrivi per esempio 0,2845",alert_tax:"IVA non valida: scrivi per esempio 10 oppure 0",
-dl_running:"Scarico in corso...",dl_ok:"Scarico: {l} sessioni lette, {n} nuove",dl_skipped:", {s} righe scartate",dl_fail:"Colonnina non raggiungibile: {e}",err_net:"Errore: {e}",
-imp_ok:"{t}: {l} sessioni, {n} nuove",imp_fail:"{f}: NON importato - {e}",
-my_title:"Le mie ricariche",c_charges_n:"Ricariche",
-u_title:"Utenti",u_invite:"Invita un utente o modifica i permessi",u_email:"email dell'utente",u_type:"Tipo di utente",u_t_mgr:"Gestione (scegli i permessi)",u_t_cus:"Utente della colonnina (vede solo le sue ricariche)",
-u_card:"Tessera",u_pick_card:"- scegli la tessera -",
-p_report:"Vedere il report mensile",p_storico:"Vedere lo storico annuale",p_sessioni:"Vedere tutte le sessioni",p_prezzo:"Inserire prezzo kWh e IVA",p_stampa:"Stampare ed esportare i report",p_scarica:"Scaricare dalla colonnina e importare CSV",p_app:"Vedere le ricariche avviate da app",
-pe_report:"report",pe_storico:"storico",pe_sessioni:"sessioni",pe_prezzo:"prezzo",pe_stampa:"stampa",pe_scarica:"scarico",pe_app:"app",
-u_send:"Invia invito",u_saveperm:"Salva solo i permessi",u_hint:"L'utente riceve una mail con un link monouso (valido 48 ore) per scegliere la propria password al primo accesso.",
-u_edit:"Modifica",u_reset:"Reimposta",u_resend:"Reinvia",u_delete:"Elimina",u_resend_t:"Manda di nuovo il link di invito",u_reset_t:"Manda un link per reimpostare la password",
-u_admin:"admin",u_all:"tutti",u_none:"nessuno",u_active:"attivo",u_expired:"invito scaduto",u_pending:"invito in attesa",
-u_confirm_send:"Mandare un nuovo link a {u}?",u_confirm_del:"Eliminare l'utente {u}?",u_pick:"Scegli la tessera da abbinare",u_saved:"Permessi salvati",
-inv_sent:"Invito inviato a {e}",inv_notsent:"Mail non inviata ({r}). Copia il link e invialo tu:",mail_nc:"mail non configurata",
-pw_mismatch:"Le due nuove password non coincidono",pw_changed:"Password cambiata",
-s_conn:"Connessione alla colonnina",s_url:"Indirizzo della colonnina (URL)",s_url_h:"Indirizzo di base dell'interfaccia web della colonnina, per esempio http://colonnina.example.com. I Cloudflare Worker raggiungono in modo affidabile solo le porte 80 e 443.",
-s_user:"Nome utente (HTTP Basic)",s_pass:"Password (HTTP Basic)",s_pass_set:"(salvata - lascia vuoto per mantenerla)",s_pass_clear:"Rimuovi la password salvata",
-s_hname:"Nome intestazione extra",s_hval:"Valore intestazione extra",s_h_h:"Per esempio Authorization / Bearer xxxx, oppure Cookie / session=xxxx",
-s_hist:"Percorso dello storico sessioni",s_tags:"Percorso elenco tessere (vuoto = salta)",s_timeout:"Timeout (secondi)",s_auto:"Scarica automaticamente (orario in wrangler.toml)",
-s_fmt:"Formato dei dati",s_fmt_h:"I valori predefiniti vanno bene per le colonnine Orbis. Usa il pulsante di prova per vedere la risposta grezza e correggere i numeri di colonna (la prima colonna e' la 0).",
-s_jf:"Campo JSON che contiene il CSV (vuoto = la risposta e' gia' CSV)",s_hsep:"Separatore di colonna",s_hskip:"Righe di intestazione da saltare",
-s_c_start:"Colonna: inizio (epoch)",s_c_end:"Colonna: fine (epoch)",s_c_tag:"Colonna: tessera",s_c_type:"Colonna: tipo di avvio (tessera/app)",s_c_ci:"Colonna: contatore iniziale (Wh)",s_c_cf:"Colonna: contatore finale (Wh)",
-s_tsep:"Elenco tessere: separatore",s_tskip:"Elenco tessere: righe da saltare",s_tc_tag:"Elenco tessere: colonna tessera",s_tc_name:"Elenco tessere: colonna nome",
-s_gen:"Generale",s_title:"Titolo del sito",s_tz:"Fuso orario (IANA)",s_tz_h:"Per esempio Europe/Rome, Europe/London, America/New_York. Decide a quale mese appartiene una sessione.",s_cur:"Simbolo della valuta",s_taxl:"Nome dell'imposta (vuoto = IVA / VAT)",
-s_test:"Prova la connessione",s_save:"Salva le impostazioni",s_reset:"Ripristina i valori predefiniti",s_saved:"Impostazioni salvate",s_testing:"Prova in corso...",s_ok:"OK",s_fail:"Non riuscita",
-s_t_hist:"Storico sessioni",s_t_tags:"Elenco tessere",s_t_rows:"{r} righe lette, {s} scartate",s_t_first:"Prima riga: {f}",s_t_ms:"{ms} ms, {b} byte",s_t_raw:"Risposta grezza (primi 500 caratteri)",
-s_t_rows_tags:"{r} tessere lette",s_env_url:"L'indirizzo e' impostato anche da una variabile d'ambiente (vale quello salvato qui).",
-login_h:"Accedi per consultare le ricariche",login_user:"Utente",login_pass:"Password",login_btn:"Accedi",login_title:"accesso",
-inv_h:"Scegli la tua password",inv_user:"Utente: {m}",inv_p1:"Nuova password (min. 8 caratteri)",inv_p2:"Ripeti la password",inv_btn:"Salva e accedi",inv_title:"scegli la password",
-e_generic:"Errore",e_network:"Errore di rete",
-e_forbidden:"Non hai il permesso per questa operazione",e_unauthorized:"Non autorizzato",e_too_many:"Troppi tentativi: riprova tra 10 minuti",e_bad_login:"Nome o password errati",
-e_bad_email:"Indirizzo email non valido",e_is_admin:"Questo utente e' l'admin",e_card_not_found:"Tessera non trovata: scarica prima dalla colonnina",e_user_not_found:"Utente non trovato",
-e_cant_delete_admin:"L'admin non si puo' eliminare",e_bad_action:"Azione non valida",e_pw_short:"La password deve avere almeno 8 caratteri",e_pw_mismatch:"Le due nuove password non coincidono",
-e_pw_wrong:"Password attuale errata",e_invite_invalid:"Link non valido o scaduto: chiedi un nuovo invito",e_bad_period:"Mese/anno non validi",
-e_price_locked:"Prezzo bloccato: il mese e' chiuso dal {d} e non si puo' piu' modificare",e_bad_price:"Prezzo o IVA non validi",e_not_found:"Non trovato",
-e_empty_file:"File vuoto",e_not_viaris:"Non sembra un export per tessera di Viaris",e_card_unknown:"Non riconosco la tessera dal nome del file ({f}): scarica prima dalla colonnina",
-e_bad_url:"L'indirizzo della colonnina deve iniziare con http:// o https://",e_bad_tz:"Fuso orario sconosciuto",e_bad_config:"Numero non valido nel campo {k}",e_no_url:"Imposta prima l'indirizzo della colonnina",
-e_no_price:"Prezzo non ancora inserito",
-rep_resend:"Reinvia il report via email",rep_resend_c:"Reinviare il report di {t} ai destinatari dei report?",rep_mailed:"Report inviato via email ai destinatari",rep_notmailed:"Email del report non inviata: {r}",rep_norec:"nessun destinatario dei report nelle Impostazioni",
-s_rto:"Destinatari del report mensile (A)",s_rcc:"Destinatari del report mensile (CC)",s_rep_h:"Quando salvi il prezzo di un mese, la ripartizione per tessera viene mandata a questi indirizzi con il PDF di tutte le sessioni. Separa gli indirizzi con una virgola; lascia vuoto A per non inviare nulla.",
-s_bk:"Backup del database",s_bk_h:"Un file .sql con sessioni, tessere, prezzi, utenti e impostazioni (compresi la password della colonnina e la chiave Resend salvate): tienilo riservato. Si ripristina con: npx wrangler d1 execute <database> --remote --file=<file>",s_bk_btn:"Scarica backup (.sql)",
-m_pdf:"Scarica PDF",m_year:"Anno intero",
-n_live:"Colonnina",p_live:"Vedere chi sta caricando e le misure in tempo reale",pe_live:"live",
-lv_title:"Ricarica in corso",lv_off:"I dati in tempo reale non sono attivi (OCPP): vedi il README.",lv_disc:"Colonnina non collegata al server: dati non disponibili",lv_free:"Colonnina libera",lv_wait:"Auto collegata, in attesa della tessera",lv_busy:"Occupata",lv_unknown:"tessera sconosciuta",
-lv_power:"Potenza",lv_current:"Corrente",lv_volt:"Tensione",lv_energy:"Energia caricata",lv_since:"Iniziata",lv_upd:"Aggiornato",
-oc_title:"Collegamento al server (OCPP)",oc_help:"Nelle impostazioni OCPP della colonnina inserisci questo indirizzo (porta 443, protocollo OCPP 1.6-J). Tienilo riservato: contiene il token di accesso.",oc_url:"Indirizzo da inserire nella colonnina",
-oc_conn:"Colonnina collegata",oc_noconn:"Colonnina non collegata",oc_last:"ultimo messaggio: {t}",oc_socket:"presa: {s}",oc_tx:"ricarica in corso, tessera {c}, dalle {t}",
-oc_regen:"Genera un nuovo indirizzo",oc_regen_c:"Il vecchio indirizzo smette di funzionare e dovrai inserire quello nuovo nella colonnina. Continuare?",
-oc_c_cfg:"Leggi configurazione",oc_c_meter:"Chiedi una misura",oc_c_status:"Chiedi lo stato",oc_c_stop:"Ferma la ricarica",oc_c_reset:"Riavvia la colonnina",oc_c_stop_c:"Fermare la ricarica in corso?",oc_c_reset_c:"Riavviare la colonnina?",oc_sent:"Comando inviato",oc_events:"Ultimi messaggi",
-ev_sys:"Connessione: {a0}",ev_boot:"Avvio colonnina ({a0}, firmware {a1})",ev_hb:"Conferma collegamento",ev_status:"Presa {a0}: {a1} {a2}",ev_auth:"Richiesta di autorizzazione, tessera {a0}",ev_start:"Inizio ricarica, tessera {a0}, contatore {a1} kWh",ev_stop:"Fine ricarica {a0}, contatore {a1} kWh",ev_meter:"Misura: {a0}",ev_other:"{a0}",
-ev_resp:"Risposta a {a0}: {a1}",ev_err:"Errore dalla colonnina: {a0} {a1}",ev_cmd:"Comando alla colonnina: {a0} {a1}",ev_srverr:"Errore inviato alla colonnina: {a0}",
-cmd_Reset:"riavvio",cmd_GetConfiguration:"lettura configurazione",cmd_ChangeConfiguration:"modifica impostazione",cmd_TriggerMessage:"richiesta messaggio",cmd_RemoteStopTransaction:"stop ricarica",cmd_GetLocalListVersion:"versione lista tessere",
-res_ok:"ok",res_config:"configurazione letta ({n})",res_list:"versione lista {n}",res_Accepted:"accettato",res_Rejected:"rifiutato",res_NotSupported:"non supportato",res_Failed:"non riuscito",
-cn_title:"Intestatari delle tessere",cn_help:"Chi ha avuto ogni tessera e da quando. I report usano l'intestatario al momento di ogni sessione: passare una tessera a un'altra persona non cambia i mesi passati.",cn_tag:"Tessera",cn_name:"Intestatario",cn_from:"Dal",cn_to:"Al",cn_open:"in uso",cn_edit:"Date",
-cn_assign:"Assegna una tessera a qualcuno",cn_assign_btn:"Assegna",cn_name_ph:"Nome del nuovo intestatario",cn_p_from:"Data di inizio (AAAA-MM-GG)",cn_p_to:"Data di fine (AAAA-MM-GG), vuoto = ancora in uso",cn_saved:"Salvato",
-e_no_ocpp:"OCPP non e' attivo: aggiungi il binding del Durable Object indicato in wrangler.toml.example e ripubblica",e_bad_cmd:"Comando non consentito",e_no_tx:"Nessuna ricarica in corso da fermare",e_ocpp_busy:"Colonnina occupata: riavvio non consentito",
-e_not_connected:"Colonnina non collegata al server",e_no_answer:"Nessuna risposta dalla colonnina entro 15 secondi",e_charger_error:"La colonnina risponde con un errore: {d}",
-rf_title:"Tessere sulla colonnina",rf_help:"Le tessere che la colonnina accetta, lette dalla colonnina e riscritte su di essa (non viene inviato nulla via OCPP). Prima di ogni modifica la lista attuale viene salvata, cosi' puoi tornare indietro. La colonnina tiene nomi fino a 25 caratteri.",rf_code:"Codice",rf_name:"Nome",rf_exp:"Scadenza",rf_state:"Stato",rf_st0:"Accettata",rf_st1:"Bloccata",rf_st2:"Scaduta",rf_st3:"Non valida",rf_id_ph:"Codice tessera",rf_name_ph:"Nome",rf_since:"Intestatario dal",rf_add:"Aggiungi una tessera",rf_edit_t:"Modifica la tessera",rf_fix_t:"Ripara la tessera",rf_save_add:"Aggiungi",rf_save:"Salva",rf_cancel:"Annulla",rf_edit:"Modifica",rf_fix:"Ripara",rf_del:"Elimina",rf_del_c:"Eliminare questa tessera dalla colonnina?",rf_none:"Nessuna tessera",rf_reading:"Leggo la colonnina...",rf_writing:"Scrivo sulla colonnina...",rf_noexp:"mai",rf_nocode:"(codice illeggibile)",rf_restore:"Ripristina la lista precedente",rf_restore_c:"Rimettere la lista salvata prima dell'ultima modifica?",rf_bk:"Lista precedente: {n} tessere, salvata {t}",rf_done:"Fatto",rf_mismatch:"La colonnina ha risposto, ma la lista riletta non coincide: controlla",e_rfid_unsupported:"Per gestire le tessere servono l'indirizzo della colonnina e un percorso elenco tessere che contenga level=file (scheda Impostazioni)",e_rfid_unreachable:"Colonnina non raggiungibile",e_rfid_write_failed:"Scrittura sulla colonnina non riuscita",e_rfid_bad_id:"Codice tessera non valido (solo cifre e lettere A-F, da 4 a 20 caratteri)",e_rfid_bad_name:"Inserisci il nome",e_rfid_name_long:"Nome troppo lungo (massimo 25 caratteri)",e_rfid_bad_expiry:"Scadenza non valida",e_rfid_bad_state:"Stato non valido",e_rfid_exists:"Tessera gia' presente",e_rfid_missing:"Tessera non trovata",e_rfid_no_backup:"Nessuna copia precedente",par_title:"Impostazioni OCPP della colonnina",par_help:"Facoltative. Alla colonnina vengono inviati solo i valori impostati qui (ChangeConfiguration), al salvataggio e di nuovo a ogni riavvio. Lascia vuoto un campo e salva per tornare al valore della colonnina. Liste tessere, profili di carica, limiti di corrente e indirizzo del server non vengono mai inviati.",par_name:"Impostazione",par_range:"Ammessi",par_def:"Predefinito colonnina",par_value:"Valore",par_state:"Stato",par_save:"Salva",par_saved:"Salvato: viene inviato subito alla colonnina, o appena si collega",par_on:"Si'",par_off:"No",par_def_opt:"Valore della colonnina",par_st_def:"valore della colonnina",par_st_ok:"impostato sulla colonnina",par_st_reboot:"impostato, attivo dal prossimo riavvio",par_st_pending:"in invio",par_st_wait:"in attesa che la colonnina si colleghi",par_st_refused:"rifiutato dalla colonnina ({s})",par_HeartbeatInterval:"Conferma collegamento (heartbeat), secondi",par_ConnectionTimeOut:"Attesa tessera dopo il collegamento del cavo, secondi",par_WebSocketPingInterval:"Controllo connessione (ping), secondi",par_TransactionMessageRetryInterval:"Nuovo tentativo messaggi non inviati, secondi",par_TransactionMessageAttempts:"Numero tentativi messaggi non inviati",par_MeterValueSampleInterval:"Misure durante la ricarica, ogni ... secondi",par_ClockAlignedDataInterval:"Misure a orari fissi, ogni ... secondi (0 = mai)",par_LocalAuthorizeOffline:"Tessere in lista valide anche se il server non risponde",rf_reload:"Rileggi dalla colonnina",e_bad_param:"Valore non ammesso per questa impostazione",e_bad_date:"Data non valida",e_bad_period:"Periodo non valido: controlla le date",e_dup_period:"Esiste gia' un periodo con quella data di inizio",e_bad_card:"Tessera e nome sono obbligatori"
-}};
-var LANG=(function(){try{var l=localStorage.getItem("lang");if(l==="en"||l==="it")return l}catch(e){}return String(navigator.language||"en").slice(0,2)==="it"?"it":"en"})();
-var LOC=LANG==="it"?"it-IT":"en-GB";
-function T(k,v){var s=TR[LANG][k];if(s===undefined)s=TR.en[k];if(s===undefined)return k;if(v)for(var x in v)s=s.split("{"+x+"}").join(v[x]);return s}
-function E(r){if(r&&r.codice){var k="e_"+r.codice;if(TR[LANG][k]!==undefined)return T(k,r.par)}return (r&&r.errore)||T("e_generic")}
-function setLang(l){try{localStorage.setItem("lang",l)}catch(e){}location.reload()}
-function applyI18n(){
-  document.documentElement.lang=LANG;
-  document.querySelectorAll("[data-i]").forEach(function(e){e.textContent=T(e.getAttribute("data-i"))});
-  document.querySelectorAll("[data-ph]").forEach(function(e){e.placeholder=T(e.getAttribute("data-ph"))});
-  document.querySelectorAll("[data-ti]").forEach(function(e){e.title=T(e.getAttribute("data-ti"))});
-  var s=document.getElementById("lang");
-  if(s){s.innerHTML='<option value="en">English</option><option value="it">Italiano</option>';s.value=LANG;s.onchange=function(){setLang(s.value)}}
-}
-
-function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
-function D(s){if(LANG==="it"||!s)return s;var m=/^(\d\d)\/(\d\d)\/(\d{4}) (.*)$/.exec(s);return m?m[3]+"-"+m[2]+"-"+m[1]+" "+m[4]:s}
-function bloccoProva(nome,x){
-  var h='<div class="card"><h2>'+nome+' - '+(x.ok?'<span class="ok">'+T("s_ok")+'</span>':'<span class="err">'+T("s_fail")+'</span>')+'</h2>';
-  if(x.ms!==undefined)h+='<div class="sub">'+T("s_t_ms",{ms:x.ms,b:x.bytes===undefined?"-":x.bytes})+'</div>';
-  if(x.errore)h+='<div class="err">'+esc(x.errore)+'</div>';
-  if(x.righe!==undefined)h+='<div>'+(x.scartate!==undefined?T("s_t_rows",{r:x.righe,s:x.scartate}):T("s_t_rows_tags",{r:x.righe}))+'</div>';
-  if(x.primo)h+='<div class="sub">'+T("s_t_first",{f:esc(D(x.primo.inizio)+" -> "+D(x.primo.fine)+", "+x.primo.tag+" ("+x.primo.tipo+"), "+(x.primo.wh/1000)+" kWh")})+'</div>';
-  if(x.sample)h+='<details><summary class="sub">'+T("s_t_raw")+'</summary><pre>'+esc(x.sample)+'</pre></details>';
-  return h+'</div>';
-}
-`;
-
+// Pagina unica (HTML + JS senza librerie). Nel codice della pagina non usare apici inversi.
 export const HTML = String.raw`<!doctype html>
-<html lang="en">
+<html lang="it">
 <head>
+<script>try{var _t=localStorage.getItem("tema");if(_t)document.documentElement.setAttribute("data-t",_t)}catch(e){}</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--tx:#14181f;--mut:#5b6573;--line:#d9dee5;--acc:#0b6bcb;--err:#b00020}
-@media (prefers-color-scheme:dark){:root{--bg:#12151a;--card:#1b2027;--tx:#e8ecf1;--mut:#9aa6b4;--line:#2f3742;--acc:#5aa6ff;--err:#ff7a8a}}
 *{box-sizing:border-box}
 body{margin:0;font:15px/1.4 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx)}
 header{padding:8px 16px;background:var(--card);border-bottom:1px solid var(--line)}
@@ -209,43 +15,40 @@ h1{font-size:16px;margin:0}
 .riga2{margin-top:6px}
 .utente,.azioni{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .utente{font-size:13px}
-header button,header select{padding:4px 10px;font-size:13px}
-button.l{border:0;background:none;color:var(--acc);padding:0 2px}
-.pill{background:var(--acc);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px}
+header button{padding:4px 10px;font-size:13px}
+button.l{border:0;padding:0 2px}
+.pill{background:var(--acc);color:var(--btx);border-radius:10px;padding:1px 8px;font-size:11px}
 .pwbox{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px}
 .pwbox input{padding:5px 8px;font-size:13px}
 .sub{color:var(--mut);font-size:13px}
-main{padding:12px 16px;max-width:1000px;margin:0 auto}
+main{padding:12px 16px;max-width:1400px;margin:0 auto}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
 button,select,input{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--tx)}
-button{cursor:pointer}button.p{background:var(--acc);border-color:var(--acc);color:#fff}
-button:disabled{opacity:.5}
-nav{display:flex;gap:4px;margin:12px 0 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
-nav button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none}
+
+nav{display:flex;gap:4px;margin:12px 0 0;border-bottom:1px solid var(--line)}
+nav button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;color:var(--tx)}
+#navN,#navUN,#navTN{background:#c62828;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:600;margin-left:6px;vertical-align:middle}#navN:empty,#navUN:empty,#navTN:empty{display:none}.piede{margin:24px auto 12px;text-align:center;font-size:12px;color:var(--mut)}.piede a{color:var(--acc)}.noprint-f{}@media print{.piede{display:none}}
 nav button.on{border-bottom-color:var(--acc);font-weight:600}
 .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0}
 h2{font-size:15px;margin:0 0 8px}
-.w{overflow-x:auto}
-table{border-collapse:collapse;width:100%;min-width:480px}
-th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
-th{color:var(--mut);font-weight:600;font-size:13px}
+.w{overflow-x:visible}input,select,textarea{max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:calc(15px*var(--z,1))}
+th,td{padding:6px 7px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+table.wr th,table.wr td{white-space:normal;overflow-wrap:break-word;vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:.87em}
 td.n,th.n{text-align:right}
 tr.t td{font-weight:600;border-top:2px solid var(--tx)}
 tr.cl{cursor:pointer}tr.cl:hover{background:var(--bg)}
+#tabO th{position:sticky;top:0;background:var(--card)}#tabO td,#tabO th{padding:4px 8px}
 .err{color:var(--err)}.ok{color:var(--acc)}
 .tot{font-size:16px;font-weight:600;text-align:right;margin-top:8px}
 .hide{display:none}
 @media print{.noprint{display:none!important}body{background:#fff;color:#000}.card{border:0}}
 #tabU td:nth-child(3){white-space:normal}#tabU td.n{white-space:nowrap;width:1%}#tabU button{padding:3px 9px;font-size:13px}
 .solostampa{display:none}@media print{.solostampa{display:block;font-weight:600;margin-bottom:6px}}
-tr.ut{cursor:pointer}tr.ut:hover td{background:var(--bg)}tr.det td{background:var(--bg);color:var(--mut);font-size:.92em}
+tr.rs{cursor:pointer}tr.rs:hover td{background:var(--bg)}tr.rs.sel td{background:rgba(90,140,255,.28)}tr.old td{color:var(--mut)}tr.ut{cursor:pointer}tr.ut:hover td{background:var(--bg)}tr.det td{background:var(--bg);color:var(--mut);font-size:.92em}
 tr.det td:first-child{padding-left:24px}
-.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px 14px}
-.fg label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--mut)}
-.fg input,.fg select{width:100%;color:var(--tx);font-size:15px}
-.fg .wide{grid-column:1/-1}
-.chk{flex-direction:row!important;align-items:center;gap:8px!important}.chk input{width:auto}
-pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;margin:6px 0}
+nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:anywhere}@media(max-width:700px){main{padding:10px 8px}.w{overflow-x:visible}table.tbm{min-width:0;display:block}table.tbm thead,table.tbm tr:has(>th){display:none}table.tbm tbody{display:block}table.tbm tr{display:block;border:1px solid var(--line);border-radius:8px;margin:0 0 8px;padding:4px 10px;background:var(--card)}table.tbm td{display:flex;justify-content:space-between;align-items:center;gap:12px;border:0;padding:4px 0;white-space:normal;text-align:right;overflow-wrap:anywhere}table.tbm td::before{content:attr(data-l);color:var(--mut);font-weight:600;font-size:13px;text-align:left;flex:none;max-width:45%}table.tbm td[data-l=""]::before{display:none}table.tbm td[data-l=""]{justify-content:flex-start;flex-wrap:wrap}table.tbm tr.det{margin:-6px 0 8px;border-top:0;border-radius:0 0 8px 8px}table.tbm td.n{width:auto}nav button{padding:7px 8px}.bar>label{display:block;flex:1 1 100%;min-width:0}.bar>label input,.bar>label select,.bar>label textarea,.bar>input,.bar>select,textarea{width:100%;max-width:100%}.bar>input[type=checkbox],.bar>label input[type=checkbox]{width:auto}}
 </style>
 </head>
 <body>
@@ -253,37 +56,42 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:
   <div class="top">
     <h1>__TITLE__</h1>
     <div class="utente">
-      <select id="lang" title="Language"></select>
       <span id="chi"></span>
-      <button class="l" id="bPw" data-i="pw_change"></button>
-      <button id="bEsci" data-i="logout"></button>
+      <button class="l" id="bLang"></button>
+      <button class="l" id="bTema"></button>
+      <button class="l" id="bPw">Cambia password</button>
+      <button id="bEsci">Esci</button>
     </div>
   </div>
   <div class="top riga2">
-    <div class="sub"><span id="stato"></span> <span class="err" id="esito"></span></div>
+    <div class="sub"><span id="stato">Caricamento...</span> <span class="err" id="esito"></span></div>
     <div class="azioni">
-      <button class="p" id="bScarica" data-i="dl"></button>
-      <button id="bImporta" data-i="imp"></button>
+      <button class="p" id="bScarica">Scarica dalla colonnina</button>
+      <button id="bImporta">Importa CSV Viaris</button>
       <input type="file" id="fCsv" accept=".csv" multiple class="hide">
     </div>
   </div>
   <div class="pwbox hide" id="boxPw">
-    <input type="password" id="pwOld" data-ph="pw_cur" autocomplete="current-password">
-    <input type="password" id="pwNew" data-ph="pw_new" autocomplete="new-password">
-    <input type="password" id="pwNew2" data-ph="pw_new2" autocomplete="new-password">
-    <button class="p" id="bPwOk" data-i="save"></button>
+    <input type="password" id="pwOld" placeholder="Password attuale" autocomplete="current-password">
+    <input type="password" id="pwNew" placeholder="Nuova password (min. 12, con maiuscola, numero e simbolo)" autocomplete="new-password">
+    <input type="password" id="pwNew2" placeholder="Ripeti la nuova password" autocomplete="new-password">
+    <button class="p" id="bPwOk">Salva</button>
     <span class="sub err" id="pwEsito"></span>
   </div>
 </header>
 <main>
 <nav class="noprint">
-  <button class="on" data-t="t1" data-i="n_month"></button>
-  <button data-t="t2" data-i="n_year"></button>
-  <button data-t="t3" data-i="n_all"></button>
-  <button data-t="t4" id="navUt" class="hide" data-i="n_users"></button>
-  <button data-t="t7" id="navCol" class="hide" data-i="n_live"></button>
-  <button data-t="t6" id="navSet" class="hide" data-i="n_set"></button>
-  <button data-t="t5" id="navM" class="hide" data-i="n_mine"></button>
+  <button class="on" data-t="t1">Report mensile</button>
+  <button data-t="t3">Tutte le sessioni</button>
+  <button data-t="t2">Storico annuale</button>
+  <button data-t="t4" id="navUt" class="hide">Utenti<span id="navUN"></span></button>
+  <button data-t="t9" id="navL">Monitoraggio<span id="navN"></span></button>
+  <button data-t="t5" id="navM" class="hide">Le mie ricariche</button>
+  <button data-t="t10" id="navP" class="hide">Il mio profilo</button>
+  <button data-t="t6" id="navSet" class="hide">Impostazioni</button>
+  <button data-t="t8" id="navOc" class="hide">OCPP</button>
+  <button data-t="t11" id="navT" class="hide">Assistenza<span id="navTN"></span></button>
+  <button data-t="t12" id="navI" class="hide">Informazioni</button>
 </nav>
 
 <section id="t1">
@@ -291,10 +99,10 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:
   <div class="bar noprint">
     <select id="selAnno"></select>
     <select id="selMese"></select>
-    <label><span id="lPrezzo"></span> <input id="prezzo" size="7" inputmode="decimal"></label>
-    <label><span id="lIva"></span> <input id="iva" size="4" inputmode="decimal"></label>
-    <button class="p" id="bPrezzo" data-i="save_price"></button>
-    <button id="bReinvia" class="hide" data-i="rep_resend"></button>
+    <label>Prezzo €/kWh <input id="prezzo" size="7" inputmode="decimal"></label>
+    <label>IVA % <input id="iva" size="4" inputmode="decimal"></label>
+    <button class="p" id="bPrezzo">Salva prezzo</button>
+    <button id="bReinvia" class="hide">Reinvia report</button>
   </div>
   <div class="sub err noprint" id="avviso"></div>
   <div class="card">
@@ -302,66 +110,200 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:
     <div class="sub" id="subRep"></div>
   </div>
   <div class="card">
-    <h2 data-i="h_cards"></h2>
+    <h2>Ricariche con tessera</h2>
     <div class="w"><table id="tabT"></table></div>
   </div>
   <div class="card hide" id="cApp">
-    <h2 data-i="h_app"></h2>
+    <h2>Ricariche avviate da app (non attribuite a una tessera)</h2>
     <div class="w"><table id="tabA"></table></div>
   </div>
   <div class="card"><div class="tot" id="totale"></div></div>
   <div class="bar noprint">
-    <button id="bStampa" data-i="print"></button>
-    <button id="bCsv" data-i="csv"></button>
+    <button id="bStampa">Stampa / PDF</button>
+    <button id="bCsv">Esporta CSV</button>
   </div>
 </section>
 
 <section id="t2" class="hide">
   <div class="bar noprint">
     <select id="selAnnoS"></select>
-    <button id="bCsvAnno" data-i="csv"></button>
+    <button id="bCsvAnno">Esporta CSV</button>
   </div>
   <div class="card"><div class="w"><table id="tabS"></table></div>
   <div class="tot" id="totAnno"></div>
-  <div class="sub noprint" data-i="tap_year"></div></div>
+  <div class="sub noprint">Tocca un mese per aprirlo. I mesi senza prezzo mostrano solo i kWh.</div></div>
 </section>
 
-<section id="t5" class="hide">
-  <div class="bar noprint"><select id="selAnnoM"></select> <select id="selMeseM"></select> <button class="p" id="bPdfM" data-i="m_pdf"></button></div>
+<section id="t8" class="hide">
   <div class="card">
-    <h2 id="mieTit"></h2>
+    <h2>Impostazioni OCPP</h2>
+    <div class="bar"><label>Indirizzo da dare alla colonnina <input id="oUrl" readonly size="72"></label></div>
+    <div class="bar"><button id="bOAgg">Aggiorna</button> <button id="bORig">Rigenera codice segreto</button> <span class="sub err" id="oEsito"></span></div>
+    <div class="sub" id="oStato"></div>
+    <div class="bar"><label><input type="checkbox" id="oListaOn"> Invia la lista tessere alla colonnina (OCPP SendLocalList)</label> <button id="bOSync">Sincronizza lista tessere</button></div>
+    <div class="sub" id="oLista"></div>
+    <div class="sub">Opzione disattivata di serie: il server non manda nessun elenco tessere. Se la attivi, le tessere attive vengono inviate all'avvio della colonnina, circa 30 secondi dopo una modifica e con il pulsante; mai con un'auto collegata o in carica. Dopo l'invio i nomi vengono rimessi sulla colonnina. Provato solo su firmware Orbis 7.2.53.</div>
+    <div class="bar"><label>Conferma collegamento ogni <input id="oHb" type="number" min="1" max="60" style="width:5em"> minuti</label> <button id="bOHb">Salva</button> <span class="sub" id="oHbTxt"></span></div>
+<label class="sub"><input type="checkbox" id="oRaw"> Mostra i messaggi grezzi</label>
+    <div style="overflow:auto;height:240px;border:1px solid var(--line);border-radius:6px"><table id="tabO" style="table-layout:fixed;width:100%"></table></div>
+    <div class="sub">Il server riceve e registra i messaggi della colonnina e le manda solo le impostazioni scelte qui sotto (e la lista tessere, se attivata). Il codice dentro l'indirizzo è segreto, chi non lo conosce non può collegarsi. Se lo rigeneri devi aggiornare l'indirizzo sulla colonnina.</div>
+  </div>
+  <div class="card">
+    <h2>Comandi OCPP</h2>
+    <div class="sub" id="ocStato"></div>
+    <div class="bar"><label>Comando <select id="ocCmd">
+      <option value="GetConfiguration">GetConfiguration - legge tutte le impostazioni OCPP</option>
+      <option value="GetLocalListVersion">GetLocalListVersion - versione della lista tessere offline</option>
+      <option value="TriggerMessage">TriggerMessage - fa inviare subito un messaggio</option>
+      <option value="RemoteStopTransaction">RemoteStopTransaction - ferma la ricarica in corso (non provato)</option>
+      <option value="Reset">Riavvia colonnina (non cancella nulla, solo se libera)</option>
+    </select></label>
+    <label class="hide" id="ocMsgL">Messaggio <select id="ocMsg"><option>MeterValues</option><option>StatusNotification</option><option>Heartbeat</option><option>DiagnosticsStatusNotification</option><option>FirmwareStatusNotification</option></select></label>
+    <button class="p" id="bOcInvia">Invia</button> <span class="sub err" id="ocEsito"></span></div>
+    <div id="ocRis"></div>
+    <div class="sub">I comandi di lettura non cambiano nulla. RemoteStopTransaction agisce sulla colonnina e non è ancora stato provato su quella reale: chiede conferma prima dell'invio. La risposta arriva dalla colonnina stessa, entro 15 secondi.</div>
+  </div>
+  <div class="card">
+    <h2>Parametri avanzati della colonnina</h2>
+    <div id="oPar"></div>
+    <div class="sub">Il server manda alla colonnina solo i valori che cambi, subito o al primo messaggio utile, e li rimanda a ogni riavvio. Per vedere i valori letti dalla colonnina usa GetConfiguration.</div>
+  </div>
+</section>
+
+
+<section id="t5" class="hide">
+  <div class="bar noprint"><select id="selAnnoM"></select> <select id="selMeseM"></select> <button class="p" id="bPdfM">Scarica PDF</button></div>
+  <div class="card">
+    <h2 id="mieTit">Le mie ricariche</h2>
     <div class="w"><table id="tabM"></table></div>
     <div class="tot" id="totM"></div>
-    <div class="sub noprint" data-i="tap_mine"></div>
+    <div class="sub noprint hide" id="noteM">I mesi senza prezzo (-) non hanno ancora l'importo perché il prezzo dell'energia non è ancora stato inserito dall'Amministratore: l'importo viene calcolato appena il prezzo è disponibile.</div>
+    <div class="sub noprint">Tocca un mese per vedere le singole ricariche.</div>
+  </div>
+</section>
+
+<section id="t10" class="hide">
+  <div class="card">
+    <h2>Il mio profilo</h2>
+    <table id="tabP"></table>
+    <h3 style="margin:16px 0 6px;font-size:14px">Messaggi di servizio</h3>
+    <label class="chk" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="pWa"> <span>Acconsento a ricevere messaggi di servizio su WhatsApp</span></label>
+    <label class="chk" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="pTg"> <span>Acconsento a ricevere messaggi di servizio su Telegram</span></label>
+    <div class="bar"><button class="p" id="bProfilo">Salva</button> <span class="sub" id="pEsito"></span></div>
+    <div class="sub">Il consenso è facoltativo e vale quando il servizio di messaggi sarà attivo. Puoi cambiarlo o revocarlo quando vuoi da qui: la modifica vale subito e ne resta traccia con data e ora. I tuoi dati sono usati solo per erogare il servizio, senza cessione a terzi e senza pubblicità.</div>
+    <div class="sub">Per correggere i dati o chiederne la cancellazione apri una richiesta dalla scheda «Assistenza»<span id="pContatto"></span>.</div>
+    <div class="sub" id="pAgg"></div>
+  </div>
+</section>
+
+<section id="t11" class="hide">
+  <div class="card" id="cTkNuovo">
+    <h2>Assistenza</h2>
+    <div class="card hide" id="cSenzaT" style="margin:0 0 10px">Non hai ancora una tessera. Puoi richiederla qui sotto<span class="fee-par"></span>: ti contatteremo per la consegna e il pagamento. Se l'hai già, attendi che l'Amministratore la abbini al tuo account.</div>
+    <div class="sub">Da qui puoi inviare una richiesta all'Amministratore. Riceverai l'esito per email.</div>
+    <div class="bar"><label>Tipo di richiesta <select id="tkTipo">
+      <option value="tessera">Tessera smarrita o danneggiata</option><option value="nuova">Richiesta nuova tessera</option><option value="dati">Correzione dei dati</option>
+      <option value="cancellazione">Cancellazione dei dati / dell'utenza</option><option value="colonnina">Problema con la colonnina</option><option value="altro">Altro</option></select></label></div>
+    <div class="bar" id="tkTessBox"><label>Tessera <select id="tkTess"></select></label> <label>Motivo <select id="tkMotivo"><option value="smarrita">Smarrita</option><option value="danneggiata">Danneggiata</option></select></label></div>
+    <div class="sub" id="tkTessInfo">Per sicurezza la tessera viene bloccata subito sulla colonnina. Se la ritrovi, scrivi all'Amministratore: può sbloccarla. Se non la ritrovi o è danneggiata dovrai richiederne una nuova<span class="fee-par"></span>.</div>
+    <div class="sub" id="tkNuovaInfo" style="display:none"><span class="fee-info"></span>Ti contatteremo al telefono indicato nel tuo profilo per la consegna e il pagamento. Il messaggio è facoltativo (ad esempio gli orari in cui sei reperibile).</div>
+    <div class="bar hide" id="tkPagBox"><label>Come vuoi pagare<span class="fee-par"></span> <select id="tkPagSel"></select></label></div>
+    <div class="sub" id="tkPag"></div>
+    <div id="tkDatiBox" class="hide">
+      <div class="sub">Compila solo i campi da cambiare. I telefoni con il prefisso internazionale (es. +39 333 1234567).</div>
+      <div class="bar"><input id="tkNome" placeholder="Nome" size="14"><input id="tkCognome" placeholder="Cognome" size="14"><input id="tkTel1" placeholder="Telefono" size="16"><input id="tkTel2" placeholder="Secondo telefono" size="16"></div>
+    </div>
+    <div class="sub" id="tkCancInfo" style="display:none">Se l'Amministratore approva, l'utenza e i tuoi dati personali vengono cancellati; restano solo i dati di consumo che il gestore deve conservare per legge.</div>
+    <label style="display:block">Messaggio<br><textarea id="tkTesto" rows="4" maxlength="1000" style="width:100%;font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--tx)"></textarea></label>
+    <div class="bar"><button class="p" id="bTk">Invia richiesta</button> <span class="sub" id="tkEsito"></span></div>
+  </div>
+  <div class="card"><h2 id="tkTit">Le mie richieste</h2><div id="listaT"></div></div>
+</section>
+
+<section id="t12" class="hide">
+  <div class="card">
+    <h2>Informazioni e contatti</h2>
+    <table>
+      <tr><th>Software</th><td>Orbis Charge Report</td></tr>
+      <tr id="infoContatto" class="hide"><th>Contatto del gestore</th><td id="infoContattoV"></td></tr>
+      <tr><th>Codice sorgente</th><td><a href="https://github.com/alexxandro87/orbis-charge-report" target="_blank" rel="noopener">github.com/alexxandro87/orbis-charge-report</a></td></tr>
+      <tr><th>Licenza</th><td><a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">GNU AGPL-3.0</a></td></tr>
+    </table>
+    <div class="sub">Il contatto del gestore si imposta nella scheda Impostazioni. Per errori del software o proposte usa il codice sorgente (issue su GitHub).</div>
+  </div>
+</section>
+
+<section id="t9" class="hide">
+  <div class="card">
+    <h2>Ricarica in corso</h2>
+    <div id="liveTit" style="font-size:20px;font-weight:600;margin-bottom:8px"></div>
+    <table id="tabL"></table>
+    <div class="sub" id="liveAgg"></div>
+  </div>
+
+  <div class="card solo-adm hide" id="cardNot">
+    <h2>Notifiche</h2>
+    <div id="listaNot"></div>
+    <button id="bNotLette" class="hide">Segna come lette</button>
+    <p class="sub">Qui compaiono gli avvisi che non partono via mail: controlli solo notifica (consumi Cloudflare), mail non inviate, nessun destinatario impostato.</p>
+  </div>
+  <div class="card solo-adm hide">
+    <h2>Avvisi agli utenti</h2>
+    <div class="bar"><label><input type="checkbox" id="avOn"> Avvisa chi ha caricato quando la ricarica è finita e l'auto è ancora collegata</label></div>
+    <div class="bar"><label>Prima mail dopo <input id="avAt" type="number" min="0" max="240" style="width:5em"> minuti dalla fine della ricarica</label> <label>Secondo avviso dopo <input id="avSo" type="number" min="0" max="1440" style="width:5em"> minuti (0 = nessuno)</label></div>
+    <div class="bar"><button class="p" id="bAv">Salva</button> <span class="sub err" id="avEsito"></span></div>
+    <div class="sub">La mail arriva all'indirizzo dell'utente registrato con la tessera usata, per liberare la colonnina. Il controllo gira ogni 5 minuti, quindi la mail può arrivare fino a 5 minuti dopo l'attesa impostata.</div>
+  </div>
+  <div class="card solo-adm hide">
+    <h2>Destinatari malfunzionamenti</h2>
+    <div class="bar"><label>A (separa più indirizzi con la virgola) <input id="mA" size="48" autocomplete="off"></label></div>
+    <div class="bar"><label>In copia (separa più indirizzi con la virgola) <input id="mCc" size="48" autocomplete="off"></label></div>
+    <div class="w"><table id="tabMal"></table></div>
+    <div class="bar"><button class="p" id="bMal">Salva</button> <button id="bMalProva">Invia mail di prova</button> <span class="sub err" id="mEsito"></span></div>
+    <div class="sub" id="mUlt"></div>
+    <div class="sub">Tutti i controlli partono disattivati: accendi quelli che vuoi. Il controllo gira ogni 5 minuti. Quando un problema dura più della soglia parte una mail con il tipo di malfunzionamento, e una seconda quando rientra; gli avvisi singoli (riavvio, IP, firmware) arrivano una volta sola. Il controllo del battito tiene conto dell'intervallo di Conferma collegamento (soglia almeno il doppio).</div>
+  </div>
+  <div class="card solo-adm hide">
+    <h2>Ultimi episodi</h2>
+    <div class="w"><table id="tabEp"></table></div>
+  </div>
+  <div class="card solo-adm hide">
+    <h2>Consumi Cloudflare</h2>
+    <div class="w"><table id="tabCf"></table></div>
+    <h3 style="margin:14px 0 6px;font-size:14px">Riepilogo mensile</h3>
+    <div class="w"><table id="tabCfM"></table></div>
+    <p id="cfSpazio" style="margin:10px 0 0"></p>
+    <p class="sub" id="cfNota"></p>
   </div>
 </section>
 
 <section id="t4" class="hide">
   <div class="card">
-    <h2 data-i="u_title"></h2>
+    <h2>Utenti</h2>
     <div class="w"><table id="tabU"></table></div>
+    <p class="sub" id="cifraInfo"></p>
   </div>
   <div class="card">
-    <h2 data-i="u_invite"></h2>
-    <div class="bar"><input id="uNome" type="email" size="32" data-ph="u_email" autocomplete="off"></div>
-    <div class="bar"><label><span data-i="u_type"></span>
-      <select id="uTipo"><option value="g" id="oTg"></option><option value="c" id="oTc"></option></select></label></div>
-    <div class="bar hide" id="uTessBox"><label><span data-i="u_card"></span> <select id="uTess"></select></label></div>
+    <h2>Invita un utente o modifica i permessi</h2>
+    <div class="bar"><input id="uNome" type="email" size="32" placeholder="email dell'utente" autocomplete="off"></div>
+    <div class="bar"><label>Tipo di utente
+      <select id="uTipo"><option value="g">Gestione (scegli i permessi)</option><option value="c">Utente della colonnina (vede solo le sue ricariche)</option></select></label></div>
+    <div class="bar hide" id="uTessBox"><label>Tessera <select id="uTess"></select></label> <label>Altre tessere, facoltativo (Ctrl/⌘ per sceglierne più di una) <select id="uTess2" multiple size="4"></select></label></div>
     <div class="bar" id="uPerm" style="flex-direction:column;align-items:flex-start;gap:4px">
-      <label><input type="checkbox" data-p="report"> <span data-i="p_report"></span></label>
-      <label><input type="checkbox" data-p="storico"> <span data-i="p_storico"></span></label>
-      <label><input type="checkbox" data-p="sessioni"> <span data-i="p_sessioni"></span></label>
-      <label><input type="checkbox" data-p="prezzo"> <span data-i="p_prezzo"></span></label>
-      <label><input type="checkbox" data-p="stampa"> <span data-i="p_stampa"></span></label>
-      <label><input type="checkbox" data-p="scarica"> <span data-i="p_scarica"></span></label>
-      <label><input type="checkbox" data-p="app"> <span data-i="p_app"></span></label>
-      <label><input type="checkbox" data-p="live"> <span data-i="p_live"></span></label>
+      <label><input type="checkbox" data-p="report"> Vedere il report mensile</label>
+      <label><input type="checkbox" data-p="storico"> Vedere lo storico annuale</label>
+      <label><input type="checkbox" data-p="sessioni"> Vedere tutte le sessioni</label>
+      <label><input type="checkbox" data-p="prezzo"> Inserire prezzo kWh e IVA</label>
+      <label><input type="checkbox" data-p="stampa"> Stampare ed esportare i report</label>
+      <label><input type="checkbox" data-p="scarica"> Scaricare dalla colonnina e importare CSV</label>
+      <label><input type="checkbox" data-p="app"> Vedere le ricariche avviate da app</label>
+      <label><input type="checkbox" data-p="live"> Vedere i dettagli della ricarica in corso (potenza, kWh...)</label>
     </div>
     <div class="bar">
-      <button class="p" id="bUInvita" data-i="u_send"></button>
-      <button id="bUPerm" data-i="u_saveperm"></button>
+      <button class="p" id="bUInvita">Invia invito</button>
+      <button id="bUPerm">Salva solo i permessi</button>
     </div>
-    <div class="sub" data-i="u_hint"></div>
+    <div class="sub">L'utente riceve una mail con un link monouso (valido 48 ore) per scegliere la propria password al primo accesso.</div>
     <div class="sub err" id="uEsito"></div>
     <input id="uLink" class="hide" readonly size="60">
   </div>
@@ -369,371 +311,511 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:
 
 <section id="t6" class="hide">
   <div class="card">
-    <h2 data-i="s_conn"></h2>
-    <div class="fg">
-      <label class="wide"><span data-i="s_url"></span><input id="cf_url" placeholder="http://charger.example.com" autocomplete="off"><span class="sub" data-i="s_url_h"></span><span class="sub" id="envUrl"></span></label>
-      <label><span data-i="s_user"></span><input id="cf_user" autocomplete="off"></label>
-      <label><span data-i="s_pass"></span><input id="cf_password" type="password" autocomplete="new-password"></label>
-      <label class="chk"><input type="checkbox" id="cf_pw_clear"><span data-i="s_pass_clear"></span></label>
-      <label><span data-i="s_hname"></span><input id="cf_header_name" autocomplete="off"></label>
-      <label><span data-i="s_hval"></span><input id="cf_header_value" autocomplete="off"></label>
-      <span class="sub wide" data-i="s_h_h"></span>
-      <label class="wide"><span data-i="s_hist"></span><input id="cf_history_path"></label>
-      <label class="wide"><span data-i="s_tags"></span><input id="cf_tags_path"></label>
-      <label><span data-i="s_timeout"></span><input id="cf_timeout" inputmode="numeric"></label>
-      <label class="chk wide"><input type="checkbox" id="cf_auto"><span data-i="s_auto"></span></label>
-    </div>
+    <h2>Destinatari report mensili</h2>
+    <div class="bar"><label>A (separa più indirizzi con la virgola) <input id="dA" size="48" autocomplete="off"></label></div>
+    <div class="bar"><label>In copia (separa più indirizzi con la virgola) <input id="dCc" size="48" autocomplete="off"></label></div>
+    <div class="bar"><button class="p" id="bDest">Salva destinatari</button> <span class="sub err" id="dEsito"></span></div>
+    <div class="sub">Appena viene inserito il prezzo di un mese, il report con i totali per tessera viene inviato a questi indirizzi (le ricariche avviate da app non sono incluse).</div>
   </div>
   <div class="card">
-    <h2 data-i="s_fmt"></h2>
-    <div class="sub" data-i="s_fmt_h"></div>
-    <div class="fg" style="margin-top:8px">
-      <label class="wide"><span data-i="s_jf"></span><input id="cf_hist_json_field"></label>
-      <label><span data-i="s_hsep"></span><input id="cf_hist_sep" size="3"></label>
-      <label><span data-i="s_hskip"></span><input id="cf_hist_skip" inputmode="numeric"></label>
-      <label><span data-i="s_c_start"></span><input id="cf_c_start" inputmode="numeric"></label>
-      <label><span data-i="s_c_end"></span><input id="cf_c_end" inputmode="numeric"></label>
-      <label><span data-i="s_c_tag"></span><input id="cf_c_tag" inputmode="numeric"></label>
-      <label><span data-i="s_c_type"></span><input id="cf_c_type" inputmode="numeric"></label>
-      <label><span data-i="s_c_ci"></span><input id="cf_c_cont_ini" inputmode="numeric"></label>
-      <label><span data-i="s_c_cf"></span><input id="cf_c_cont_fin" inputmode="numeric"></label>
-      <label><span data-i="s_tsep"></span><input id="cf_tags_sep" size="3"></label>
-      <label><span data-i="s_tskip"></span><input id="cf_tags_skip" inputmode="numeric"></label>
-      <label><span data-i="s_tc_tag"></span><input id="cf_tags_c_tag" inputmode="numeric"></label>
-      <label><span data-i="s_tc_name"></span><input id="cf_tags_c_name" inputmode="numeric"></label>
-    </div>
+    <h2>Colonnina</h2>
+    <div class="sub">Indirizzo da cui il sito scarica i dati e legge le tessere. Per una Orbis bastano l'indirizzo e la porta (es. http://nome-ddns:81); gli altri campi servono solo per colonnine con risposte diverse.</div>
+    <div class="bar"><label>Indirizzo (http:// o https://) <input id="cf_url" size="36" placeholder="http://colonnina.esempio.it:81" autocomplete="off"></label> <span class="sub" id="envUrl"></span></div>
+    <div class="bar"><label>Utente (se la colonnina chiede una password) <input id="cf_user" size="16" autocomplete="off"></label> <label>Password <input id="cf_password" type="password" size="16" autocomplete="new-password"></label> <label><input type="checkbox" id="cf_pw_clear"> Cancella la password salvata</label></div>
+    <div class="bar"><label>Intestazione aggiuntiva, nome <input id="cf_header_name" size="16" autocomplete="off"></label> <label>Valore <input id="cf_header_value" size="24" autocomplete="off"></label></div>
+    <div class="bar"><label>Percorso dello storico <input id="cf_history_path" size="40"></label></div>
+    <div class="bar"><label>Percorso dell'elenco tessere (deve contenere level=file) <input id="cf_tags_path" size="32"></label> <label>Percorso dello stato (vuoto = non controllato) <input id="cf_status_path" size="28"></label></div>
+    <div class="bar"><label>Tempo massimo di risposta, secondi <input id="cf_timeout" inputmode="numeric" style="width:5em"></label> <label><input type="checkbox" id="cf_auto"> Scarico automatico ogni 6 ore</label></div>
+    <div class="sub" id="cInfo"></div>
+    <details><summary>Formato dei dati (solo se la colonnina non è una Orbis)</summary>
+      <div class="bar"><label>Campo JSON con le righe dello storico (vuoto = la risposta è già CSV) <input id="cf_hist_json_field" size="10"></label> <label>Separatore <input id="cf_hist_sep" size="3"></label> <label>Righe da saltare <input id="cf_hist_skip" inputmode="numeric" style="width:4em"></label></div>
+      <div class="bar"><label>Colonna inizio <input id="cf_c_start" inputmode="numeric" style="width:4em"></label> <label>Colonna fine <input id="cf_c_end" inputmode="numeric" style="width:4em"></label> <label>Colonna tessera <input id="cf_c_tag" inputmode="numeric" style="width:4em"></label> <label>Colonna tipo <input id="cf_c_type" inputmode="numeric" style="width:4em"></label> <label>Colonna contatore iniziale <input id="cf_c_cont_ini" inputmode="numeric" style="width:4em"></label> <label>Colonna contatore finale <input id="cf_c_cont_fin" inputmode="numeric" style="width:4em"></label></div>
+    </details>
   </div>
   <div class="card">
-    <h2 data-i="s_gen"></h2>
-    <div class="fg">
-      <label class="wide"><span data-i="s_title"></span><input id="cf_title"></label>
-      <label><span data-i="s_tz"></span><input id="cf_tz" placeholder="Europe/Rome"></label>
-      <label><span data-i="s_cur"></span><input id="cf_currency" size="4"></label>
-      <label><span data-i="s_taxl"></span><input id="cf_tax_label" size="8"></label>
-      <span class="sub wide" data-i="s_tz_h"></span>
-    </div>
+    <h2>Sito</h2>
+    <div class="bar"><label>Titolo del sito <input id="cf_title" size="40"></label></div>
+    <div class="bar"><label>Fuso orario <input id="cf_tz" size="18" placeholder="Europe/Rome"></label> <label>Valuta <input id="cf_currency" size="4"></label> <label>Etichetta dell'imposta (vuoto = IVA) <input id="cf_tax_label" size="8"></label></div>
+    <div class="bar"><label>Costo della tessera (0 = non mostrato) <input id="cf_card_fee" inputmode="decimal" style="width:6em"></label> <label>Contatto del gestore (email o testo, facoltativo) <input id="cf_contact" size="32" autocomplete="off"></label> <label>Identificativo della colonnina nell'indirizzo OCPP <input id="cf_charger_id" size="16"></label></div>
+    <div class="sub">Il titolo compare nelle pagine, nelle mail e nei PDF. Il costo della tessera è mostrato a chi la richiede dalla scheda Assistenza, nella registrazione e nelle mail. Il contatto compare nel profilo e nella scheda Informazioni.</div>
   </div>
   <div class="card">
-    <h2 data-i="s_email"></h2>
-    <div class="sub" data-i="s_email_h"></div>
-    <div class="fg" style="margin-top:8px">
-      <label><span data-i="s_rkey"></span><input id="cf_resend_key" type="password" autocomplete="new-password"></label>
-      <label class="chk"><input type="checkbox" id="cf_rk_clear"><span data-i="s_rclear"></span></label>
-      <label class="wide"><span data-i="s_mfrom"></span><input id="cf_mail_from" autocomplete="off"></label>
-      <label class="wide"><span data-i="s_rto"></span><input id="cf_report_to" autocomplete="off" placeholder="admin@example.com"></label>
-      <label class="wide"><span data-i="s_rcc"></span><input id="cf_report_cc" autocomplete="off"></label>
-      <span class="sub wide" data-i="s_rep_h"></span>
-    </div>
+    <h2>Mail</h2>
+    <div class="sub">Facoltativo, con Resend (resend.com): serve per inviti, registrazioni, report, ticket e avvisi. Senza, il sito mostra i link da inviare a mano e le mail non partono. La chiave si può anche mettere come secret RESEND_API_KEY.</div>
+    <div class="bar"><label>Chiave API Resend <input id="cf_resend_key" type="password" size="28" autocomplete="new-password"></label> <label><input type="checkbox" id="cf_rk_clear"> Cancella la chiave salvata</label></div>
+    <div class="bar"><label>Mittente (dominio verificato su Resend) <input id="cf_mail_from" size="40" placeholder="Colonnina &lt;ricariche@esempio.it&gt;" autocomplete="off"></label></div>
   </div>
-  <div class="card">
-    <h2 data-i="s_bk"></h2>
-    <div class="sub" data-i="s_bk_h"></div>
-    <div class="bar"><a href="/api/backup" download><button type="button" data-i="s_bk_btn"></button></a></div>
-  </div>
-  <div class="bar">
-    <button class="p" id="bCfSalva" data-i="s_save"></button>
-    <button id="bCfProva" data-i="s_test"></button>
-    <button id="bCfReset" data-i="s_reset"></button>
-  </div>
-  <div class="sub err" id="cfEsito"></div>
+  <div class="bar"><button class="p" id="bCfSalva">Salva impostazioni</button> <button id="bCfProva">Prova il collegamento</button> <button id="bCfReset">Valori predefiniti</button> <span class="sub err" id="cfEsito"></span></div>
   <div id="cfProva"></div>
-</section>
-
-<section id="t7" class="hide">
   <div class="card">
-    <h2 data-i="lv_title"></h2>
-    <div id="lvBox"></div>
-    <div class="sub" id="lvUpd"></div>
+    <h2>Testi legali</h2>
+    <div class="sub">Regolamento d'uso della colonnina e informativa privacy mostrati nella registrazione e nell'invito, in italiano e in inglese (HTML semplice: p, b, ul, li). Vanno scritti da chi gestisce il sito: il progetto non ne fornisce. L'edizione (es. una data) viene salvata nei consensi di ogni utente.</div>
+    <div class="bar"><label>Edizione <input id="tl_edizione" size="14" placeholder="es. 01-01-2027"></label></div>
+    <div class="bar"><label style="width:100%">Regolamento (italiano)<br><textarea id="tl_reg_it" rows="6" style="width:100%"></textarea></label></div>
+    <div class="bar"><label style="width:100%">Regolamento (inglese)<br><textarea id="tl_reg_en" rows="6" style="width:100%"></textarea></label></div>
+    <div class="bar"><label style="width:100%">Informativa privacy (italiano)<br><textarea id="tl_priv_it" rows="6" style="width:100%"></textarea></label></div>
+    <div class="bar"><label style="width:100%">Informativa privacy (inglese)<br><textarea id="tl_priv_en" rows="6" style="width:100%"></textarea></label></div>
+    <div class="bar"><button class="p" id="bTesti">Salva testi</button> <span class="sub err" id="tlEsito"></span></div>
   </div>
-  <div id="adminCol" class="hide">
-    <div class="card">
-      <h2 data-i="oc_title"></h2>
-      <div class="sub" data-i="oc_help"></div>
-      <div class="bar"><label style="display:flex;flex-direction:column;gap:3px;font-size:13px"><span data-i="oc_url"></span><input id="ocUrl" readonly size="64"></label>
-        <button id="bOcRegen" data-i="oc_regen"></button></div>
-      <div class="sub" id="ocStato"></div>
-      <div class="bar">
-        <button id="bOcCfg" data-i="oc_c_cfg"></button>
-        <button id="bOcMis" data-i="oc_c_meter"></button>
-        <button id="bOcSt" data-i="oc_c_status"></button>
-        <button id="bOcStop" data-i="oc_c_stop"></button>
-        <button id="bOcRst" data-i="oc_c_reset"></button>
-      </div>
-      <div class="sub err" id="ocEsito"></div>
-      <h2 data-i="oc_events"></h2>
-      <div class="w"><table id="tabEv"></table></div>
-    </div>
-    <div class="card">
-      <h2 data-i="par_title"></h2>
-      <div class="sub" data-i="par_help"></div>
-      <div class="w"><table id="tabPar"></table></div>
-      <div class="sub" id="parEsito"></div>
-    </div>
-    <div class="card">
-      <h2 data-i="rf_title"></h2>
-      <div class="sub" data-i="rf_help"></div>
-      <div class="sub err" id="rfMsg"></div>
-      <div class="w"><table id="tabRf"></table></div>
-      <h2 id="rfFormT"></h2>
-      <div class="bar">
-        <input id="rfId" data-ph="rf_id_ph" autocomplete="off" size="16">
-        <input id="rfNome" data-ph="rf_name_ph" maxlength="25" autocomplete="off">
-        <label><span data-i="rf_exp"></span> <input id="rfScad" type="date"></label>
-        <select id="rfStato"><option value="0" data-i="rf_st0"></option><option value="1" data-i="rf_st1"></option><option value="2" data-i="rf_st2"></option><option value="3" data-i="rf_st3"></option></select>
-        <label id="rfDalL"><span data-i="rf_since"></span> <input id="rfDal" type="date"></label>
-        <button class="p" id="bRfSalva"></button>
-        <button id="bRfAnn" data-i="rf_cancel"></button>
-      </div>
-      <div class="bar"><button id="bRfLeggi" data-i="rf_reload"></button><button id="bRfRip" data-i="rf_restore"></button><span class="sub" id="rfBk"></span></div>
-      <div class="sub err" id="rfEsito"></div>
-    </div>
-    <div class="card">
-      <h2 data-i="cn_title"></h2>
-      <div class="sub" data-i="cn_help"></div>
-      <div class="w"><table id="tabN"></table></div>
-      <h2 data-i="cn_assign"></h2>
-      <div class="bar">
-        <select id="cnTag"></select>
-        <input id="cnNome" data-ph="cn_name_ph" autocomplete="off">
-        <input id="cnDal" type="date">
-        <button class="p" id="bCnAssegna" data-i="cn_assign_btn"></button>
-      </div>
-      <div class="sub err" id="cnEsito"></div>
-    </div>
+  <div class="card">
+    <h2>Tessere RFID della colonnina</h2>
+    <div class="bar"><label>Codice tessera <input id="rId" size="12" autocomplete="off"></label> <label>Nome <input id="rNome" size="28" maxlength="25" autocomplete="off"></label> <label>Scadenza <input id="rScad" type="date"></label> <label id="rDalL">Assegnata dal <input id="rDal" type="date"></label> <label>Stato <select id="rStato"><option value="0">Attiva</option><option value="1">Bloccata</option><option value="2">Scaduta</option><option value="3">Non valida</option></select></label> <button class="p" id="bRAgg">Aggiungi</button> <button id="bRAnn" class="hide">Annulla</button></div>
+    <div class="bar"><button id="bRDis" disabled>Disattivazione Permanente</button> <button id="bRImp">Importa file</button><input id="rFile" type="file" accept=".csv,.txt" class="hide"> <button id="bREsp">Esporta lista</button> <button id="bRLeggi">Rileggi dalla colonnina</button> <button id="bRRip" class="hide">Ripristina lista precedente</button> <span class="sub err" id="rEsito"></span></div>
+    <table id="tabR"></table>
+    <div class="sub">Clicca su una tessera per selezionarla: Disattivazione Permanente la toglie dalla colonnina (lo storico resta), Modifica cambia nome, stato o data di assegnazione. In grigio le tessere disattivate: le loro ricariche restano attribuite a chi le aveva in quel periodo.</div>
+    <div class="sub">Nome al massimo 25 caratteri (oltre, la colonnina lo tronca). Scadenza facoltativa: la tessera vale fino alla fine di quel giorno. Le modifiche vengono scritte subito sulla colonnina. Prima di ogni scrittura il sito tiene una copia della lista precedente. L'import aggiunge le tessere nuove e aggiorna nomi e stati, senza cancellare nulla (va bene sia il file esportato da qui sia il CSV esportato da Viaris).</div>
   </div>
+  <div class="card">
+    <h2>Backup del database</h2>
+    <div class="bar"><label>Passphrase del backup (almeno 12 caratteri) <input type="password" id="bkP" autocomplete="new-password"></label>
+      <label>Ripetila <input type="password" id="bkP2" autocomplete="new-password"></label>
+      <button type="button" id="bBackup">Scarica backup cifrato (.sql.enc)</button> <span id="bkEsito" class="sub"></span></div>
+    <div class="sub">Il file viene cifrato nel tuo browser con la passphrase (AES-256-GCM): senza passphrase non si legge e non si può recuperare, quindi conservala. Contiene sessioni, tessere, prezzi e utenti, con gli hash delle password. Per ripristinarlo: node decifra_backup.mjs ricariche_AAAA-MM-GG.sql.enc (chiede la passphrase e crea il file .sql), poi npx wrangler d1 execute ricariche --remote --file=ricariche_AAAA-MM-GG.sql</div>
+  </div>
+  <div class="card hide" id="cPag"><h2>Pagamento tessera</h2><div class="sub">Scrivi solo il nome dell'account a cui deve arrivare il costo della tessera (oppure incolla il link completo). Il costo si imposta qui sopra, nelle impostazioni generali. Le opzioni lasciate vuote non vengono proposte. "Contanti alla consegna" è sempre disponibile. Con PayPal l'utente deve scegliere "Amici e familiari".</div>
+    <div class="bar"><label>paypal.me/ <input id="pagPp" placeholder="nome account" size="22" maxlength="200"></label> <label>tag.satispay.com/ <input id="pagSa" placeholder="nome account" size="22" maxlength="200"></label> <label>revolut.me/ <input id="pagRe" placeholder="nome account" size="22" maxlength="200"></label></div>
+    <div class="bar"><button id="bPag">Salva</button> <span class="sub" id="pagEs"></span></div></div>
 </section>
 
 <section id="t3" class="hide">
-  <div class="bar noprint"><label><span data-i="user_filter"></span> <select id="selUt"></select></label></div>
+  <div class="bar noprint"><label>Utente <select id="selUt"></select></label></div>
   <div class="card"><div class="w"><table id="tabX"></table></div></div>
 </section>
 </main>
+<footer class="piede">Orbis Charge Report · software libero, <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">licenza AGPL-3.0</a> · <a href="https://github.com/alexxandro87/orbis-charge-report" target="_blank" rel="noopener">codice sorgente</a></footer>
+
 <script>
-__I18N__
-var MESI=[];for(var mi=0;mi<12;mi++){var mn=new Date(2000,mi,1).toLocaleString(LOC,{month:"long"});MESI.push(mn.charAt(0).toUpperCase()+mn.slice(1))}
-var CUR="€",TAXL=T("tax_default"),TITLE="",io=null,cfg=null;
+var LANG="it";try{LANG=localStorage.getItem("lang")||(((navigator.language||"it").slice(0,2)==="it")?"it":"en")}catch(e){}
+var LOC=LANG==="en"?"en-GB":"it-IT";
+var EN={"una tantum":"one-off","costo":"cost",
+"Indirizzo della colonnina non impostato":"Charger address not set","Indirizzo della colonnina non impostato (scheda Impostazioni)":"Charger address not set (Settings tab)",
+"Devi prima confermare l'indirizzo email: controlla la tua posta":"You must confirm your email address first: check your inbox","metodo non valido":"Invalid method","L'admin gestisce i ticket, non li apre":"The admin handles tickets, it does not open them","Ticket non trovato":"Ticket not found","Questo ticket non riguarda una tessera":"This ticket is not about a card","Esito non valido":"Invalid outcome","L'utente non esiste piu'":"The user no longer exists","Non applicabile all'admin":"Not applicable to the admin",
+"Inserisci nome e cognome":"Enter first and last name","Devi accettare il regolamento":"You must accept the rules","Devi confermare di aver letto l'informativa privacy":"You must confirm you have read the privacy notice","Richiesta non valida":"Invalid request","Troppe registrazioni da questo indirizzo: riprova tra 10 minuti":"Too many registrations from this address: try again in 10 minutes","La password non rispetta i requisiti":"The password does not meet the requirements","Non sono riuscito a inviare la mail di conferma: riprova più tardi":"Could not send the confirmation email: try again later",
+"Invio della lista tessere disattivato: attivalo prima dalla scheda OCPP":"Card list sending is off: turn it on first in the OCPP tab","Codice di configurazione errato":"Wrong setup code","Nome utente non valido":"Invalid user name","Configurazione gia' completata":"Setup already completed","Configurazione iniziale non completata: apri la pagina principale":"Setup not completed: open the home page","Completa il profilo per continuare":"Complete your profile to continue",
+"Attesa non valida: da 0 a 240 minuti":"Invalid wait: 0 to 240 minutes","Secondo avviso non valido: 0 (nessuno) oppure da 5 a 1440 minuti":"Invalid reminder: 0 (none) or 5 to 1440 minutes","Parametro non consentito":"Setting not allowed","azione sconosciuta":"Unknown action","La dismissione deve essere dopo l'assegnazione":"The return date must be after the assignment date","Esiste gia' un periodo con quella data":"A period with that date already exists","Dati non validi: serve 'storico' con il testo letto dalla colonnina":"Invalid data: 'storico' with the text read from the charger is required",
+"Costo tessera non valido":"Invalid card fee","L'indirizzo della colonnina deve iniziare con http:// o https://":"The charger address must start with http:// or https://","Fuso orario sconosciuto":"Unknown time zone","La risposta dello storico non e' JSON (controlla il campo JSON nelle Impostazioni)":"The history response is not JSON (check the JSON field in Settings)","Per gestire le tessere serve un percorso elenco tessere che contenga level=file (scheda Impostazioni)":"Managing cards needs a card list path containing level=file (Settings tab)",
+
+"Orbis Charge Report · software libero,":"Orbis Charge Report · free software,","licenza AGPL-3.0":"AGPL-3.0 licence","codice sorgente":"source code","Invia la lista tessere alla colonnina (OCPP SendLocalList)":"Send the card list to the charger (OCPP SendLocalList)",
+"Opzione disattivata di serie: il server non manda nessun elenco tessere. Se la attivi, le tessere attive vengono inviate all'avvio della colonnina, circa 30 secondi dopo una modifica e con il pulsante; mai con un'auto collegata o in carica. Dopo l'invio i nomi vengono rimessi sulla colonnina. Provato solo su firmware Orbis 7.2.53.":"Off by default: the server sends no card list at all. When on, the active cards are sent when the charger starts, about 30 seconds after a change and with the button; never while a car is plugged in or charging. After the send the names are put back on the charger. Tested only on Orbis firmware 7.2.53.",
+"Il server riceve e registra i messaggi della colonnina e le manda solo le impostazioni scelte qui sotto (e la lista tessere, se attivata). Il codice dentro l'indirizzo è segreto, chi non lo conosce non può collegarsi. Se lo rigeneri devi aggiornare l'indirizzo sulla colonnina.":"The server receives and records the charger's messages and sends it only the settings chosen below (and the card list, if enabled). The code inside the address is secret: nobody can connect without it. If you regenerate it you must update the address on the charger.",
+"GetConfiguration - legge tutte le impostazioni OCPP":"GetConfiguration - reads all OCPP settings","GetLocalListVersion - versione della lista tessere offline":"GetLocalListVersion - version of the offline card list","TriggerMessage - fa inviare subito un messaggio":"TriggerMessage - asks for a message right now","RemoteStopTransaction - ferma la ricarica in corso (non provato)":"RemoteStopTransaction - stops the current charge (untested)",
+"Contatto del gestore":"Operator contact","Il contatto del gestore si imposta nella scheda Impostazioni. Per errori del software o proposte usa il codice sorgente (issue su GitHub).":"The operator contact is set in the Settings tab. For software bugs or proposals use the source code (GitHub issues).",
+"Indirizzo da cui il sito scarica i dati e legge le tessere. Per una Orbis bastano l'indirizzo e la porta (es. http://nome-ddns:81); gli altri campi servono solo per colonnine con risposte diverse.":"Address the site downloads data from and reads the cards from. For an Orbis the address and port are enough (e.g. http://ddns-name:81); the other fields are only for chargers with different responses.",
+"Indirizzo (http:// o https://)":"Address (http:// or https://)","Utente (se la colonnina chiede una password)":"User (if the charger asks for a password)","Cancella la password salvata":"Clear the saved password","Intestazione aggiuntiva, nome":"Extra header, name","Valore":"Value","Percorso dello storico":"History path","Percorso dell'elenco tessere (deve contenere level=file)":"Card list path (must contain level=file)","Percorso dello stato (vuoto = non controllato)":"Status path (empty = not checked)","Tempo massimo di risposta, secondi":"Response timeout, seconds","Scarico automatico ogni 6 ore":"Automatic download every 6 hours",
+"Formato dei dati (solo se la colonnina non è una Orbis)":"Data format (only if the charger is not an Orbis)","Campo JSON con le righe dello storico (vuoto = la risposta è già CSV)":"JSON field holding the history rows (empty = the response is already CSV)","Separatore":"Separator","Righe da saltare":"Rows to skip","Colonna inizio":"Start column","Colonna fine":"End column","Colonna tessera":"Card column","Colonna tipo":"Type column","Colonna contatore iniziale":"Start meter column","Colonna contatore finale":"End meter column",
+"Sito":"Site","Titolo del sito":"Site title","Fuso orario":"Time zone","Valuta":"Currency","Etichetta dell'imposta (vuoto = IVA)":"Tax label (empty = VAT)","Costo della tessera (0 = non mostrato)":"Card fee (0 = not shown)","Contatto del gestore (email o testo, facoltativo)":"Operator contact (email or text, optional)","Identificativo della colonnina nell'indirizzo OCPP":"Charger identifier in the OCPP address",
+"Il titolo compare nelle pagine, nelle mail e nei PDF. Il costo della tessera è mostrato a chi la richiede dalla scheda Assistenza, nella registrazione e nelle mail. Il contatto compare nel profilo e nella scheda Informazioni.":"The title appears in the pages, emails and PDFs. The card fee is shown to whoever requests a card from the Support tab, in the registration and in the emails. The contact appears in the profile and in the About tab.",
+"Facoltativo, con Resend (resend.com): serve per inviti, registrazioni, report, ticket e avvisi. Senza, il sito mostra i link da inviare a mano e le mail non partono. La chiave si può anche mettere come secret RESEND_API_KEY.":"Optional, with Resend (resend.com): used for invitations, registrations, reports, tickets and alerts. Without it the site shows links to send by hand and no email goes out. The key can also be set as the RESEND_API_KEY secret.",
+"Chiave API Resend":"Resend API key","Cancella la chiave salvata":"Clear the saved key","Mittente (dominio verificato su Resend)":"Sender (domain verified on Resend)","Salva impostazioni":"Save settings","Prova il collegamento":"Test the connection","Valori predefiniti":"Default values",
+"Testi legali":"Legal texts","Regolamento d'uso della colonnina e informativa privacy mostrati nella registrazione e nell'invito, in italiano e in inglese (HTML semplice: p, b, ul, li). Vanno scritti da chi gestisce il sito: il progetto non ne fornisce. L'edizione (es. una data) viene salvata nei consensi di ogni utente.":"Charger rules and privacy notice shown in the registration and invitation pages, in Italian and English (simple HTML: p, b, ul, li). They must be written by whoever runs the site: the project provides none. The edition (e.g. a date) is saved with each user's consents.",
+"Edizione":"Edition","Regolamento (italiano)":"Rules (Italian)","Regolamento (inglese)":"Rules (English)","Informativa privacy (italiano)":"Privacy notice (Italian)","Informativa privacy (inglese)":"Privacy notice (English)","Salva testi":"Save texts","Testi salvati":"Texts saved",
+"Passphrase del backup (almeno 12 caratteri)":"Backup passphrase (at least 12 characters)","Ripetila":"Repeat it",
+"Scrivi solo il nome dell'account a cui deve arrivare il costo della tessera (oppure incolla il link completo). Il costo si imposta qui sopra, nelle impostazioni generali. Le opzioni lasciate vuote non vengono proposte. \"Contanti alla consegna\" è sempre disponibile. Con PayPal l'utente deve scegliere \"Amici e familiari\".":"Write only the account name the card fee must go to (or paste the full link). The fee is set above, in the site settings. Empty options are not offered. \"Cash on delivery\" is always available. With PayPal the user must choose \"Friends and family\".",
+"Tutto l'anno":"Whole year","(salvata)":"(saved)","(valore iniziale da wrangler.toml)":"(initial value from wrangler.toml)","Elenco tessere":"Card list","Righe lette: ":"Rows read: ","Prima sessione: ":"First session: ","tessera ":"card ","Lista offline: disattivata, il server non invia tessere alla colonnina":"Offline list: off, the server sends no cards to the charger",
+"Impostazioni salvate":"Settings saved","Storico":"History","ok":"ok","errore":"error",
+"Cambia password":"Change password",
+"Esci":"Log out",
+"Caricamento...":"Loading...",
+"Scarica dalla colonnina":"Download from the charger",
+"Importa CSV Viaris":"Import Viaris CSV",
+"Password attuale":"Current password",
+"Nuova password (min. 12, con maiuscola, numero e simbolo)":"New password (min. 12, with uppercase, digit and symbol)",
+"Ripeti la nuova password":"Repeat the new password",
+"Salva":"Save",
+"Report mensile":"Monthly report",
+"Storico annuale":"Yearly history",
+"Tutte le sessioni":"All sessions",
+"Utenti":"Users",
+"Backup del database":"Database backup",
+"Scarica backup (.sql)":"Download backup (.sql)",
+"Il file viene cifrato nel tuo browser con la passphrase (AES-256-GCM): senza passphrase non si legge e non si può recuperare, quindi conservala. Contiene sessioni, tessere, prezzi e utenti, con gli hash delle password. Per ripristinarlo: node decifra_backup.mjs ricariche_AAAA-MM-GG.sql.enc (chiede la passphrase e crea il file .sql), poi npx wrangler d1 execute ricariche --remote --file=ricariche_AAAA-MM-GG.sql":"The file is encrypted in your browser with the passphrase (AES-256-GCM): without the passphrase it cannot be read or recovered, so keep it. It contains sessions, cards, prices and users, with password hashes. To restore it: node decifra_backup.mjs ricariche_YYYY-MM-DD.sql.enc (asks for the passphrase and creates the .sql file), then npx wrangler d1 execute ricariche --remote --file=ricariche_YYYY-MM-DD.sql",
+"Le mie ricariche":"My charges",
+"Prezzo €/kWh":"Price €/kWh",
+"IVA %":"VAT %",
+"Salva prezzo":"Save price",
+"Ricariche con tessera":"Charges with a card",
+"Ricariche avviate da app (non attribuite a una tessera)":"Charges started from the app (not assigned to a card)",
+"Stampa / PDF":"Print / PDF",
+"Esporta CSV":"Export CSV",
+"Tocca un mese per aprirlo. I mesi senza prezzo mostrano solo i kWh.":"Tap a month to open it. Months without a price show kWh only.",
+"Tocca un mese per vedere le singole ricariche.":"Tap a month to see the individual charges.",
+"Invita un utente o modifica i permessi":"Invite a user or edit permissions",
+"email dell'utente":"user's email",
+"Tipo di utente":"User type",
+"Gestione (scegli i permessi)":"Management (choose the permissions)",
+"Utente della colonnina (vede solo le sue ricariche)":"Charger user (sees only their own charges)",
+"Tessera":"Card",
+"Vedere il report mensile":"View the monthly report",
+"Vedere lo storico annuale":"View the yearly history",
+"Vedere tutte le sessioni":"View all sessions",
+"Inserire prezzo kWh e IVA":"Enter the kWh price and VAT",
+"Stampare ed esportare i report":"Print and export reports",
+"Scaricare dalla colonnina e importare CSV":"Download from the charger and import CSV",
+"Vedere le ricariche avviate da app":"View charges started from the app",
+"Invia invito":"Send invite",
+"Salva solo i permessi":"Save permissions only",
+"Stato":"Status","Fuori servizio":"Out of service","In servizio":"In service","Fermare la ricarica in corso?":"Stop the charge in progress?","Mettere la colonnina fuori servizio? Nessuno potrà caricare finché non la rimetti in servizio.":"Put the charger out of service? Nobody will be able to charge until you put it back in service.","Rimettere la colonnina in servizio?":"Put the charger back in service?","Nessuna ricarica in corso da fermare":"No charge in progress to stop",
+"Comandi OCPP":"OCPP commands","Comando":"Command","Messaggio":"Message","Durata (secondi)":"Duration (seconds)","Invia":"Send","Voce":"Key","Valore":"Value","Modificabile":"Editable","no":"no","sì":"yes","Voci sconosciute: ":"Unknown keys: ","In attesa della risposta...":"Waiting for the reply...","Risposta ricevuta alle ":"Reply received at ","Colonnina non collegata al server":"Charger not connected to the server","Nessuna risposta entro 15 secondi":"No reply within 15 seconds","Comando non consentito":"Command not allowed","I comandi di lettura non cambiano nulla. RemoteStopTransaction agisce sulla colonnina e non è ancora stato provato su quella reale: chiede conferma prima dell'invio. La risposta arriva dalla colonnina stessa, entro 15 secondi.":"Read commands change nothing. RemoteStopTransaction acts on the charger and has not been tried on the real one yet: it asks for confirmation before sending. The reply comes from the charger itself, within 15 seconds.",
+"In corso":"In progress","Ricarica in corso":"Charging now","Occupata":"Busy","Colonnina libera":"Charger free","Auto collegata, in attesa della tessera":"Car plugged in, waiting for the card","Colonnina non collegata al server: dati non disponibili":"Charger not connected to the server: no data available","Potenza":"Power","Corrente":"Current","Tensione":"Voltage","Energia caricata":"Energy charged","Inizio":"Start","Durata":"Duration","Tessera":"Card","Aggiornato alle ":"Updated at ","tessera sconosciuta":"unknown card","Sincronizza lista tessere":"Sync card list","Lista offline: ":"Offline list: ","Lista offline: aggiornamento in attesa che la presa sia libera":"Offline list: update waiting until the socket is free","Lista offline: nessun invio registrato":"Offline list: nothing sent yet"," tessere inviate il ":" cards sent on ","tessere inviate il ":"cards sent on ","allineata":"in sync","ultimo invio non riuscito":"last send failed","invio non completato":"send not completed","Vedere i dettagli della ricarica in corso (potenza, kWh...)":"View live charge details (power, kWh...)","ricarica in corso":"charge in progress",
+"L'utente riceve una mail con un link monouso (valido 48 ore) per scegliere la propria password al primo accesso.":"The user receives an email with a single-use link (valid for 48 hours) to choose their own password on first sign-in.",
+"Utente":"User",
+"Tutti":"All",
+"Mese":"Month",
+"Stato":"Status",
+"Permessi / tessera":"Permissions / card",
+"Sess.":"Sess.",
+"Imponibile":"Net amount",
+"IVA":"VAT",
+"Totale":"Total",
+"Inizio":"Start",
+"Fine":"End",
+"kWh tess.":"kWh cards",
+"kWh tot.":"kWh total",
+"Ricariche":"Charges",
+"Gennaio":"January",
+"Febbraio":"February",
+"Marzo":"March",
+"Aprile":"April",
+"Maggio":"May",
+"Giugno":"June",
+"Luglio":"July",
+"Agosto":"August",
+"Settembre":"September",
+"Ottobre":"October",
+"Novembre":"November",
+"Dicembre":"December",
+" sessione":" session",
+" sessioni":" sessions",
+" dal ":" from ",
+" al ":" to ",
+"Archivio vuoto":"Empty archive",
+" · aggiornato il ":" · updated on ",
+"Ultimo scarico non riuscito: ":"Last download failed: ",
+"Ripartizione costi ricarica - ":"Charging cost split - ",
+"Prezzo non ancora inserito":"Price not entered yet","I mesi senza prezzo (-) non hanno ancora l'importo perché il prezzo dell'energia non è ancora stato inserito dall'Amministratore: l'importo viene calcolato appena il prezzo è disponibile.":"Months without a price (-) have no amount yet because the Administrator has not entered the energy price yet: the amount is calculated as soon as the price is available.",
+"Prezzo ":"Price ",
+" €/kWh, IVA ":" €/kWh, VAT ",
+"sessioni: ":"sessions: ",
+"Inserisci il prezzo del kWh di questo mese e premi Salva prezzo per calcolare gli importi.":"Enter this month's kWh price and press Save price to calculate the amounts.",
+"Inserisci il prezzo del kWh di questo mese e premi Salva prezzo per calcolare gli importi. Dopo il salvataggio non si potra' piu' modificare.":"Enter this month's kWh price and press Save price to calculate the amounts. Once saved it can no longer be changed.",
+"Prezzo bloccato: una volta inserito non si puo' piu' modificare.":"Price locked: once entered it can no longer be changed.",
+"Dopo il salvataggio il prezzo di questo mese non si potra' piu' modificare e il report verra' inviato per mail ai destinatari. Confermi?":"Once saved, this month's price can no longer be changed and the report will be emailed to the recipients. Confirm?",
+"Destinatari report mensili":"Monthly report recipients",
+"Impostazioni":"Settings",
+"Scarica PDF":"Download PDF",
+"Tutto l'anno":"Whole year",
+"A (separa più indirizzi con la virgola)":"To (separate several addresses with commas)",
+"In copia (separa più indirizzi con la virgola)":"Cc (separate several addresses with commas)",
+"Salva destinatari":"Save recipients",
+"Appena viene inserito il prezzo di un mese, il report con i totali per tessera viene inviato a questi indirizzi (le ricariche avviate da app non sono incluse).":"As soon as a month's price is entered, the report with totals per card is emailed to these addresses (charges started from the app are not included).",
+"tessera sbloccata":"card unblocked","bloccata sulla colonnina":"blocked on the charger","tessera non presente sulla colonnina":"card not present on the charger","blocco in attesa: la colonnina non risponde, riprovo ogni 5 minuti":"block pending: the charger is not responding, retrying every 5 minutes",
+"Sblocca tessera":"Unblock card","Sostituisci tessera":"Replace card","nessuna nuova tessera (la vecchia viene solo dismessa)":"no new card (the old one is only retired)","Rifiuta e sblocca":"Reject and unblock","Ritrovata: sblocca e chiudi":"Found: unblock and close",
+
+"Tessera sbloccata.":"Card unblocked.","Sblocco in attesa: la colonnina non risponde, riprovo ogni 5 minuti.":"Unblock pending: the charger is not responding, retrying every 5 minutes.",
+"Assistenza":"Support","Integrazione":"Addition","Aggiungi informazioni a questa richiesta":"Add information to this request","Aggiungi":"Add","Ticket gia' gestito: non si puo' piu' integrare":"Ticket already handled: it can no longer be supplemented","Hai raggiunto il numero massimo di integrazioni":"You have reached the maximum number of additions","Ticket":"Tickets","Informazioni":"Information","Informazioni e contatti":"Information and contacts","Realizzata da":"Created by","Contatto":"Contact","Codice sorgente":"Source code","Licenza":"License",
+"Per assistenza tecnica sulla webapp, segnalazione di errori o per subentrare nella gestione, scrivi all'indirizzo indicato.":"For technical support on the web app, to report errors or to take over its management, write to the address above.",
+"Da qui puoi inviare una richiesta all'Amministratore. Riceverai l'esito per email.":"From here you can send a request to the Administrator. You will receive the outcome by email.",
+"Tipo di richiesta":"Request type","Tessera smarrita o danneggiata":"Lost or damaged card","Correzione dei dati":"Correction of my data","Cancellazione dei dati / dell'utenza":"Deletion of my data / account","Problema con la colonnina":"Problem with the charger","Altro":"Other",
+"Smarrita":"Lost","Danneggiata":"Damaged","Motivo":"Reason","smarrita":"lost","danneggiata":"damaged",
+"Compila solo i campi da cambiare. I telefoni con il prefisso internazionale (es. +39 333 1234567).":"Fill in only the fields to change. Phone numbers with the international prefix (e.g. +39 333 1234567).",
+"Se l'Amministratore approva, l'utenza e i tuoi dati personali vengono cancellati; restano solo i dati di consumo che il gestore deve conservare per legge.":"If the Administrator approves, your account and personal data are deleted; only the consumption data the operator must keep by law remain.",
+"Messaggio":"Message","Invia richiesta":"Send request","Le mie richieste":"My requests","Richieste degli utenti":"Users' requests","Nessuna richiesta":"No requests",
+"aperta":"open","approvata":"approved","rifiutata":"rejected","chiusa":"closed","Tessera ":"Card ","Secondo telefono":"Second phone",
+"Nota dell'Amministratore: ":"Administrator's note: ","Nota per l'utente (facoltativa)":"Note for the user (optional)","nessuna nuova tessera":"no new card",
+"Approva":"Approve","Rifiuta":"Reject","Chiudi":"Close","Cancellare definitivamente l'utenza e i dati di ":"Permanently delete the account and data of ","Scollegare la tessera dall'utente?":"Unlink the card from the user?",
+"Richiesta inviata: riceverai l'esito per email":"Request sent: you will receive the outcome by email",
+"Tipo di richiesta non valido":"Invalid request type","Scegli una delle tue tessere":"Choose one of your cards","Scrivi il messaggio":"Write the message","Indica cosa vuoi correggere":"Say what you want to correct",
+"Hai gia' 5 richieste aperte: attendi che vengano gestite":"You already have 5 open requests: wait until they are handled","Ticket gia' gestito":"Ticket already handled",
+"Questo tipo di richiesta si chiude, non si approva":"This request type is closed, not approved","Numero di telefono non valido":"Invalid phone number","Secondo numero di telefono non valido":"Invalid second phone number",
+"Per correggere i dati o chiederne la cancellazione apri una richiesta dalla scheda «Assistenza»":"To correct your data or ask for its deletion, open a request from the «Support» tab",", oppure scrivi a ":", or write to ",
+"Altre tessere, facoltativo (Ctrl/⌘ per sceglierne più di una)":"Other cards, optional (Ctrl/⌘ to pick more than one)",
+"Consumi Cloudflare":"Cloudflare usage","Il consenso è facoltativo e vale quando il servizio di messaggi sarà attivo. Puoi cambiarlo o revocarlo quando vuoi da qui: la modifica vale subito e ne resta traccia con data e ora. I tuoi dati sono usati solo per erogare il servizio, senza cessione a terzi e senza pubblicità.":"Consent is optional and applies once the messaging service is active. You can change or withdraw it at any time from here: the change takes effect immediately and is recorded with date and time. Your data is used only to provide the service, with no disclosure to third parties and no advertising.","Notifiche":"Notifications","Il mio profilo":"My profile","Messaggi di servizio":"Service messages","Telefono":"Phone","Acconsento a ricevere messaggi di servizio su WhatsApp":"I agree to receive service messages on WhatsApp","Acconsento a ricevere messaggi di servizio su Telegram":"I agree to receive service messages on Telegram","Ultima modifica del consenso: ":"Last consent change: ","Il consenso è facoltativo e vale quando il servizio di messaggi sarà attivo. Puoi cambiarlo o revocarlo quando vuoi da qui: la modifica vale subito e ne resta traccia con data e ora. I tuoi dati sono usati solo per erogare il servizio, senza cessione a terzi e senza pubblicità. Per correggere i dati o chiederne la cancellazione scrivi a contatto@example.com.":"Consent is optional and applies when the messaging service becomes active. You can change or withdraw it here at any time: the change takes effect immediately and is recorded with date and time. Your data is used only to provide the service, with no disclosure to third parties and no advertising. To correct your data or ask for its deletion write to contatto@example.com.","Passphrase del backup (almeno 12 caratteri) ":"Backup passphrase (at least 12 characters) ","Ripetila ":"Repeat it ","Scarica backup cifrato (.sql.enc)":"Download encrypted backup (.sql.enc)","La passphrase deve avere almeno 12 caratteri":"The passphrase must have at least 12 characters","Le due passphrase non coincidono":"The two passphrases do not match","Backup cifrato scaricato":"Encrypted backup downloaded","Backup non riuscito":"Backup failed","Cifratura dei dati personali: attiva":"Personal data encryption: on","Cifratura dei dati personali NON attiva: manca il secret DATA_KEY, i dati dei nuovi utenti restano in chiaro (vedi README)":"Personal data encryption NOT on: the DATA_KEY secret is missing, new users' data stays in clear text (see README)","campi cifrati":"encrypted fields","in chiaro":"in clear","Spazio occupato (limite 5 GB ciascuno, totale):":"Space used (5 GB limit each, total):","server OCPP":"OCPP server","Limite giornaliero":"Daily limit","OCPP righe lette":"OCPP rows read","OCPP righe scritte":"OCPP rows written","righe lette OCPP":"OCPP rows read","righe scritte OCPP":"OCPP rows written","Riepilogo mensile":"Monthly summary","Mese":"Month","Giorno di picco":"Peak day","richieste del sito":"site requests","righe lette D1":"D1 rows read","righe scritte D1":"D1 rows written","richieste OCPP":"OCPP requests","durata OCPP":"OCPP duration","Attiva utenza":"Activate account","Utenza attivata: mail inviata a ":"Account activated: mail sent to ","Utenza attivata, ma la mail non è partita (":"Account activated, but the mail was not sent (","Tessera abbinata: l'utenza si attiverà quando l'utente conferma l'email":"Card linked: the account will activate when the user confirms the email","Notifica":"Notification","Segna come lette":"Mark as read","Nessuna notifica":"No notifications","Qui compaiono gli avvisi che non partono via mail: controlli solo notifica (consumi Cloudflare), mail non inviate, nessun destinatario impostato.":"Alerts that are not sent by email appear here: notification-only checks (Cloudflare usage), unsent mails, no recipients set.","Nuova registrazione da attivare":"New registration to activate","Consumi Cloudflare vicini al limite giornaliero gratuito":"Cloudflare usage close to the free daily limit","% del limite":"% of the limit","Giorno (UTC)":"Day (UTC)","Richieste sito":"Site requests","Errori":"Errors","D1 righe lette":"D1 rows read","D1 righe scritte":"D1 rows written","Richieste OCPP":"OCPP requests","Per vedere i consumi serve un token Cloudflare con il permesso Account Analytics: Read (secret CF_API_TOKEN) e CF_ACCOUNT_ID in wrangler.toml.":"To see usage you need a Cloudflare token with the Account Analytics: Read permission (secret CF_API_TOKEN) and CF_ACCOUNT_ID in wrangler.toml.","Tutti i limiti del piano gratuito sono giornalieri e si azzerano alle 00:00 UTC (01:00 ora solare, 02:00 ora legale in Italia); non ce ne sono di mensili. Tra parentesi la quota del limite del giorno. Il giorno corrente è parziale. Il riepilogo mensile somma i giorni e indica il giorno più vicino al limite. Lo spazio (5 GB totali per D1 e per il server OCPP) non è giornaliero: si accumula e conta nell'avviso. Non monitorata la CPU (10 ms per richiesta). Dati aggiornati alle ":"All free plan limits are daily and reset at 00:00 UTC (01:00 winter time, 02:00 summer time in Italy); there are no monthly ones. In brackets: share of the day's limit. The current day is partial. The monthly summary adds up the days and shows the day closest to the limit. Storage (5 GB in total for D1 and for the OCPP server) is not daily: it accumulates and counts in the alert. CPU (10 ms per request) is not monitored. Data updated at ","Destinatari salvati":"Recipients saved","Destinatari malfunzionamenti":"Malfunction recipients","Impostazioni salvate":"Settings saved","Avvisi agli utenti":"Notices to users","Avvisa chi ha caricato quando la ricarica è finita e l'auto è ancora collegata":"Notify the user when charging has finished and the car is still plugged in","Prima mail dopo":"First mail after","minuti dalla fine della ricarica":"minutes after charging ends","Secondo avviso dopo":"Second notice after","minuti (0 = nessuno)":"minutes (0 = none)","Salvato":"Saved","La mail arriva all'indirizzo dell'utente registrato con la tessera usata, per liberare la colonnina. Il controllo gira ogni 5 minuti, quindi la mail può arrivare fino a 5 minuti dopo l'attesa impostata.":"The mail goes to the registered user of the card used, to free the charger. The check runs every 5 minutes, so the mail may arrive up to 5 minutes after the set delay.","Monitoraggio":"Monitoring","Controllo":"Check","Soglia":"Threshold","avviso singolo":"single notice","Ultimi episodi":"Latest episodes","Dal":"From","Al":"To","Mail":"Mail","inviata":"sent","non inviata":"not sent","Nessun episodio registrato":"No episodes recorded","Ultimo controllo: ":"Last check: ","Il controllo non è ancora partito":"The check has not run yet","in corso":"ongoing","Connessione":"Connection","Presa e ricariche":"Socket and charging","Tessere":"Cards","Impostazioni":"Settings","Sito e sicurezza":"Site and security","Riconnessioni troppo frequenti":"Too many reconnections","Riavvio imprevisto della colonnina":"Unexpected charger restart","Orologio della colonnina sfasato":"Charger clock out of sync","Indirizzo IP pubblico cambiato":"Public IP address changed","Presa non disponibile (Unavailable)":"Socket unavailable (Unavailable)","Cavo collegato ma nessuna ricarica":"Cable plugged in but not charging","Ricarica in corso ma energia ferma":"Charging but energy not increasing","Ricarica troppo lunga":"Charging session too long","Troppi kWh in una sola ricarica":"Too many kWh in a single session","Ricarica rimasta aperta dopo lo scollegamento":"Session left open after unplugging","Stessa tessera rifiutata più volte":"Same card rejected several times","Tessere sulla colonnina diverse da quelle del sito":"Cards on the charger differ from the site","Nomi delle tessere non ripristinati":"Card names not restored","Impostazione della colonnina diversa da quella voluta":"Charger setting differs from the wanted one","Versione del firmware cambiata":"Firmware version changed","Backup del database non fatto da molto":"Database backup not done for a long time","Troppi tentativi di accesso falliti":"Too many failed login attempts","Collegamenti OCPP con codice segreto sbagliato":"OCPP connections with a wrong secret code","cadute in un'ora":"drops per hour","minuti di differenza":"minutes of difference","rifiuti in un'ora":"rejections per hour","tentativi in un'ora":"attempts per hour","giorni":"days","Tutti i controlli partono disattivati: accendi quelli che vuoi. Il controllo gira ogni 5 minuti. Quando un problema dura più della soglia parte una mail con il tipo di malfunzionamento, e una seconda quando rientra; gli avvisi singoli (riavvio, IP, firmware) arrivano una volta sola. Il controllo del battito tiene conto dell'intervallo di Conferma collegamento (soglia almeno il doppio).":"All checks start off: turn on the ones you want. The check runs every 5 minutes. When a problem lasts longer than the threshold a mail with the malfunction type is sent, and a second one when it clears; single notices (restart, IP, firmware) arrive once. The heartbeat check accounts for the connection-check interval (threshold at least double).","Malfunzionamento":"Malfunction","Dopo":"After","Stato":"Status","disattivato":"off","regolare":"normal","segnalato il ":"reported on ","in corso dal ":"ongoing since ","mail non inviata":"mail not sent","Mail di prova inviata":"Test mail sent","minuti":"minutes","ore":"hours","Colonnina non collegata al server":"Charger not connected to the server","Colonnina collegata ma senza messaggi (nemmeno il battito)":"Charger connected but silent (not even the heartbeat)","Presa in errore":"Socket in error","Dati non scaricati dalla colonnina":"Data not downloaded from the charger","Invio lista tessere alla colonnina non riuscito":"Sending the card list to the charger failed","Invia mail di prova":"Send test mail","Il controllo gira ogni 5 minuti. Quando un problema dura più della soglia parte una mail con il tipo di malfunzionamento, e una seconda quando rientra. Il controllo del battito tiene conto dell'intervallo di Conferma collegamento (soglia almeno il doppio).":"The check runs every 5 minutes. When a problem lasts longer than the threshold a mail with the malfunction type is sent, and a second one when it clears. The heartbeat check accounts for the connection-check interval (threshold at least double).",
+"Colonnina":"Charger",
+"Indirizzo":"Address",
+"Porta":"Port",
+"Salva e prova":"Save and test",
+"Indirizzo da cui il sito scarica i dati ogni 6 ore. Lascia vuoto l'indirizzo e salva per tornare a quello di wrangler.toml.":"Address the site downloads the data from every 6 hours. Leave the address empty and save to go back to the one in wrangler.toml.",
+"In uso: ":"In use: ",
+"IP all'ultimo scarico: ":"IP at last download: ",
+"IP non ancora rilevato (compare dopo il prossimo scarico)":"IP not detected yet (shown after the next download)",
+"Provo la connessione...":"Testing the connection...",
+"Salvato: colonnina raggiungibile":"Saved: charger reachable",
+"Salvato, ma la colonnina non risponde: ":"Saved, but the charger does not answer: ",
+"Indirizzo non valido":"Invalid address",
+"Porta non valida":"Invalid port",
+"Tessere RFID della colonnina":"Charger RFID cards",
+"Impostazioni OCPP":"OCPP settings","Il server manda alla colonnina solo i valori che cambi, subito o al primo messaggio utile, e li rimanda a ogni riavvio. Per vedere i valori letti dalla colonnina usa GetConfiguration.":"The server sends the charger only the values you change, right away or with its next message, and sends them again at every restart. Use GetConfiguration to see the values read from the charger.",
+"Mostra i messaggi grezzi":"Show raw messages",
+"Avvio colonnina":"Charger start",
+"Conferma collegamento":"Connection check",
+"Misura":"Reading",
+"Indirizzo da dare alla colonnina":"Address to give to the charger",
+"Aggiorna":"Refresh",
+"Rigenera codice segreto":"Regenerate secret code",
+"Il server riceve e registra i messaggi della colonnina e le manda solo le impostazioni offline e la lista tessere. Il codice dentro l'indirizzo è segreto, chi non lo conosce non può collegarsi. Se lo rigeneri devi aggiornare l'indirizzo sulla colonnina.":"The server receives and records the charger's messages and only sends it the offline settings and the card list. The code inside the address is secret: whoever does not know it cannot connect. If you regenerate it you must update the address on the charger.",
+"Colonnina collegata":"Charger connected",
+"Colonnina non collegata":"Charger not connected",
+"ultimo messaggio: ":"last message: ",
+"presa: ":"socket: ",
+"ricarica in corso, tessera ":"charging, card ",
+", dalle ":", since ",
+"caricati ":"charged ",
+"Ora":"Time",
+"Messaggio":"Message",
+"Rigenerare il codice? La colonnina smette di collegarsi finché non aggiorni l'indirizzo.":"Regenerate the code? The charger stops connecting until you update the address.",
+"Attiva":"Active",
+"Bloccata":"Blocked",
+"Scaduta":"Expired",
+"Non valida":"Invalid",
+"Stato non valido":"Invalid status",
+"Scadenza":"Expiry",
+"Annulla":"Cancel",
+"Salva modifica":"Save changes",
+"Ripara":"Repair",
+"scaduta":"expired",
+"senza codice":"no code",
+"era ":"was ",
+"Tessera riparata":"Card repaired",
+"Tessera aggiornata":"Card updated",
+"Ci sono tessere senza codice: non funzionano finché non le ripari":"Some cards have no code: they will not work until you repair them",
+"Nome troppo lungo (massimo 25 caratteri)":"Name too long (25 characters max)",
+"Scadenza non valida":"Invalid expiry",
+"Nome al massimo 25 caratteri (oltre, la colonnina lo tronca). Scadenza facoltativa: la tessera vale fino alla fine di quel giorno. Le modifiche vengono scritte subito sulla colonnina. Prima di ogni scrittura il sito tiene una copia della lista precedente. L'import aggiunge le tessere nuove e aggiorna nomi e stati, senza cancellare nulla (va bene sia il file esportato da qui sia il CSV esportato da Viaris).":"Name up to 25 characters (longer names get cut by the charger). Expiry is optional: the card is valid until the end of that day. Changes are written to the charger immediately. Before each write the site keeps a copy of the previous list. Import adds new cards and updates names and statuses without deleting anything (works with the file exported from here and with the CSV exported by Viaris).",
+"Nome":"Name",
+"Codice tessera":"Card code",
+"Aggiungi":"Add",
+"Importa file":"Import file",
+"Esporta lista":"Export list",
+"Conferma collegamento ogni":"Connection check every","minuti":"minutes","impostato sulla colonnina":"set on the charger","in attesa: viene mandato alla colonnina al prossimo messaggio":"pending: sent to the charger with its next message","Intervallo non valido: da 1 a 60 minuti":"Invalid interval: 1 to 60 minutes","Parametri avanzati della colonnina":"Advanced charger settings","Attesa tessera dopo il collegamento del cavo":"Wait for card after plugging in","secondi":"seconds","volte":"times","da":"from","a":"to","Controllo della connessione col sito ogni":"Connection check with the site every","Nuovo tentativo se un messaggio di ricarica non arriva dopo":"Retry if a charging message is not delivered after","Numero di tentativi per ogni messaggio di ricarica":"Attempts per charging message","Misure durante la ricarica ogni":"Measurements during charging every","Misure a orari fissi ogni (0 = mai)":"Fixed-time measurements every (0 = never)","Tessere in lista valide anche se il server non risponde":"Listed cards valid even when the server is unreachable",
+"Riavvia colonnina (non cancella nulla, solo se libera)":"Restart charger (erases nothing, only when free)","Riavviare la colonnina? Durante il riavvio resta scollegata dal server.":"Restart the charger? It is disconnected from the server while restarting.","Colonnina occupata: riavvio non consentito":"Charger busy: restart not allowed",
+"Disattivata il":"Deactivated on","Data aggiornata":"Date updated","Nessuna modifica":"No changes",
+"Clicca su una tessera per selezionarla: Disattivazione Permanente la toglie dalla colonnina (lo storico resta), Modifica cambia nome, stato o data di assegnazione. In grigio le tessere disattivate: le loro ricariche restano attribuite a chi le aveva in quel periodo.":"Click a card to select it: Permanent deactivation removes it from the charger (history is kept), Edit changes name, status or assignment date. Greyed rows are deactivated cards: their charges stay assigned to whoever had them at that time.",
+"Date":"Dates","Disattivata":"Deactivated","non verificata":"not verified",
+"Disattiva":"Deactivate","Disattivazione Permanente":"Permanent deactivation","Disattivare la tessera ":"Deactivate card ","Disattivare in modo permanente la tessera ":"Permanently deactivate card ","Data di disattivazione (gg-mm-aaaa). Vuoto = oggi":"Deactivation date (dd-mm-yyyy). Empty = today","Tessera disattivata":"Card deactivated",
+"Dismetti":"Retire","Dismettere la tessera ":"Retire card ","? Viene tolta dalla colonnina, lo storico resta.":"? It is removed from the charger, history is kept.",
+"Assegnata dal":"Assigned from","Cronologia assegnazioni":"Assignment history","Fino al":"Until","Dal":"From","Modifica date":"Edit dates",
+"Data di dismissione (gg-mm-aaaa). Vuoto = oggi":"Dismissal date (dd-mm-yyyy). Empty = today","Data non valida":"Invalid date",
+"Assegnata dal (gg-mm-aaaa)":"Assigned from (dd-mm-yyyy)","Dismessa il (gg-mm-aaaa). Vuoto = ancora assegnata":"Dismissed on (dd-mm-yyyy). Empty = still assigned",
+"Rileggi dalla colonnina":"Reread from charger",
+"Ripristina lista precedente":"Restore previous list",
+"Le modifiche vengono scritte subito sulla colonnina. Prima di ogni scrittura il sito tiene una copia della lista precedente. L'import aggiunge le tessere nuove e aggiorna nomi e stati, senza cancellare nulla (va bene sia il file esportato da qui sia il CSV esportato da Viaris).":"Changes are written to the charger immediately. Before each write the site keeps a copy of the previous list. Import adds new cards and updates names and statuses without deleting anything (works with the file exported from here and with the CSV exported by Viaris).",
+"attiva":"active",
+"Copia del ":"Copy of ",
+" tessere)":" cards)",
+"Leggo la colonnina...":"Reading the charger...",
+"Scrivo sulla colonnina...":"Writing to the charger...",
+"Tessera aggiunta":"Card added",
+"Nome aggiornato":"Name updated",
+"Tessera eliminata":"Card deleted",
+"Import completato":"Import completed",
+"Lista ripristinata":"List restored",
+"Nuovo nome per la tessera ":"New name for card ",
+"Eliminare dalla colonnina la tessera ":"Delete from the charger the card ",
+"Importare le tessere del file ":"Import the cards in file ",
+" sulla colonnina?":" to the charger?",
+"Riportare sulla colonnina la lista com'era prima dell'ultima modifica?":"Put back on the charger the list as it was before the last change?",
+"Codice tessera non valido (solo cifre e lettere A-F)":"Invalid card code (digits and letters A-F only)",
+"Inserisci il nome":"Enter the name",
+"Tessera già presente":"Card already present",
+"Tessera non trovata":"Card not found",
+"Nel file non ho trovato tessere valide":"No valid cards found in the file",
+"Nessuna copia precedente":"No previous copy",
+"La colonnina ha risposto, ma la lista riletta non coincide: controlla":"The charger answered, but the list read back does not match: please check",
+"Inserisci almeno un destinatario":"Enter at least one recipient",
+"Reinvia report":"Resend report",
+"Inviare di nuovo il report di questo mese ai destinatari?":"Send this month's report to the recipients again?",
+"Prezzo salvato. ":"Price saved. ",
+"Report inviato a ":"Report sent to ",
+"Report non inviato (":"Report not sent (",
+"nessun destinatario":"no recipients",
+"Prezzo gia' inserito: il mese e' bloccato e non si puo' piu' modificare":"Price already entered: the month is locked and can no longer be changed",
+"Prezzo bloccato dal ":"Price locked since ",
+": il mese e' chiuso e non si puo' piu' modificare.":": the month is closed and can no longer be changed.",
+"Il prezzo si puo' correggere fino al giorno prima del ":"The price can be corrected until the day before ",
+", poi viene bloccato.":", then it is locked.",
+"Clicca per vedere le sessioni":"Click to see the sessions",
+"Totale tessere":"Cards total",
+"Totale app":"App total",
+"Nessuna ricarica da app in questo mese.":"No app charges this month.",
+"TOTALE ":"TOTAL ",
+"TOTALE tessere ":"TOTAL cards ",
+" kWh - imponibile ":" kWh - net ",
+" + IVA ":" + VAT ",
+" € (IVA inclusa)":" € (VAT included)",
+"Prezzo non valido: scrivi per esempio 0,2845":"Invalid price: write for example 0.2845",
+"IVA non valida: scrivi per esempio 10 oppure 0":"Invalid VAT: write for example 10 or 0",
+"Scarico in corso...":"Downloading...",
+"Scarico: ":"Download: ",
+" sessioni lette, ":" sessions read, ",
+" nuove":" new",
+"Colonnina non raggiungibile: ":"Charger unreachable: ",
+"Errore: ":"Error: ",
+" sessioni, ":" sessions, ",
+": NON importato - ":": NOT imported - ",
+"file vuoto":"empty file",
+"non sembra un export per tessera di Viaris":"does not look like a per-card Viaris export",
+"(tessera non in elenco)":"(card not in list)",
+"Avviata da app":"Started from the app",
+"(app)":"(app)",
+"Ricariche_":"Charges_",
+"Storico_":"History_",
+"storico":"history",
+"sessioni":"sessions",
+"prezzo":"price",
+"stampa":"print",
+"scarico":"download",
+"nessuno":"none",
+"tutti":"all",
+"attivo":"active",
+"invito scaduto":"invite expired",
+"invito in attesa":"invite pending",
+"email da confermare":"email to confirm","in attesa di tessera":"waiting for card",
+"Modifica":"Edit",
+"Reimposta":"Reset",
+"Reinvia":"Resend",
+"Elimina":"Delete",
+"Manda un link per reimpostare la password":"Send a link to reset the password",
+"Manda di nuovo il link di invito":"Send the invite link again",
+"Mandare un nuovo link a ":"Send a new link to ",
+"Eliminare l'utente ":"Delete the user ",
+"- scegli la tessera -":"- choose the card -",
+"Scegli la tessera da abbinare":"Choose the card to assign",
+"Richiesta nuova tessera":"Request a new card","Non hai ancora una tessera. Puoi richiederla qui sotto":"You do not have a card yet. You can request one below",": ti contatteremo per la consegna e il pagamento. Se l'hai già, attendi che l'Amministratore la abbini al tuo account.":": we will contact you for delivery and payment. If you already have one, wait for the Administrator to link it to your account.","Per sicurezza la tessera viene bloccata subito sulla colonnina. Se la ritrovi, scrivi all'Amministratore: può sbloccarla. Se non la ritrovi o è danneggiata dovrai richiederne una nuova":"For safety the card is blocked on the charger immediately. If you find it, write to the Administrator: it can be unblocked. If you do not find it or it is damaged you will need to request a new one","Come vuoi pagare":"How you want to pay","Ti contatteremo al telefono indicato nel tuo profilo per la consegna e il pagamento. Il messaggio è facoltativo (ad esempio gli orari in cui sei reperibile).":"We will contact you on the phone number in your profile for delivery and payment. The message is optional (for example the hours you are available).","Costo della tessera: ":"Card cost: ","una tantum, non è una cauzione e non viene restituito; se la tessera viene smarrita o danneggiata ne servirà un'altra. ":"one-off, it is not a deposit and is not refunded; if the card is lost or damaged you will need another one. ",
+
+"Assegna tessera":"Assign card","Causale da indicare:":"Reference to enter:","Copia causale":"Copy reference","Copiata":"Copied","Pagamento tessera":"Card payment","Pagamento":"Payment","Contanti alla consegna":"Cash on delivery","Pagherai in contanti alla consegna della tessera":"You will pay in cash when you receive the card","Paga da qui":"Pay here","Su PayPal scegli «Amici e familiari».":"On PayPal choose “Friends and family”.","Indica come causale: tessera colonnina e la tua email.":"Use as the reference: charger card and your email.","Metodo di pagamento non disponibile":"Payment method not available","Nome account non valido (solo lettere, numeri, punto, trattino) oppure un link https":"Invalid account name (letters, numbers, dot, dash only) or an https link","Testo e link (PayPal.me, Satispay, Revolut) mostrati all'utente quando richiede una tessera.":"Text and links (PayPal.me, Satispay, Revolut) shown to the user when requesting a card.","Scegli la tessera da assegnare":"Choose the card to assign","scegli la tessera da assegnare":"choose the card to assign","Hai gia' una richiesta di nuova tessera aperta: attendi che venga gestita":"You already have an open request for a new card: please wait until it is handled","Tessera gia' assegnata a un altro utente":"Card already assigned to another user",
+"Invito inviato a ":"Invite sent to ",
+"Mail non inviata (":"Email not sent (",
+"). Copia il link e invialo tu:":"). Copy the link and send it yourself:",
+"non configurata":"not configured",
+"Permessi salvati":"Permissions saved",
+"Le due nuove password non coincidono":"The two new passwords do not match",
+"Password cambiata":"Password changed",
+"Le due password non coincidono":"The two passwords do not match",
+"Accedi per consultare le ricariche":"Sign in to view the charges",
+"Password":"Password",
+"Accedi":"Sign in",
+"Errore":"Error",
+"Errore di rete":"Network error",
+"Scegli la tua password":"Choose your password",
+"Nuova password (min. 8 caratteri)":"New password (min. 8 characters)",
+"Ripeti la password":"Repeat the password",
+"Salva e accedi":"Save and sign in",
+"Utente: ":"User: ",
+"Troppi tentativi: riprova tra 10 minuti":"Too many attempts: try again in 10 minutes",
+"Nome o password errati":"Wrong username or password",
+"Indirizzo email non valido":"Invalid email address",
+"Questo utente e' l'admin":"This user is the admin",
+"Tessera non trovata: scarica prima dalla colonnina":"Card not found: download from the charger first",
+"Tessera non trovata":"Card not found",
+"utente non trovato":"User not found",
+"L'admin non si puo' eliminare":"The admin cannot be deleted",
+"azione non valida":"Invalid action",
+"La password deve avere almeno 8 caratteri":"The password must be at least 8 characters",
+"Link non valido o scaduto: chiedi un nuovo invito":"Invalid or expired link: ask for a new invite",
+"non hai il permesso per questa operazione":"You do not have permission for this operation",
+"non autorizzato":"Not authorized",
+"La nuova password deve avere almeno 12 caratteri con minuscola, maiuscola, numero e carattere speciale":"The new password must be at least 12 characters with lowercase, uppercase, digit and special character","Troppi tentativi da questo indirizzo: riprova tra 10 minuti":"Too many attempts from this address: try again in 10 minutes","Verifica anti-robot non superata: riprova":"Anti-robot check failed: try again","Controllo anti-robot nella registrazione NON attivo: mancano TURNSTILE_SITE_KEY e TURNSTILE_SECRET (vedi README)":"Anti-robot check on registration NOT active: TURNSTILE_SITE_KEY and TURNSTILE_SECRET are missing (see README)",
+"Password attuale errata":"The current password is wrong",
+"mese/anno non validi":"Invalid month/year",
+"prezzo o IVA non validi":"Invalid price or VAT",
+"non trovato":"Not found"
+};
+function T(s){
+  if(LANG!=="en"||s===null||s===undefined)return s;
+  if(EN.hasOwnProperty(s))return EN[s];
+  var m=/^Prezzo bloccato: il mese e' chiuso dal (.+) e non si puo' piu' modificare$/.exec(s);
+  if(m)return "Price locked: the month has been closed since "+m[1]+" and can no longer be changed";
+  m=/^non riconosco la tessera dal nome del file \((.*)\): scarica prima dalla colonnina$/.exec(s);
+  if(m)return "cannot recognise the card from the file name ("+m[1]+"): download from the charger first";
+  return s;
+}
+function Tm(s){var p=String(s).split(" ");p[0]=T(p[0]);return p.join(" ")}
+function trDom(){
+  if(LANG!=="en")return;
+  document.documentElement.lang="en";
+  var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),n,L=[];
+  while(n=w.nextNode())L.push(n);
+  L.forEach(function(x){var v=x.nodeValue,k=v.trim();if(k&&EN.hasOwnProperty(k))x.nodeValue=v.replace(k,EN[k])});
+  document.querySelectorAll("[placeholder]").forEach(function(e){e.placeholder=T(e.placeholder)});
+  document.querySelectorAll("[title]").forEach(function(e){e.title=T(e.title)});
+}
+function cambiaLingua(){try{localStorage.setItem("lang",LANG==="en"?"it":"en")}catch(e){}location.reload()}
+var MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 function $(i){return document.getElementById(i)}
-function nf(x,d){if(x===null||x===undefined)return "-";d=(d===undefined)?2:d;return x.toLocaleString(LOC,{minimumFractionDigits:d,maximumFractionDigits:d})}
-function cn(x,d){if(x===null||x===undefined||x==="")return "";var s=Number(x).toFixed(d===undefined?2:d);return LANG==="it"?s.replace(".",","):s}
-var SEP=LANG==="it"?";":",";
-function q(v){v=String(v===null||v===undefined?"":v);return (v.indexOf(SEP)>=0||v.indexOf('"')>=0||v.indexOf("\n")>=0)?'"'+v.replace(/"/g,'""')+'"':v}
-function api(p,o){o=o||{};o.headers=o.headers||{};return fetch(p,o).then(function(r){if(r.status===401){location.reload();return new Promise(function(){})}return r.json()})}
+function it(x,d){if(x===null||x===undefined)return "-";d=(d===undefined)?2:d;return x.toLocaleString(LOC,{minimumFractionDigits:d,maximumFractionDigits:d})}
+function api(p,o){return fetch(p,o).then(function(r){if(r.status===401){location.reload();return new Promise(function(){})}return r.json()})}
 function post(p,b){return api(p,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)})}
+function b64(t){return btoa(String.fromCharCode.apply(null,new TextEncoder().encode(t)))}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
+var SEP=LANG==="en"?",":";";
+function nf(x,d){if(x===null||x===undefined)return "-";d=(d===undefined)?2:d;return LANG==="en"?x.toFixed(d):it(x,d)}
+function J(a){return a.map(function(v){v=String(v);return(LANG==="en"&&/[",]/.test(v))?'"'+v.replace(/"/g,'""')+'"':v}).join(SEP)}
 function row(cells,cls){return "<tr"+(cls?' class="'+cls+'"':"")+">"+cells.join("")+"</tr>"}
 function td(v,n){return "<td"+(n?' class="n"':"")+">"+v+"</td>"}
 function th(v,n){return "<th"+(n?' class="n"':"")+">"+v+"</th>"}
-function cnt(n){return n===1?T("n1"):T("nn",{n:n})}
 
+trDom();
+$("bLang").textContent=(LANG==="en")?"Italiano":"English";$("bLang").onclick=cambiaLingua;(function(){var b=$("bTema");function cur(){return document.documentElement.getAttribute("data-t")||"auto"}function lab(){var m=LANG==="en"?{auto:"◐ Auto",light:"☀ Light",dark:"☾ Dark"}:{auto:"◐ Auto",light:"☀ Giorno",dark:"☾ Notte"};b.textContent=m[cur()]}lab();b.onclick=function(){var n={auto:"light",light:"dark",dark:"auto"}[cur()];if(n==="auto")document.documentElement.removeAttribute("data-t");else document.documentElement.setAttribute("data-t",n);try{if(n==="auto")localStorage.removeItem("tema");else localStorage.setItem("tema",n)}catch(e){}lab()}})();function adattaNav(){var n=document.querySelector("nav");if(!n)return;var b=[].filter.call(n.querySelectorAll("button"),function(x){return x.offsetWidth>0});if(b.length<2)return;
+  var f=15;n.style.fontSize=f+"px";while(b[b.length-1].offsetTop!==b[0].offsetTop&&f>12){f-=0.5;n.style.fontSize=f+"px"}}
+function adatta(){if(innerWidth<=700)return;adattaNav();document.querySelectorAll("table").forEach(function(t){if(t.id==="tabO")return;var c=t.parentNode;if(!c||!c.clientWidth)return;
+  t.classList.remove("wr");var z=1;t.style.setProperty("--z",1);while(t.offsetWidth>c.clientWidth+1&&z>0.74){z-=0.03;t.style.setProperty("--z",z.toFixed(2))}
+  if(t.offsetWidth>c.clientWidth+1)t.classList.add("wr")})}
+document.addEventListener("click",function(e){if(e.target.closest&&e.target.closest("nav button"))setTimeout(adatta,60)});addEventListener("resize",function(){clearTimeout(window._ad);window._ad=setTimeout(adatta,100)});setTimeout(adatta,700);setTimeout(adatta,2000);
+(function(){function lab(){document.querySelectorAll("table:not(.tbm)").forEach(function(t){if(t.id==="tabO"||!t.rows.length)return;var r0=t.rows[0],hs=[];for(var i=0;i<r0.cells.length;i++){if(r0.cells[i].tagName!=="TH")return;hs.push(r0.cells[i].textContent.trim())}t.classList.add("tbm");for(var j=1;j<t.rows.length;j++){var c=t.rows[j].cells;for(var k=0;k<c.length;k++){if(c[k].colSpan>1)continue;c[k].setAttribute("data-l",hs[k]||"")}}})}var tm=0;new MutationObserver(function(){clearTimeout(tm);tm=setTimeout(function(){lab();adatta()},30)}).observe(document.body,{childList:true,subtree:true});lab()})();
 var oggi=new Date(), rep=null, righeAnno=[];
 (function init(){
-  applyI18n();
-  $("oTg").textContent=T("u_t_mgr");$("oTc").textContent=T("u_t_cus");
-  var a="";for(var y=2020;y<=oggi.getFullYear()+1;y++)a+='<option>'+y+'</option>';
+  var a="";for(var y=2024;y<=oggi.getFullYear()+1;y++)a+='<option>'+y+'</option>';
   $("selAnno").innerHTML=a;$("selAnnoS").innerHTML=a;$("selAnnoM").innerHTML=a;$("selAnnoM").value=String(oggi.getFullYear());
+  var mm='<option value="0">'+T("Tutto l\'anno")+'</option>';for(var j=0;j<12;j++)mm+='<option value="'+(j+1)+'">'+T(MESI[j])+'</option>';$("selMeseM").innerHTML=mm;
   $("selAnno").value=$("selAnnoS").value=String(oggi.getFullYear());
-  var m="";for(var i=0;i<12;i++)m+='<option value="'+(i+1)+'">'+MESI[i]+'</option>';
+  var m="";for(var i=0;i<12;i++)m+='<option value="'+(i+1)+'">'+T(MESI[i])+'</option>';
   $("selMese").innerHTML=m;$("selMese").value=String(oggi.getMonth()+1);
-  $("selMeseM").innerHTML='<option value="0">'+T("m_year")+'</option>'+m;
-  $("stato").textContent=T("loading");
 })();
-function etichette(){
-  $("lPrezzo").textContent=T("price_lbl",{cur:CUR});$("lIva").textContent=T("tax_lbl",{tax:TAXL});
-}
-etichette();
 
 document.querySelectorAll("nav button").forEach(function(b){b.onclick=function(){
   document.querySelectorAll("nav button").forEach(function(x){x.classList.toggle("on",x===b)});
-  ["t1","t2","t3","t4","t5","t6","t7"].forEach(function(t){$(t).classList.toggle("hide",t!==b.dataset.t)});
-  if(b.dataset.t==="t2")caricaStorico();if(b.dataset.t==="t3")caricaSessioni();if(b.dataset.t==="t4")caricaUtenti();if(b.dataset.t==="t5")caricaMie();if(b.dataset.t==="t6")caricaConfig();if(b.dataset.t==="t7"){caricaLive();if(io&&io.ruolo==="admin"){$("adminCol").classList.remove("hide");caricaOcpp();caricaRfid();caricaNomi()}}
+  ["t1","t2","t3","t4","t5","t6","t8","t9","t10","t11","t12"].forEach(function(t){$(t).classList.toggle("hide",t!==b.dataset.t)});
+  if(b.dataset.t==="t2")caricaStorico();if(b.dataset.t==="t3")caricaSessioni();if(b.dataset.t==="t4")caricaUtenti();if(b.dataset.t==="t5")caricaMie();if(b.dataset.t==="t10")caricaProfilo();if(b.dataset.t==="t11")caricaTicket();if(b.dataset.t==="t9"){caricaLive();if(MONADM){caricaMal();caricaCf();caricaNot()}}if(b.dataset.t==="t8"){ocStato();caricaOcpp()}if(b.dataset.t==="t6"){caricaDest();caricaConfig();caricaTesti();caricaRfid()}
 }});
 
-
-// ---- live charging, OCPP connection, card holders
-function oraTxt(ms){return ms?new Date(ms).toLocaleString(LOC,{dateStyle:"short",timeStyle:"medium"}):"-"}
-function fx(x,n,u){return x===null||x===undefined?"-":x.toFixed(n)+" "+u}
-function caricaLive(){
-  return api("/api/live").then(function(r){
-    var h="";
-    if(r.errore)h=esc(E(r));
-    else if(!r.attivo)h=T("lv_off");
-    else if(!r.connessa)h=T("lv_disc");
-    else if(!r.occupata)h=r.stato==="Preparing"?T("lv_wait"):T("lv_free");
-    else{
-      h="<b>"+T("lv_busy")+(r.da?" - "+esc(r.da):(r.dettagli?" - "+T("lv_unknown"):""))+"</b>";
-      var d=r.dettagli;
-      if(d)h+='<div class="w"><table>'+row([td(T("lv_power")),td(fx(d.kw,2,"kW"))])+row([td(T("lv_current")),td(fx(d.a,1,"A"))])
-        +(d.v!==null&&d.v!==undefined?row([td(T("lv_volt")),td(fx(d.v,0,"V"))]):"")
-        +row([td(T("lv_energy")),td(fx(d.kwh,2,"kWh"))])+row([td(T("lv_since")),td(oraTxt(d.inizio))])+'</table></div>';
-    }
-    $("lvBox").innerHTML=h;$("lvUpd").textContent=T("lv_upd")+": "+new Date().toLocaleTimeString(LOC);
-  });
-}
-function nomeCmd(c){var s=T("cmd_"+c);return s==="cmd_"+c?c:s}
-function nomeRes(x){
-  if(x.indexOf("config:")===0)return T("res_config",{n:x.slice(7)});
-  if(x.indexOf("list:")===0)return T("res_list",{n:x.slice(5)});
-  var s=T("res_"+x);return s==="res_"+x?x:s;
-}
-function evTxt(e){
-  var o={};for(var i=0;i<e.a.length;i++)o["a"+i]=e.a[i]===undefined||e.a[i]===null?"":e.a[i];
-  if(e.k==="ev_resp"){o.a0=nomeCmd(o.a0);o.a1=nomeRes(String(o.a1))}
-  if(e.k==="ev_cmd")o.a0=nomeCmd(o.a0);
-  return T(e.k,o);
-}
-function erroreOcpp(r){return r.codice?E(r):E({codice:r.errore,errore:r.errore,par:{d:r.dettaglio||""}})}
-function caricaOcpp(){
-  return api("/api/ocpp").then(function(r){
-    if(r.errore){$("ocEsito").classList.add("err");$("ocEsito").textContent=erroreOcpp(r);return}
-    $("ocUrl").value="wss://"+r.host+r.percorso;
-    var t=(r.connessa?T("oc_conn"):T("oc_noconn"))+" - "+T("oc_last",{t:oraTxt(r.ultimo_msg)});
-    var pr=r.prese&&r.prese["1"];
-    if(pr)t+=" - "+T("oc_socket",{s:pr.status+(pr.errore&&pr.errore!=="NoError"?" ("+pr.errore+")":"")});
-    var tx=r.transazione_aperta;
-    if(tx)t+=" - "+T("oc_tx",{c:tx.tag,t:oraTxt(tx.inizio)});
-    $("ocStato").textContent=t;
-    var h="";(r.eventi||[]).forEach(function(e){h+=row([td(oraTxt(e.ts)),td(esc(evTxt(e)))])});
-    $("tabEv").innerHTML=h;
-    disegnaPar(r);
-  });
-}
-function parStato(r,k){var p=r.parametri,v=p.voluti[k],s=p.inviati[k],e=p.esiti[k];
-  if(v===undefined)return T("par_st_def");
-  if(s!==v)return T(!r.connessa||e==="not_connected"||e==="no_answer"?"par_st_wait":"par_st_pending");
-  if(e&&e!=="Accepted"&&e!=="RebootRequired")return T("par_st_refused",{s:e});
-  return T(e==="RebootRequired"?"par_st_reboot":"par_st_ok")}
-function disegnaPar(r){
-  var tb=$("tabPar");if(!r.parametri||!r.parametri_def||tb.contains(document.activeElement))return;
-  var h=row([th(T("par_name")),th(T("par_range")),th(T("par_def")),th(T("par_value")),th(""),th(T("par_state"))]);
-  Object.keys(r.parametri_def).forEach(function(k){var d=r.parametri_def[k],v=r.parametri.voluti[k],b=d==="bool",inp;
-    if(b)inp='<select data-k="'+k+'"><option value="">'+T("par_def_opt")+'</option><option value="true"'+(v===true?" selected":"")+'>'+T("par_on")+'</option><option value="false"'+(v===false?" selected":"")+'>'+T("par_off")+'</option></select>';
-    else inp='<input data-k="'+k+'" type="number" min="'+d[0]+'" max="'+d[1]+'" style="width:6em" value="'+(v===undefined?"":v)+'" placeholder="'+d[2]+'">';
-    h+=row([td(T("par_"+k)),td(b?"":d[0]+" - "+d[1]),td(b?"":String(d[2])),td(inp),td('<button class="bp" data-k="'+k+'">'+T("par_save")+'</button>'),td(esc(parStato(r,k)))])});
-  tb.innerHTML=h;
-  tb.querySelectorAll("button.bp").forEach(function(btn){btn.onclick=function(){
-    var k=btn.dataset.k,el=tb.querySelector('input[data-k="'+k+'"],select[data-k="'+k+'"]');
-    post("/api/ocpp",{azione:"parametro",chiave:k,valore:el.value===""?null:el.value}).then(function(x){
-      $("parEsito").classList.toggle("err",!!x.errore);$("parEsito").textContent=x.errore?E(x):T("par_saved");btn.blur();setTimeout(caricaOcpp,1500)})}});
-}
-function ocCmd(b,conf){
-  if(conf&&!confirm(T(conf)))return;
-  $("ocEsito").classList.remove("err");$("ocEsito").textContent=T("loading");
-  post("/api/ocpp",b).then(function(r){
-    var bad=!!r.errore;$("ocEsito").classList.toggle("err",bad);
-    $("ocEsito").textContent=bad?erroreOcpp(r):T("oc_sent");
-    setTimeout(caricaOcpp,1500);
-  });
-}
-$("bOcCfg").onclick=function(){ocCmd({azione:"comando",comando:"GetConfiguration"})};
-$("bOcMis").onclick=function(){ocCmd({azione:"comando",comando:"TriggerMessage",richiesta:"MeterValues"})};
-$("bOcSt").onclick=function(){ocCmd({azione:"comando",comando:"TriggerMessage",richiesta:"StatusNotification"})};
-$("bOcStop").onclick=function(){ocCmd({azione:"comando",comando:"RemoteStopTransaction"},"oc_c_stop_c")};
-$("bOcRst").onclick=function(){ocCmd({azione:"comando",comando:"Reset"},"oc_c_reset_c")};
-$("bOcRegen").onclick=function(){if(confirm(T("oc_regen_c")))post("/api/ocpp",{azione:"rigenera"}).then(caricaOcpp)};
-
-var NOMI=[];
-function caricaNomi(){
-  return Promise.all([api("/api/nomi"),api("/api/tessere")]).then(function(v){
-    NOMI=Array.isArray(v[0])?v[0]:[];
-    var h=row([th(T("cn_tag")),th(T("cn_name")),th(T("cn_from")),th(T("cn_to")),th("")]);
-    NOMI.forEach(function(x,i){h+=row([td(esc(x.tag)),td(esc(x.nome)),td(x.dal_txt),td(x.al_txt||T("cn_open")),td('<button class="bn" data-i="'+i+'">'+T("cn_edit")+'</button>')])});
-    $("tabN").innerHTML=h;
-    document.querySelectorAll("#tabN .bn").forEach(function(b){b.onclick=function(){
-      var x=NOMI[+b.dataset.i];
-      var nd=prompt(T("cn_p_from"),x.dal_txt);if(nd===null)return;
-      var na=prompt(T("cn_p_to"),x.al_txt);if(na===null)return;
-      post("/api/nomi",{tag:x.tag,dal:x.dal,nuovo_dal:nd,nuovo_al:na}).then(function(r){
-        $("cnEsito").textContent=r.errore?E(r):T("cn_saved");if(!r.errore)caricaNomi()});
-    }});
-    var cards=Array.isArray(v[1])?v[1]:[],o="";
-    cards.forEach(function(c){o+='<option value="'+esc(c.tag)+'">'+esc(c.tag)+(c.nome?" - "+esc(c.nome):"")+'</option>'});
-    $("cnTag").innerHTML=o;
-  });
-}
-$("bCnAssegna").onclick=function(){
-  post("/api/nomi",{azione:"assegna",tag:$("cnTag").value,nome:$("cnNome").value,dal:$("cnDal").value}).then(function(r){
-    $("cnEsito").textContent=r.errore?E(r):T("cn_saved");
-    if(!r.errore){$("cnNome").value="";caricaNomi()}});
-};
-var RF=[],RFMOD=null;
-function rfErr(r){var m=E(r);if((r.codice==="rfid_unreachable"||r.codice==="rfid_write_failed")&&r.errore){var i=r.errore.indexOf(": ");if(i>0)m+=": "+r.errore.slice(i+2)}return m}
-function scadIso(d,old){if(!d)return "";if(old&&old.slice(0,10)===d)return old;var o=-new Date(d+"T12:00:00").getTimezoneOffset(),sg=o<0?"-":"+";o=Math.abs(o);
-  return d+"T23:59:59"+sg+("0"+Math.floor(o/60)).slice(-2)+":"+("0"+o%60).slice(-2)}
-function rfForm(m){RFMOD=m;var add=!m;
-  $("rfFormT").textContent=T(add?"rf_add":(m.indice!==undefined?"rf_fix_t":"rf_edit_t"));
-  $("bRfSalva").textContent=T(add?"rf_save_add":"rf_save");
-  var x=m||{id:"",nome:"",scad:"",stato:"0"};
-  $("rfId").value=x.id||"";$("rfId").disabled=!!(m&&m.id);$("rfNome").value=(x.nome_completo||x.nome||"").slice(0,25);
-  $("rfScad").value=(x.scad||"").slice(0,10);$("rfStato").value=x.stato||"0";$("rfDal").value="";$("rfDalL").classList.toggle("hide",!add)}
-function rfDisegna(){
-  var h=row([th(T("rf_code")),th(T("rf_name")),th(T("rf_exp")),th(T("rf_state")),th("")]);
-  RF.forEach(function(x,i){
-    h+=row([td(x.id?esc(x.id):T("rf_nocode")),td(esc(x.nome_completo||x.nome)),td(x.scad?esc(x.scad.slice(0,10)):T("rf_noexp")),td(T("rf_st"+(/^[0-3]$/.test(x.stato)?x.stato:"3"))),
-      td('<button class="re" data-i="'+i+'">'+T(x.id?"rf_edit":"rf_fix")+'</button> <button class="rd" data-i="'+i+'">'+T("rf_del")+'</button>')])});
-  if(!RF.length)h+=row([td(T("rf_none")),td(""),td(""),td(""),td("")]);
-  $("tabRf").innerHTML=h;
-  document.querySelectorAll("#tabRf .re").forEach(function(b){b.onclick=function(){var x=RF[+b.dataset.i];rfForm(x.id?x:{indice:+b.dataset.i,id:"",nome:x.nome,scad:x.scad,stato:x.stato})}});
-  document.querySelectorAll("#tabRf .rd").forEach(function(b){b.onclick=function(){var x=RF[+b.dataset.i];if(!confirm(T("rf_del_c")))return;
-    rfPost({azione:"elimina",id:x.id,indice:+b.dataset.i})}});
-}
-function caricaRfid(){
-  $("rfMsg").textContent=T("rf_reading");
-  return api("/api/rfid").then(function(r){
-    if(r.errore){$("rfMsg").textContent=rfErr(r);RF=[];rfDisegna();return}
-    $("rfMsg").textContent="";RF=r.lista||[];rfDisegna();rfForm(null);
-    $("rfBk").textContent=r.backup?T("rf_bk",{n:r.backup.n,t:new Date(r.backup.quando).toLocaleString(LOC,{dateStyle:"short",timeStyle:"short"})}):"";
-    $("bRfRip").disabled=!r.backup});
-}
-function rfPost(b){$("rfEsito").classList.remove("err");$("rfEsito").textContent=T("rf_writing");
-  return post("/api/rfid",b).then(function(r){
-    if(r.errore){$("rfEsito").classList.add("err");$("rfEsito").textContent=rfErr(r);return}
-    caricaRfid().then(function(){caricaNomi();$("rfEsito").classList.toggle("err",!r.ok);$("rfEsito").textContent=r.ok?T("rf_done"):T("rf_mismatch")})})}
-$("bRfSalva").onclick=function(){
-  var b={id:$("rfId").value,nome:$("rfNome").value,scad:scadIso($("rfScad").value,RFMOD&&RFMOD.scad),stato:$("rfStato").value,dal:$("rfDal").value};
-  if(!RFMOD)b.azione="aggiungi";else if(RFMOD.indice!==undefined){b.azione="ripara";b.indice=RFMOD.indice}else{b.azione="modifica";b.id=RFMOD.id}
-  rfPost(b)};
-$("bRfAnn").onclick=function(){rfForm(null)};
-$("bRfLeggi").onclick=function(){caricaRfid()};
-$("bRfRip").onclick=function(){if(confirm(T("rf_restore_c")))rfPost({azione:"ripristina"})};
-setInterval(function(){if(!$("t7").classList.contains("hide")&&!document.hidden){caricaLive();if(io&&io.ruolo==="admin")caricaOcpp()}},10000);
-
 function caricaStato(){return api("/api/stato").then(function(s){
-  var t=s.sessioni?T(s.sessioni===1?"st_n1":"st_n",{n:s.sessioni,a:D(s.dal).slice(0,10),b:D(s.al).slice(0,10)}):T("st_empty");
-  if(s.ultimo_scarico)t+=T("st_upd",{t:new Date(s.ultimo_scarico).toLocaleString(LOC,{dateStyle:"short",timeStyle:"short"})});
+  var t=s.sessioni?(s.sessioni+(s.sessioni===1?T(" sessione"):T(" sessioni"))+T(" dal ")+s.dal.slice(0,10)+T(" al ")+s.al.slice(0,10)):T("Archivio vuoto");
+  if(s.ultimo_scarico)t+=T(" · aggiornato il ")+new Date(s.ultimo_scarico).toLocaleString(LOC,{dateStyle:"short",timeStyle:"short"});
   $("stato").textContent=t;
-  $("esito").textContent=s.ultimo_errore?T("st_err",{e:s.ultimo_errore}):"";
+  $("esito").textContent=s.ultimo_errore?(T("Ultimo scarico non riuscito: ")+s.ultimo_errore):"";
 })}
 
 function caricaReport(){
   return api("/api/report?anno="+$("selAnno").value+"&mese="+$("selMese").value).then(function(r){
     if(r.errore)return;
-    rep=r;r.titolo=MESI[r.mese-1]+" "+r.anno;
-    var dec=LANG==="it"?",":".";
-    $("prezzo").value=r.prezzo===null?"":String(r.prezzo).replace(".",dec);
+    rep=r;
+    $("prezzo").value=r.prezzo===null?"":String(r.prezzo).replace(".",",");
     var iv=(r.prezzo===null)?r.iva_prec:r.iva_pct;
-    $("iva").value=String(iv===null||iv===undefined?0:iv).replace(".",dec);
-    $("titoloRep").textContent=T("rep_title",{t:r.titolo});
-    $("subRep").textContent=r.prezzo===null?T("rep_noprice"):T("rep_sub",{p:nf(r.prezzo,4),cur:CUR,tax:TAXL,i:nf(r.iva_pct,1),n:r.sessioni});
-    $("avviso").textContent=r.prezzo===null?T("adv_enter"):(r.bloccato?T("adv_locked",{d:D(r.blocco_da+" 00:00").slice(0,10)}):T("adv_open",{d:D(r.blocco_da+" 00:00").slice(0,10)}));
+    $("iva").value=String(iv===null||iv===undefined?0:iv).replace(".",",");
+    $("titoloRep").textContent=T("Ripartizione costi ricarica - ")+Tm(r.titolo);
+    $("subRep").textContent=r.prezzo===null?T("Prezzo non ancora inserito"):(T("Prezzo ")+it(r.prezzo,4)+T(" €/kWh, IVA ")+it(r.iva_pct,1)+"% - "+T("sessioni: ")+r.sessioni);
+    $("avviso").textContent=r.prezzo===null?T("Inserisci il prezzo del kWh di questo mese e premi Salva prezzo per calcolare gli importi. Dopo il salvataggio non si potra' piu' modificare."):
+      (r.bloccato?T("Prezzo bloccato: una volta inserito non si puo' piu' modificare."):"");
     $("avviso").style.color=r.bloccato?"":"var(--mut)";
     $("prezzo").disabled=$("iva").disabled=$("bPrezzo").disabled=!!r.bloccato;
     $("bReinvia").classList.toggle("hide",!(io&&io.ruolo==="admin"&&r.prezzo!==null));
-    var t=row([th(T("c_card")),th(T("c_user")),th(T("c_sess"),1),th(T("c_kwh"),1),th(T("c_net"),1),th(TAXL,1),th(T("c_total"),1)]);
-    r.tessere.forEach(function(x,i){t+='<tr class="ut" data-i="'+i+'" title="'+T("click_sess")+'">'+td(esc(x.tag))+td(esc(x.nome||T("unknown_card")))+td(x.n,1)+td(nf(x.kwh),1)+td(nf(x.imp),1)+td(nf(x.iva),1)+td(nf(x.tot),1)+"</tr>"});
-    t+=row([td(""),td(T("tot_cards")),td(r.tessere.reduce(function(s,x){return s+x.n},0),1),td(nf(r.kwh_tessere),1),td(nf(r.imp_tessere),1),td(nf(r.iva_tessere),1),td(nf(r.tot_tessere),1)],"t");
+    var t=row([th(T("Tessera")),th(T("Utente")),th(T("Sess."),1),th(T("kWh"),1),th(T("Imponibile"),1),th(T("IVA"),1),th(T("Totale"),1)]);
+    r.tessere.forEach(function(x,i){t+='<tr class="ut" data-i="'+i+'" title="'+T("Clicca per vedere le sessioni")+'">'+td(esc(x.tag))+td(esc(T(x.nome)))+td(x.n,1)+td(it(x.kwh),1)+td(it(x.imp),1)+td(it(x.iva),1)+td(it(x.tot),1)+"</tr>"});
+    t+=row([td(""),td(T("Totale tessere")),td(r.tessere.reduce(function(s,x){return s+x.n},0),1),td(it(r.kwh_tessere),1),td(it(r.imp_tessere),1),td(it(r.iva_tessere),1),td(it(r.tot_tessere),1)],"t");
     $("tabT").innerHTML=t;
     document.querySelectorAll("#tabT tr.ut").forEach(function(tr){tr.onclick=function(){
       var nx=tr.nextElementSibling;
       if(nx&&nx.classList.contains("det")){while(tr.nextElementSibling&&tr.nextElementSibling.classList.contains("det"))tr.nextElementSibling.remove();return}
       var x=r.tessere[+tr.dataset.i],h="";
-      x.sess.forEach(function(s){h+='<tr class="det"><td></td><td>'+D(s.inizio)+" &rarr; "+D(s.fine)+'</td><td></td><td class="n">'+nf(s.kwh)+'</td><td class="n">'+nf(s.imp)+'</td><td class="n">'+nf(s.iva)+'</td><td class="n">'+nf(s.tot)+'</td></tr>'});
+      x.sess.forEach(function(s){h+='<tr class="det"><td></td><td>'+s.inizio+" &rarr; "+s.fine+'</td><td></td><td class="n">'+it(s.kwh)+'</td><td class="n">'+it(s.imp)+'</td><td class="n">'+it(s.iva)+'</td><td class="n">'+it(s.tot)+'</td></tr>'});
       tr.insertAdjacentHTML("afterend",h)}});
     $("cApp").classList.toggle("hide",!r.riservato);
-    var a=row([th(T("c_start")),th(T("c_end")),th(T("c_kwh"),1),th(T("c_net"),1),th(TAXL,1),th(T("c_total"),1)]);
-    if(!r.app.length)a+='<tr><td colspan="6"><i>'+T("no_app")+'</i></td></tr>';
-    r.app.forEach(function(x){a+=row([td(D(x.inizio)),td(D(x.fine)),td(nf(x.kwh),1),td(nf(x.imp),1),td(nf(x.iva),1),td(nf(x.tot),1)])});
-    a+=row([td(T("tot_app")),td(""),td(nf(r.kwh_app),1),td(nf(r.imp_app),1),td(nf(r.iva_app),1),td(nf(r.tot_app),1)],"t");
+    var a=row([th(T("Inizio")),th(T("Fine")),th(T("kWh"),1),th(T("Imponibile"),1),th(T("IVA"),1),th(T("Totale"),1)]);
+    if(!r.app.length)a+='<tr><td colspan="6"><i>'+T("Nessuna ricarica da app in questo mese.")+'</i></td></tr>';
+    r.app.forEach(function(x){a+=row([td(x.inizio),td(x.fine),td(it(x.kwh),1),td(it(x.imp),1),td(it(x.iva),1),td(it(x.tot),1)])});
+    a+=row([td(T("Totale app")),td(""),td(it(r.kwh_app),1),td(it(r.imp_app),1),td(it(r.iva_app),1),td(it(r.tot_app),1)],"t");
     $("tabA").innerHTML=a;
-    $("totale").textContent=T(r.riservato?"tot_all":"tot_cards_l",{t:r.titolo,k:nf(r.kwh_tot),n:nf(r.imp_tot),tax:TAXL,v:nf(r.iva_tot),e:nf(r.eur_tot)+" "+CUR});
+    $("totale").textContent=T(r.riservato?"TOTALE ":"TOTALE tessere ")+Tm(r.titolo)+": "+it(r.kwh_tot)+T(" kWh - imponibile ")+it(r.imp_tot)+T(" + IVA ")+it(r.iva_tot)+" = "+it(r.eur_tot)+" €";
   });
 }
 
@@ -742,12 +824,12 @@ function caricaStorico(){
     if(!Array.isArray(rr))return;
     righeAnno=rr;
     var R=rr.length&&rr[0].riservato;
-    var t=row([th(T("c_month")),th(T("c_sess"),1),th(T("c_kwh_cards"),1)].concat(R?[th(T("c_kwh_app"),1),th(T("c_kwh_tot"),1)]:[]).concat([th(CUR+"/kWh",1),th(TAXL+" %",1),th(T("c_total"),1)]));
-    var k=0,e=0,okp=false;
-    rr.forEach(function(x){k+=x.kwh_tot;if(x.eur_tot!==null){e+=x.eur_tot;okp=true}
-      t+='<tr class="cl" data-m="'+x.mese+'">'+td(MESI[x.mese-1])+td(x.sessioni,1)+td(nf(x.kwh_tessere),1)+(R?td(nf(x.kwh_app),1)+td(nf(x.kwh_tot),1):"")+td(nf(x.prezzo,4),1)+td(x.prezzo===null?"-":nf(x.iva_pct,1),1)+td(nf(x.eur_tot),1)+"</tr>"});
+    var t=row([th(T("Mese")),th(T("Sess."),1),th(T("kWh tess."),1)].concat(R?[th(T("kWh app"),1),th(T("kWh tot."),1)]:[]).concat([th(T("€/kWh"),1),th(T("IVA %"),1),th(T("Totale"),1)]));
+    var k=0,e=0;
+    rr.forEach(function(x){k+=x.kwh_tot;e+=x.eur_tot||0;
+      t+='<tr class="cl" data-m="'+x.mese+'">'+td(T(x.nome))+td(x.sessioni,1)+td(it(x.kwh_tessere),1)+(R?td(it(x.kwh_app),1)+td(it(x.kwh_tot),1):"")+td(it(x.prezzo,4),1)+td(x.prezzo===null?"-":it(x.iva_pct,1),1)+td(it(x.eur_tot),1)+"</tr>"});
     $("tabS").innerHTML=t;
-    $("totAnno").textContent=okp?T("tot_year",{y:$("selAnnoS").value,k:nf(k),e:nf(Math.round(e*100)/100)+" "+CUR,tax:TAXL}):T("tot_year_kwh",{y:$("selAnnoS").value,k:nf(k)});
+    $("totAnno").textContent=T("TOTALE ")+$("selAnnoS").value+": "+it(k)+" kWh - "+it(Math.round(e*100)/100)+T(" € (IVA inclusa)");
     document.querySelectorAll("#tabS tr.cl").forEach(function(tr){tr.onclick=function(){
       $("selAnno").value=$("selAnnoS").value;$("selMese").value=tr.dataset.m;
       document.querySelector('nav button[data-t="t1"]').click();caricaReport()}});
@@ -755,14 +837,13 @@ function caricaStorico(){
 }
 
 var tutteSess=[];
-function nomeSess(s){return s.tag==="(app)"?T("from_app"):(s.nome||"")}
 function disegnaSessioni(){
-  var f=$("selUt").value, t=row([th(T("c_start")),th(T("c_end")),th(T("c_card")),th(T("c_user")),th(T("c_kwh"),1),th(T("c_net"),1),th(TAXL,1),th(T("c_total"),1)]), k=0, n=0, ti=null, tv=null, tt=null;
+  var f=$("selUt").value, t=row([th(T("Inizio")),th(T("Fine")),th(T("Tessera")),th(T("Utente")),th(T("kWh"),1),th(T("Imponibile"),1),th(T("IVA"),1),th(T("Totale"),1)]), k=0, n=0, ti=null, tv=null, tt=null;
   function som(a,b){return b===null?a:(a||0)+b}
-  tutteSess.forEach(function(s){var nm=nomeSess(s);if(f&&nm!==f)return;k+=s.kwh;n++;ti=som(ti,s.imp);tv=som(tv,s.iva);tt=som(tt,s.tot);
-    t+='<tr>'+td(D(s.inizio))+td(D(s.fine))+td(esc(s.tag==="(app)"?T("app_short"):s.tag))+'<td class="ut" style="cursor:pointer" data-u="'+esc(nm)+'">'+esc(nm)+'</td>'+td(nf(s.kwh),1)+td(nf(s.imp),1)+td(nf(s.iva),1)+td(nf(s.tot),1)+'</tr>'});
+  tutteSess.forEach(function(s){if(f&&s.nome!==f)return;k+=s.kwh;n++;ti=som(ti,s.imp);tv=som(tv,s.iva);tt=som(tt,s.tot);
+    t+='<tr>'+td(s.inizio)+td(s.fine)+td(esc(T(s.tag)))+'<td class="ut" style="cursor:pointer" data-u="'+esc(s.nome)+'">'+esc(T(s.nome))+'</td>'+td(it(s.kwh),1)+td(it(s.imp),1)+td(it(s.iva),1)+td(it(s.tot),1)+'</tr>'});
   function r2c(x){return x===null?null:Math.round(x*100)/100}
-  t+=row([td(""),td(""),td(""),td(cnt(n)),td(nf(k),1),td(nf(r2c(ti)),1),td(nf(r2c(tv)),1),td(nf(r2c(tt)),1)],"t");
+  t+=row([td(""),td(""),td(""),td(n+(n===1?T(" sessione"):T(" sessioni"))),td(it(k),1),td(it(r2c(ti)),1),td(it(r2c(tv)),1),td(it(r2c(tt)),1)],"t");
   $("tabX").innerHTML=t;
   document.querySelectorAll("#tabX td.ut").forEach(function(c){c.onclick=function(){$("selUt").value=c.dataset.u;disegnaSessioni()}});
 }
@@ -770,42 +851,35 @@ function caricaSessioni(){
   return api("/api/sessioni").then(function(ss){
     if(!Array.isArray(ss))return;
     tutteSess=ss;var cur=$("selUt").value,nomi={};
-    ss.forEach(function(s){var n=nomeSess(s);if(n)nomi[n]=1});
-    $("selUt").innerHTML='<option value="">'+T("all_users")+'</option>'+Object.keys(nomi).sort().map(function(n){return '<option>'+esc(n)+'</option>'}).join("");
+    ss.forEach(function(s){if(s.nome)nomi[s.nome]=1});
+    $("selUt").innerHTML='<option value="">'+T("Tutti")+'</option>'+Object.keys(nomi).sort().map(function(n){return '<option value="'+esc(n)+'">'+esc(T(n))+'</option>'}).join("");
     $("selUt").value=nomi[cur]?cur:"";
     disegnaSessioni();
   });
 }
 $("selUt").onchange=disegnaSessioni;
 
+
 function tutto(){return caricaStato().then(function(){if(!io||io.perm.report)return caricaReport()})}
+
 $("selAnno").onchange=$("selMese").onchange=caricaReport;
 $("selAnnoS").onchange=caricaStorico;
 
 $("bPrezzo").onclick=function(){
   var p=$("prezzo").value.trim().replace(",","."), i=$("iva").value.trim().replace(",",".")||"0";
-  if(p!==""&&(isNaN(+p)||+p<=0||+p>=5)){alert(T("alert_price"));return}
-  if(isNaN(+i)||+i<0||+i>100){alert(T("alert_tax"));return}
-  post("/api/prezzo",{anno:+$("selAnno").value,mese:+$("selMese").value,prezzo:p===""?null:+p,iva:+i,lang:LANG}).then(function(r){
-    if(r.errore)alert(E(r));else esitoMail(r.mail);caricaReport()});
-};
-function esitoMail(m){
-  if(!m||m==="no_recipients")return;
-  $("esito").textContent=m==="sent"?T("rep_mailed"):T("rep_notmailed",{r:m==="not_configured"?T("mail_nc"):m});
-}
-$("bReinvia").onclick=function(){
-  if(!rep||!confirm(T("rep_resend_c",{t:rep.titolo})))return;
-  post("/api/reinvia",{anno:rep.anno,mese:rep.mese,lang:LANG}).then(function(r){
-    if(r.errore){alert(E(r));return}
-    if(r.mail==="no_recipients")alert(T("rep_notmailed",{r:T("rep_norec")}));else{esitoMail(r.mail);alert($("esito").textContent)}});
+  if(p!==""&&(isNaN(+p)||+p<=0||+p>=5)){alert(T("Prezzo non valido: scrivi per esempio 0,2845"));return}
+  if(isNaN(+i)||+i<0||+i>100){alert(T("IVA non valida: scrivi per esempio 10 oppure 0"));return}
+  if(p!==""&&!confirm(T("Dopo il salvataggio il prezzo di questo mese non si potra' piu' modificare e il report verra' inviato per mail ai destinatari. Confermi?")))return;
+  post("/api/prezzo",{anno:+$("selAnno").value,mese:+$("selMese").value,prezzo:p===""?null:+p,iva:+i}).then(function(r){
+    if(r.errore)alert(T(r.errore));else $("esito").textContent=esitoMail(r,"Prezzo salvato. ");caricaReport()});
 };
 
 $("bScarica").onclick=function(){
-  var b=$("bScarica");b.disabled=true;$("esito").textContent=T("dl_running");
+  var b=$("bScarica");b.disabled=true;$("esito").textContent=T("Scarico in corso...");
   api("/api/scarica",{method:"POST"}).then(function(r){
-    $("esito").textContent=r.ok?(T("dl_ok",{l:r.lette,n:r.nuove})+(r.scartate?T("dl_skipped",{s:r.scartate}):"")):T("dl_fail",{e:E(r)});
-    b.disabled=false;tutto();
-  }).catch(function(e){$("esito").textContent=T("err_net",{e:e});b.disabled=false});
+    $("esito").textContent=r.ok?(T("Scarico: ")+r.lette+T(" sessioni lette, ")+r.nuove+T(" nuove")):(T("Colonnina non raggiungibile: ")+T(r.errore));
+    b.disabled=false;tutto().then(function(){if(r.ok)return;});
+  }).catch(function(e){$("esito").textContent=T("Errore: ")+e;b.disabled=false});
 };
 
 $("bImporta").onclick=function(){$("fCsv").click()};
@@ -815,7 +889,7 @@ $("fCsv").onchange=function(){
     if(!files.length){$("esito").textContent=out.join(" | ");$("fCsv").value="";tutto();return}
     var f=files.shift();
     f.text().then(function(t){return post("/api/importa",{nome:f.name,csv:t})}).then(function(r){
-      out.push(r.ok?T("imp_ok",{t:r.tessera,l:r.lette,n:r.nuove}):T("imp_fail",{f:f.name,e:E(r)}));next()});
+      out.push(r.ok?(r.tessera+": "+r.lette+T(" sessioni, ")+r.nuove+T(" nuove")):(f.name+T(": NON importato - ")+T(r.errore)));next()});
   })();
 };
 
@@ -823,112 +897,73 @@ function scarico(nome,testo){
   var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+testo],{type:"text/csv;charset=utf-8"}));
   a.download=nome;document.body.appendChild(a);a.click();a.remove();
 }
-function linea(a){return a.map(q).join(SEP)}
 $("bStampa").onclick=function(){window.print()};
 $("bCsv").onclick=function(){
   if(!rep)return;var r=rep,L=[];
-  L.push(q(TITLE));L.push(q(T("rep_title",{t:r.titolo})));
-  L.push(linea([T("price_lbl",{cur:CUR}),cn(r.prezzo,4),TAXL+" %",cn(r.iva_pct,1)]));L.push("");
-  L.push(linea([T("c_card"),T("c_user"),T("c_sess"),T("c_kwh"),T("c_net"),TAXL,T("c_total")]));
-  r.tessere.forEach(function(x){L.push(linea([x.tag,x.nome||T("unknown_card"),x.n,cn(x.kwh,3),cn(x.imp),cn(x.iva),cn(x.tot)]))});
-  L.push(linea(["",T("tot_cards"),"",cn(r.kwh_tessere,3),cn(r.imp_tessere),cn(r.iva_tessere),cn(r.tot_tessere)]));L.push("");
-  if(r.riservato){L.push(q(T("h_app")));L.push(linea([T("c_start"),T("c_end"),"",T("c_kwh"),T("c_net"),TAXL,T("c_total")]));
-  r.app.forEach(function(x){L.push(linea([D(x.inizio),D(x.fine),"",cn(x.kwh,3),cn(x.imp),cn(x.iva),cn(x.tot)]))});
-  L.push(linea(["",T("tot_app"),"",cn(r.kwh_app,3),cn(r.imp_app),cn(r.iva_app),cn(r.tot_app)]));L.push("")}
-  L.push(linea(["","TOTAL","",cn(r.kwh_tot,3),cn(r.imp_tot),cn(r.iva_tot),cn(r.eur_tot)]));
-  scarico("charging_"+r.anno+"-"+("0"+r.mese).slice(-2)+".csv",L.join("\r\n"));
+  L.push("__TITLE__");L.push(T("Ripartizione costi ricarica - ")+Tm(r.titolo));
+  L.push(J([LANG==="en"?"Price EUR/kWh":"Prezzo EUR/kWh",nf(r.prezzo,4),LANG==="en"?"VAT %":"IVA %",nf(r.iva_pct,1)]));L.push("");
+  L.push(J([T("Tessera"),T("Utente"),LANG==="en"?"Sessions":"Sessioni","kWh",T("Imponibile"),T("IVA"),T("Totale")]));
+  r.tessere.forEach(function(x){L.push(J([x.tag,T(x.nome),x.n,nf(x.kwh,3),nf(x.imp),nf(x.iva),nf(x.tot)]))});
+  L.push(J(["",T("Totale tessere"),"",nf(r.kwh_tessere,3),nf(r.imp_tessere),nf(r.iva_tessere),nf(r.tot_tessere)]));L.push("");
+  if(r.riservato){L.push(T("Ricariche avviate da app (non attribuite a una tessera)"));L.push(J([T("Inizio"),T("Fine"),"","kWh",T("Imponibile"),T("IVA"),T("Totale")]));
+  r.app.forEach(function(x){L.push(J([x.inizio,x.fine,"",nf(x.kwh,3),nf(x.imp),nf(x.iva),nf(x.tot)]))});
+  L.push(J(["",T("Totale app"),"",nf(r.kwh_app,3),nf(r.imp_app),nf(r.iva_app),nf(r.tot_app)]));L.push("")}
+  L.push(J(["",LANG==="en"?"TOTAL":"TOTALE","",nf(r.kwh_tot,3),nf(r.imp_tot),nf(r.iva_tot),nf(r.eur_tot)]));
+  scarico(T("Ricariche_")+r.anno+"-"+("0"+r.mese).slice(-2)+".csv",L.join("\r\n"));
 };
 $("bCsvAnno").onclick=function(){
-  var R=righeAnno.length&&righeAnno[0].riservato,L=[q(TITLE),q(T("n_year")+" "+$("selAnnoS").value)];
-  L.push(linea([T("c_month"),T("c_sess"),T("c_kwh_cards"),R?T("c_kwh_app"):"",T("c_kwh_tot"),T("price_lbl",{cur:CUR}),TAXL+" %",T("c_net"),TAXL,T("c_total")]));
-  righeAnno.forEach(function(x){L.push(linea([MESI[x.mese-1],x.sessioni,cn(x.kwh_tessere,3),R?cn(x.kwh_app,3):"",cn(x.kwh_tot,3),cn(x.prezzo,4),x.prezzo===null?"-":cn(x.iva_pct,1),cn(x.imp_tot),cn(x.iva_tot),cn(x.eur_tot)]))});
-  scarico("history_"+$("selAnnoS").value+".csv",L.join("\r\n"));
+  var en=LANG==="en",R=righeAnno.length&&righeAnno[0].riservato;
+  var L=["__TITLE__",(en?"Charging history ":"Storico ricariche ")+$("selAnnoS").value];
+  L.push(J([T("Mese"),en?"Sessions":"Sessioni",en?"kWh cards":"kWh tessere",R?(en?"kWh app":"kWh app"):"",en?"kWh total":"kWh totali",en?"Price EUR/kWh":"Prezzo EUR/kWh",en?"VAT %":"IVA %",T("Imponibile"),T("IVA"),T("Totale")]));
+  righeAnno.forEach(function(x){L.push(J([T(x.nome),x.sessioni,nf(x.kwh_tessere,3),nf(x.kwh_app,3),nf(x.kwh_tot,3),nf(x.prezzo,4),x.prezzo===null?"-":nf(x.iva_pct,1),nf(x.imp_tot),nf(x.iva_tot),nf(x.eur_tot)]))});
+  scarico(T("Storico_")+$("selAnnoS").value+".csv",L.join("\r\n"));
 };
 
 function caricaMie(){
   return api("/api/mie?anno="+$("selAnnoM").value).then(function(L){
     if(!Array.isArray(L))return;
-    var t=row([th(T("c_month")),th(T("c_charges_n"),1),th(T("c_kwh"),1),th(CUR+"/kWh",1),th(T("c_net"),1),th(TAXL,1),th(T("c_total"),1)]),k=0,e=0,ok=false;
+    var t=row([th(T("Mese")),th(T("Ricariche"),1),th(T("kWh"),1),th(T("€/kWh"),1),th(T("Imponibile"),1),th(T("IVA"),1),th(T("Totale"),1)]),k=0,e=0,ok=false;
     L.forEach(function(x){k+=x.kwh;if(x.tot!==null){e+=x.tot;ok=true}
-      t+='<tr class="ut" data-m="'+x.mese+'">'+td(MESI[x.mese-1])+td(x.n,1)+td(nf(x.kwh),1)+td(x.prezzo===null?"-":nf(x.prezzo,4),1)+td(nf(x.imp),1)+td(nf(x.iva),1)+td(nf(x.tot),1)+"</tr>"});
+      t+='<tr class="ut" data-m="'+x.mese+'">'+td(T(x.nome))+td(x.n,1)+td(it(x.kwh),1)+td(x.prezzo===null?"-":it(x.prezzo,4),1)+td(it(x.imp),1)+td(it(x.iva),1)+td(it(x.tot),1)+"</tr>"});
     $("tabM").innerHTML=t;
-    $("totM").textContent=ok?T("tot_year",{y:$("selAnnoM").value,k:nf(k),e:nf(Math.round(e*100)/100)+" "+CUR,tax:TAXL}):T("tot_year_kwh",{y:$("selAnnoM").value,k:nf(k)});
+    $("noteM").classList.toggle("hide",!L.some(function(x){return x.prezzo===null&&x.kwh>0}));
+    $("totM").textContent=T("TOTALE ")+$("selAnnoM").value+": "+it(k)+" kWh"+(ok?" - "+it(Math.round(e*100)/100)+T(" € (IVA inclusa)"):"");
     document.querySelectorAll("#tabM tr.ut").forEach(function(tr){tr.onclick=function(){
       var nx=tr.nextElementSibling;
       if(nx&&nx.classList.contains("det")){while(tr.nextElementSibling&&tr.nextElementSibling.classList.contains("det"))tr.nextElementSibling.remove();return}
       var x=L[+tr.dataset.m-1],h="";
-      x.sess.forEach(function(s){h+='<tr class="det"><td>'+D(s.inizio)+" &rarr; "+D(s.fine)+'</td><td></td><td class="n">'+nf(s.kwh)+'</td><td></td><td class="n">'+nf(s.imp)+'</td><td class="n">'+nf(s.iva)+'</td><td class="n">'+nf(s.tot)+'</td></tr>'});
+      x.sess.forEach(function(s){h+='<tr class="det"><td>'+s.inizio+" &rarr; "+s.fine+(io&&io.tessere&&io.tessere.length>1&&s.tag?" ("+esc(s.tag)+")":"")+'</td><td></td><td class="n">'+it(s.kwh)+'</td><td></td><td class="n">'+it(s.imp)+'</td><td class="n">'+it(s.iva)+'</td><td class="n">'+it(s.tot)+'</td></tr>'});
       tr.insertAdjacentHTML("afterend",h)}});
   });
 }
 $("selAnnoM").onchange=caricaMie;
-$("bPdfM").onclick=function(){
-  var a=document.createElement("a");a.href="/api/mie.pdf?anno="+$("selAnnoM").value+"&mese="+$("selMeseM").value+"&lang="+LANG;
-  a.download="";document.body.appendChild(a);a.click();a.remove();
+$("bPdfM").onclick=function(){location.href="/api/mie.pdf?anno="+$("selAnnoM").value+"&mese="+$("selMeseM").value};
+function esitoMail(r,pre){
+  if(r.mail==="inviata")return pre+T("Report inviato a ")+(r.destinatari||[]).join(", ");
+  return pre+T("Report non inviato (")+T(r.mail)+")";
+}
+$("bReinvia").onclick=function(){
+  if(!confirm(T("Inviare di nuovo il report di questo mese ai destinatari?")))return;
+  post("/api/reinvia",{anno:+$("selAnno").value,mese:+$("selMese").value}).then(function(r){
+    $("esito").textContent=r.errore?T(r.errore):esitoMail(r,"")});
 };
-
-function permForm(){var p={};document.querySelectorAll("#uPerm input").forEach(function(c){p[c.dataset.p]=c.checked});return p}
-function setPermForm(p){document.querySelectorAll("#uPerm input").forEach(function(c){c.checked=!!p[c.dataset.p]})}
-setPermForm({report:1,storico:1,sessioni:1,stampa:1});
-function tipoUI(){var c=$("uTipo").value==="c";$("uTessBox").classList.toggle("hide",!c);$("uPerm").classList.toggle("hide",c)}
-$("uTipo").onchange=tipoUI;
-function caricaTessere(){
-  return api("/api/tessere").then(function(L){
-    if(!Array.isArray(L))return;var cur=$("uTess").value;
-    $("uTess").innerHTML='<option value="">'+T("u_pick_card")+'</option>'+L.map(function(x){return '<option value="'+esc(x.tag)+'">'+esc(x.tag)+' - '+esc(x.nome)+'</option>'}).join("");
-    $("uTess").value=cur;
-  });
+/* ---- impostazioni dell'installazione (admin) ---- */
+var CUR="€",FEE="",CONTATTO="",cfg=null;
+var CF_TXT=["url","user","header_name","header_value","history_path","tags_path","status_path","timeout","hist_json_field","hist_sep","hist_skip","c_start","c_end","c_tag","c_type","c_cont_ini","c_cont_fin","title","tz","currency","tax_label","card_fee","contact","charger_id","mail_from"];
+function feeTesto(){return FEE?" ("+FEE+")":""}
+function applicaConfig(m){
+  CUR=m.valuta||"€";FEE=m.costo_tessera||"";CONTATTO=m.contatto||"";
+  if(CUR!=="€"){var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),n,L=[];while(n=w.nextNode())L.push(n);L.forEach(function(x){if(x.nodeValue.indexOf("€")>=0)x.nodeValue=x.nodeValue.split("€").join(CUR)})}
+  document.querySelectorAll(".fee-par").forEach(function(e){e.textContent=FEE?" ("+T("costo")+" "+FEE+" "+T("una tantum")+")":""});
+  document.querySelectorAll(".fee-info").forEach(function(e){e.textContent=FEE?T("Costo della tessera: ")+FEE+" "+T("una tantum, non è una cauzione e non viene restituito; se la tessera viene smarrita o danneggiata ne servirà un'altra. "):""});
+  var pc=$("pContatto");if(pc)pc.textContent=CONTATTO?T(", oppure scrivi a ")+CONTATTO:"";
+  if(CONTATTO){$("infoContatto").classList.remove("hide");$("infoContattoV").textContent=CONTATTO}
 }
-function invia(email,perm,tess){
-  $("uEsito").textContent="";$("uLink").classList.add("hide");
-  return post("/api/utenti",{azione:"invita",nome:email,permessi:perm,tessera:tess||"",lang:LANG}).then(function(r){
-    if(r.errore){$("uEsito").textContent=E(r);return}
-    if(r.mail==="sent")$("uEsito").textContent=T("inv_sent",{e:email});
-    else{$("uEsito").textContent=T("inv_notsent",{r:r.mail==="not_configured"?T("mail_nc"):r.mail});$("uLink").value=r.link;$("uLink").classList.remove("hide")}
-    $("uNome").value="";caricaUtenti();
-  });
-}
-function caricaUtenti(){
-  return api("/api/utenti").then(function(L){
-    if(!Array.isArray(L))return;
-    caricaTessere();
-    var t=row([th(T("c_user")),th(T("c_state")),th(T("c_perm")),th("")]);
-    L.forEach(function(x){
-      var adm=x.ruolo==="admin";
-      var st=adm?T("u_admin"):(x.attivo?T("u_active"):(x.invito_scaduto?T("u_expired"):T("u_pending")));
-      var pe=adm?T("u_all"):x.tessera?(x.tessera+" - "+(x.tessera_nome||"")):Object.keys(x.perm).filter(function(k){return x.perm[k]}).map(function(k){return T("pe_"+k)}).join(", ")||T("u_none");
-      var az=adm?"":'<button class="bm" data-m="'+esc(x.nome)+'">'+T("u_edit")+'</button> <button class="br" data-m="'+esc(x.nome)+'" title="'+(x.attivo?T("u_reset_t"):T("u_resend_t"))+'">'+(x.attivo?T("u_reset"):T("u_resend"))+'</button> <button class="bd" data-d="'+esc(x.nome)+'">'+T("u_delete")+'</button>';
-      t+=row([td(esc(x.nome)),td(st),td(esc(pe)),'<td class="n">'+az+"</td>"]);
-    });
-    $("tabU").innerHTML=t;
-    var per={};L.forEach(function(x){per[x.nome]=x});
-    document.querySelectorAll("#tabU .bm").forEach(function(b){b.onclick=function(){var x=per[b.dataset.m];$("uNome").value=x.nome;setPermForm(x.perm);$("uTipo").value=x.tessera?"c":"g";tipoUI();$("uTess").value=x.tessera||"";$("uNome").focus()}});
-    document.querySelectorAll("#tabU .br").forEach(function(b){b.onclick=function(){
-      if(confirm(T("u_confirm_send",{u:b.dataset.m})))invia(b.dataset.m,per[b.dataset.m].perm,per[b.dataset.m].tessera)}});
-    document.querySelectorAll("#tabU .bd").forEach(function(b){b.onclick=function(){
-      if(!confirm(T("u_confirm_del",{u:b.dataset.d})))return;
-      post("/api/utenti",{azione:"elimina",nome:b.dataset.d}).then(function(r){$("uEsito").textContent=r.errore?E(r):"";caricaUtenti()})}});
-  });
-}
-function datiForm(){
-  var c=$("uTipo").value==="c";
-  if(c&&!$("uTess").value){$("uEsito").textContent=T("u_pick");return null}
-  return {perm:c?{}:permForm(),tess:c?$("uTess").value:""};
-}
-$("bUInvita").onclick=function(){var d=datiForm();if(d)invia($("uNome").value,d.perm,d.tess)};
-$("bUPerm").onclick=function(){
-  var d=datiForm();if(!d)return;
-  post("/api/utenti",{azione:"permessi",nome:$("uNome").value,permessi:d.perm,tessera:d.tess}).then(function(r){
-    $("uEsito").textContent=r.errore?E(r):T("u_saved");caricaUtenti()});
-};
-
-/* ---- settings (admin) ---- */
-var CF_TXT=["url","user","header_name","header_value","history_path","tags_path","timeout","hist_json_field","hist_sep","hist_skip","c_start","c_end","c_tag","c_type","c_cont_ini","c_cont_fin","tags_sep","tags_skip","tags_c_tag","tags_c_name","title","tz","currency","tax_label","mail_from","report_to","report_cc"];
 function formCfg(c){
   CF_TXT.forEach(function(k){var e=$("cf_"+k);if(e)e.value=c[k]===undefined||c[k]===null?"":c[k]});
   $("cf_auto").checked=!!c.auto;$("cf_password").value="";$("cf_pw_clear").checked=false;
-  $("cf_password").placeholder=c.password_set?T("s_pass_set"):"";
-  $("cf_resend_key").value="";$("cf_rk_clear").checked=false;$("cf_resend_key").placeholder=c.resend_set?T("s_pass_set"):"re_...";
+  $("cf_password").placeholder=c.password_set?T("(salvata)"):"";
+  $("cf_resend_key").value="";$("cf_rk_clear").checked=false;$("cf_resend_key").placeholder=c.resend_set?T("(salvata)"):"re_...";
 }
 function leggiCfg(){
   var o={};CF_TXT.forEach(function(k){var e=$("cf_"+k);if(e)o[k]=e.value});
@@ -940,44 +975,539 @@ function leggiCfg(){
 function caricaConfig(){
   return api("/api/config").then(function(r){
     if(!r.config)return;cfg=r;formCfg(r.config);
-    $("envUrl").textContent=r.fonti.url_env?T("s_env_url"):"";
+    $("envUrl").textContent=r.fonti.url_env?T("(valore iniziale da wrangler.toml)"):"";
+    api("/api/colonnina-info").then(function(c){var t="";if(c&&c.ultimo_ip)t=T("IP all'ultimo scarico: ")+c.ultimo_ip.ip+" ("+new Date(c.ultimo_ip.quando).toLocaleString(LOC,{dateStyle:"short",timeStyle:"short"})+")";$("cInfo").textContent=t});
   });
 }
 $("bCfSalva").onclick=function(){
   $("cfEsito").textContent="";
   post("/api/config",leggiCfg()).then(function(r){
-    if(r.errore){$("cfEsito").className="sub err";$("cfEsito").textContent=E(r);return}
-    $("cfEsito").className="sub ok";$("cfEsito").textContent=T("s_saved");caricaConfig();
-    api("/api/me").then(function(m){io=m;CUR=m.valuta||"€";TAXL=m.tax_label||T("tax_default");TITLE=m.titolo;etichette()});
+    if(r.errore){$("cfEsito").classList.add("err");$("cfEsito").textContent=T(r.errore);return}
+    $("cfEsito").classList.remove("err");$("cfEsito").textContent=T("Impostazioni salvate");
+    api("/api/me").then(function(m){io=m;applicaConfig(m);caricaConfig()});
   });
 };
 $("bCfReset").onclick=function(){if(cfg){var d=cfg.defaults;d.password_set=false;formCfg(d);$("cf_url").value=cfg.config.url;$("cf_pw_clear").checked=false}};
 $("bCfProva").onclick=function(){
-  $("cfProva").innerHTML='<div class="sub">'+T("s_testing")+'</div>';$("cfEsito").textContent="";
+  $("cfProva").innerHTML='<div class="sub">'+T("Provo la connessione...")+'</div>';$("cfEsito").textContent="";
   post("/api/config/test",leggiCfg()).then(function(r){
-    if(r.errore){$("cfProva").innerHTML="";$("cfEsito").className="sub err";$("cfEsito").textContent=E(r);return}
-    $("cfProva").innerHTML=bloccoProva(T("s_t_hist"),r.history)+(r.tags?bloccoProva(T("s_t_tags"),r.tags):"");
-  }).catch(function(e){$("cfProva").innerHTML="";$("cfEsito").textContent=T("err_net",{e:e})});
+    if(r.errore){$("cfProva").innerHTML="";$("cfEsito").classList.add("err");$("cfEsito").textContent=T(r.errore);return}
+    $("cfProva").innerHTML=bloccoProva(T("Storico"),r.history)+(r.tags?bloccoProva(T("Elenco tessere"),r.tags):"");
+  });
 };
+function bloccoProva(nome,x){
+  if(!x)return "";
+  var h='<div class="card"><h2>'+esc(nome)+": "+(x.ok?T("ok"):T("errore"))+' <span class="sub">('+x.ms+" ms"+(x.bytes!==undefined?", "+x.bytes+" byte":"")+')</span></h2>';
+  if(x.errore)h+='<div class="sub err">'+esc(x.errore)+"</div>";
+  if(x.righe!==undefined)h+='<div class="sub">'+T("Righe lette: ")+x.righe+"</div>";
+  if(x.primo)h+='<div class="sub">'+T("Prima sessione: ")+esc(x.primo.inizio)+" - "+esc(x.primo.fine)+", "+T("tessera ")+esc(x.primo.tag)+", "+esc(x.primo.wh)+" Wh</div>";
+  if(x.sample)h+='<pre style="white-space:pre-wrap;font-size:12px;max-height:160px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px">'+esc(x.sample)+"</pre>";
+  return h+"</div>";
+}
+/* ---- testi legali (admin) ---- */
+var TL=["edizione","reg_it","reg_en","priv_it","priv_en"];
+function caricaTesti(){return api("/api/testi").then(function(t){if(!t)return;TL.forEach(function(k){$("tl_"+k).value=t[k]||""})})}
+$("bTesti").onclick=function(){var o={};TL.forEach(function(k){o[k]=$("tl_"+k).value});
+  post("/api/testi",o).then(function(r){$("tlEsito").classList.toggle("err",!!r.errore);$("tlEsito").textContent=r.errore?T(r.errore):T("Testi salvati")})};
+function oraTxt(ms){return ms?new Date(ms).toLocaleString(LOC,{dateStyle:"short",timeStyle:"medium"}):"-"}
+function misura(m,k,div,dec,u){var x=m&&m.dati&&m.dati[k];if(!x)return null;var v=parseFloat(x.v);if(isNaN(v))return null;if(/^k/i.test(x.u))div=1;return (v/div).toFixed(dec)+" "+u}
+function caricaOcpp(){
+  return api("/api/ocpp").then(function(r){
+    if(r.errore){$("oEsito").textContent=T(r.errore);return}
+    $("oEsito").textContent="";$("oUrl").value="wss://"+r.host+r.percorso;
+    var t=(r.connessa?T("Colonnina collegata"):T("Colonnina non collegata"))+" · "+T("ultimo messaggio: ")+oraTxt(r.ultimo_msg);
+    var pr=r.prese&&r.prese["1"];if(pr)t+=" · "+T("presa: ")+pr.status+(pr.errore&&pr.errore!=="NoError"?" ("+pr.errore+")":"");
+    var tx=r.transazione_aperta;
+    if(tx){t+=" · "+T("ricarica in corso, tessera ")+tx.tag+T(", dalle ")+oraTxt(tx.inizio);
+      var m=r.meter,pw=misura(m,"Power.Active.Import",1000,2,"kW"),a=misura(m,"Current.Import",1,1,"A")||misura(m,"Current.Import.L1",1,1,"A"),v=misura(m,"Voltage",1,0,"V");
+      var e=m&&m.dati&&m.dati["Energy.Active.Import.Register"],ks=e&&tx.meter_ini!=null?((parseFloat(e.v)-tx.meter_ini)/(/^k/i.test(e.u)?1:1000)).toFixed(2)+" kWh":null;
+      var q=[pw,ks&&T("caricati ")+ks,a,v].filter(Boolean);if(q.length)t+=" · "+q.join(" · ")}
+    $("oStato").textContent=t;if(document.activeElement!==$("oListaOn"))$("oListaOn").checked=!!r.lista_on;$("bOSync").disabled=!r.lista_on;$("oLista").textContent=listaTxt(r);
+    var hb=r.heartbeat;if(hb){if(document.activeElement!==$("oHb"))$("oHb").value=Math.round(hb.voluto/60);
+      $("oHbTxt").textContent=hb.inviato===hb.voluto?T("impostato sulla colonnina"):T("in attesa: viene mandato alla colonnina al prossimo messaggio")}
+    disegnaPar(r.parametri);OEV=r.eventi||[];disegnaOcpp()});
+}
+var PAR_ET={ConnectionTimeOut:["Attesa tessera dopo il collegamento del cavo","secondi"],WebSocketPingInterval:["Controllo della connessione col sito ogni","secondi"],
+  TransactionMessageRetryInterval:["Nuovo tentativo se un messaggio di ricarica non arriva dopo","secondi"],TransactionMessageAttempts:["Numero di tentativi per ogni messaggio di ricarica","volte"],
+  MeterValueSampleInterval:["Misure durante la ricarica ogni","secondi"],ClockAlignedDataInterval:["Misure a orari fissi ogni (0 = mai)","secondi"]};
+function disegnaPar(p){
+  var box=$("oPar");if(!p||!box)return;
+  if(box.contains(document.activeElement)&&document.activeElement.tagName==="INPUT")return;
+  var h="";
+  Object.keys(PAR_ET).forEach(function(k){
+    var d=p.def[k],v=p.voluti[k]!==undefined?p.voluti[k]:d[2],st=p.voluti[k]===undefined?"":(p.inviati[k]===p.voluti[k]?T("impostato sulla colonnina"):T("in attesa: viene mandato alla colonnina al prossimo messaggio"));
+    h+='<div class="bar"><label>'+T(PAR_ET[k][0])+' <input data-k="'+k+'" type="number" min="'+d[0]+'" max="'+d[1]+'" value="'+v+'" style="width:6em"> '+T(PAR_ET[k][1])+'</label> <button data-k="'+k+'" class="bPar">'+T("Salva")+'</button> <span class="sub">'+T("da")+' '+d[0]+' '+T("a")+' '+d[1]+(st?' · '+st:'')+'</span></div>'});
+  var off=p.voluti.LocalAuthorizeOffline!==undefined?p.voluti.LocalAuthorizeOffline:true,so=p.voluti.LocalAuthorizeOffline===undefined?"":(p.inviati.LocalAuthorizeOffline===p.voluti.LocalAuthorizeOffline?T("impostato sulla colonnina"):T("in attesa: viene mandato alla colonnina al prossimo messaggio"));
+  h+='<div class="bar"><label><input type="checkbox" id="oOff"'+(off?' checked':'')+'> '+T("Tessere in lista valide anche se il server non risponde")+'</label> <span class="sub">'+so+'</span></div>';
+  box.innerHTML=h;
+}
+$("oPar").onclick=function(e){
+  var t=e.target,k=t.getAttribute&&t.getAttribute("data-k");
+  if(t.className==="bPar"&&k){var inp=$("oPar").querySelector('input[data-k="'+k+'"]');
+    post("/api/ocpp",{azione:"parametro",chiave:k,valore:inp.value}).then(function(r){if(r&&r.errore)alert(T(r.errore));setTimeout(ocStato,2500)})}};
+$("oPar").onchange=function(e){
+  if(e.target.id==="oOff")post("/api/ocpp",{azione:"parametro",chiave:"LocalAuthorizeOffline",valore:e.target.checked}).then(function(){setTimeout(ocStato,2500)})};
+function listaTxt(r){
+  var l=r.lista,t;
+  if(!r.lista_on)return T("Lista offline: disattivata, il server non invia tessere alla colonnina");
+  if(r.sync_pendente)t=T("Lista offline: aggiornamento in attesa che la presa sia libera");
+  else if(!l)t=T("Lista offline: nessun invio registrato");
+  else{var q=l.inviate+"/"+l.n+" "+T("tessere inviate il ")+oraTxt(l.quando);
+    t=T("Lista offline: ")+q+" - "+(l.ok===true?T("allineata"):l.ok===false?T("ultimo invio non riuscito"):T("invio non completato"))}
+  return t}
+$("bOHb").onclick=function(){post("/api/ocpp",{azione:"heartbeat",minuti:$("oHb").value}).then(function(r){if(r&&r.errore)alert(T(r.errore));setTimeout(caricaOcpp,2500)})};
+$("bOSync").onclick=function(){post("/api/ocpp",{azione:"sincronizza"}).then(function(r){if(r&&r.errore)alert(T(r.errore));setTimeout(caricaOcpp,2500)})};
+$("oListaOn").onchange=function(){post("/api/ocpp",{azione:"lista",attiva:$("oListaOn").checked}).then(function(){setTimeout(caricaOcpp,800)})};
+var OEV=[];
+var OCPP_EN=[[/^Comando alla colonnina: /,"Command to the charger: "],[/^Risposta della colonnina a /,"Charger's reply to "],[/^Risposta della colonnina: /,"Charger's reply: "],[/^Errore dalla colonnina: /,"Error from the charger: "],[/^Errore inviato alla colonnina: /,"Error sent to the charger: "],
+  [/^Avvio colonnina /,"Charger start "],[/^Conferma collegamento$/,"Heartbeat"],[/^Presa (\d+): /,"Socket $1: "],[/ \(errore /," (error "],[/^Richiesta di autorizzazione, tessera /,"Authorisation request, card "],[/^Inizio ricarica, tessera /,"Charge started, card "],[/^Fine ricarica/,"Charge ended"],[/, contatore /,", meter "],[/^Misura: /,"Measurement: "],[/contatore /,"meter "],
+  [/^connessione aperta/,"connection opened"],[/^connessione chiusa/,"connection closed"],[/nessun sottoprotocollo/,"no subprotocol"],[/^Nomi tessere rimessi sulla colonnina: /,"Card names put back on the charger: "],[/^Nomi tessere da rimettere: colonnina occupata, riprovo piu' tardi$/,"Card names to put back: charger busy, retrying later"],[/^nomi tessere non rimessi: /,"card names not put back: "],[/^errore connessione: /,"connection error: "],[/^errore in /,"error in "],
+  [/riavvio/,"restart"],[/lettura configurazione/,"read settings"],[/modifica impostazione/,"change setting"],[/invio lista tessere/,"send card list"],[/versione lista tessere/,"card list version"],[/richiesta messaggio/,"request message"],[/stop ricarica da remoto/,"remote stop"],[/ tessere\)/," cards)"],
+  [/: accettato, vale dopo il riavvio$/,": accepted, applied after restart"],[/: accettato$/,": accepted"],[/: rifiutato$/,": rejected"],[/: non supportato$/,": not supported"],[/: non riuscito$/,": failed"],[/: versione lista non valida$/,": invalid list version"],[/: non previsto$/,": not implemented"],[/configurazione letta \((\d+) parametri\)/,"settings read ($1 keys)"],[/configurazione letta/,"settings read"],[/versione lista (\d+)/,"list version $1"]];
+function evTr(t){if(LANG!=="en")return t;OCPP_EN.forEach(function(p){t=t.replace(p[0],p[1])});return t}
+function disegnaOcpp(){
+  var raw=$("oRaw").checked;
+  var h='<colgroup><col style="width:150px"><col style="width:28px"><col></colgroup>'+row([th(T("Ora")),th(""),th(T("Messaggio"))]);
+  OEV.forEach(function(e){h+=row([td(oraTxt(e.ts)),td(esc(e.dir==="<"?"←":e.dir===">"?"→":"·")),td('<div style="white-space:normal;overflow-wrap:anywhere;font-size:'+(raw?12:14)+'px">'+esc(raw?e.raw:evTr(T(e.testo)))+"</div>")])});
+  $("tabO").innerHTML=h;
+}
+$("oRaw").onchange=disegnaOcpp;
+$("bOAgg").onclick=caricaOcpp;
+$("bORig").onclick=function(){if(confirm(T("Rigenerare il codice? La colonnina smette di collegarsi finché non aggiorni l'indirizzo.")))post("/api/ocpp",{azione:"rigenera"}).then(function(){caricaOcpp()})};
+setInterval(function(){if(!document.hidden&&!$("t8").classList.contains("hide"))caricaOcpp()},10000);
+function ocStato(){return api("/api/ocpp").then(function(r){
+  if(r.errore){$("ocStato").textContent=T(r.errore);return}
+  var pr=r.prese&&r.prese["1"];
+  $("ocStato").textContent=(r.connessa?T("Colonnina collegata"):T("Colonnina non collegata"))+(pr?" · "+T("presa: ")+pr.status:"")+(r.transazione_aperta?" · "+T("ricarica in corso, tessera ")+r.transazione_aperta.tag:"");disegnaPar(r.parametri)})}
+function ocForm(){var c=$("ocCmd").value;$("ocMsgL").classList.toggle("hide",c!=="TriggerMessage");}
+$("ocCmd").onchange=ocForm;
+function ocMostra(c,r){
+  var h="";
+  if(c==="GetConfiguration"&&r.configurationKey){
+    h='<div class="w" style="max-height:420px;overflow:auto"><table>'+row([th(T("Voce")),th(T("Valore")),th(T("Modificabile"))])
+      +r.configurationKey.map(function(k){return row([td(esc(k.key)),td(esc(k.value===undefined?"-":k.value)),td(k.readonly?T("no"):T("sì"))])}).join("")+"</table></div>";
+    if(r.unknownKey&&r.unknownKey.length)h+='<div class="sub">'+T("Voci sconosciute: ")+esc(r.unknownKey.join(", "))+"</div>"}
+  else h='<pre style="white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0">'+esc(JSON.stringify(r,null,2))+"</pre>";
+  $("ocRis").innerHTML=h}
+$("bOcInvia").onclick=function(){
+  var c=$("ocCmd").value,b={azione:"comando",comando:c,richiesta:$("ocMsg").value};
+  if(c==="RemoteStopTransaction"&&!confirm(T("Fermare la ricarica in corso?")))return;
+  if(c==="Reset"&&!confirm(T("Riavviare la colonnina? Durante il riavvio resta scollegata dal server.")))return;
+  $("ocEsito").classList.remove("err");$("ocEsito").textContent=T("In attesa della risposta...");$("ocRis").innerHTML="";$("bOcInvia").disabled=true;
+  post("/api/ocpp",b).then(function(r){
+    $("bOcInvia").disabled=false;
+    if(r.errore){$("ocEsito").classList.add("err");$("ocEsito").textContent=T(r.errore);return}
+    $("ocEsito").textContent=T("Risposta ricevuta alle ")+new Date().toLocaleTimeString(LOC);ocMostra(c,r.risposta||{})})};
+function durTxt(ms){var m=Math.max(0,Math.round(ms/60000)),h=Math.floor(m/60);return h?h+" h "+(m%60)+" min":m+" min"}
+function caricaLive(){
+  return api("/api/live").then(function(r){
+    var tit="",h="",agg="";
+    if(r.errore)tit=T(r.errore);
+    else if(!r.connessa)tit=T("Colonnina non collegata al server: dati non disponibili");
+    else if(!r.occupata)tit=r.stato==="Preparing"?T("Auto collegata, in attesa della tessera"):T("Colonnina libera");
+    else{tit=T("Occupata")+" - "+(r.da?r.da:T("tessera sconosciuta"));
+      var d=r.dettagli;
+      if(d){var f=function(x,n,u){return x==null?"-":x.toFixed(n)+" "+u};
+        h=row([td(T("Potenza")),td(f(d.kw,2,"kW"))])+row([td(T("Corrente")),td(f(d.a,1,"A"))])+(d.v!=null?row([td(T("Tensione")),td(f(d.v,0,"V"))]):"")
+          +row([td(T("Energia caricata")),td(f(d.kwh,2,"kWh"))])+row([td(T("Inizio")),td(oraTxt(d.inizio))])+row([td(T("Durata")),td(durTxt(Date.now()-d.inizio))])+row([td(T("Tessera")),td(esc(d.tag))]);
+        if(d.agg)agg=T("Aggiornato alle ")+new Date(d.agg).toLocaleTimeString(LOC,{timeStyle:"short"})}}
+    $("liveTit").textContent=tit;$("tabL").innerHTML=h;$("liveAgg").textContent=agg});
+}
+setInterval(function(){if(!document.hidden&&!$("t9").classList.contains("hide")){caricaLive();if(MONADM)caricaMal()}},10000);
+var RFID=[],RMOD=null;
+function scadIso(d){if(!d)return"";var o=-new Date(d+"T23:59:00").getTimezoneOffset(),z=o>=0?"+":"-";o=Math.abs(o);return d+"T23:59:00"+z+String(Math.floor(o/60)).padStart(2,"0")+":"+String(o%60).padStart(2,"0")}
+function scadTxt(x){if(!x.scad)return"";var d=new Date(x.scad);if(isNaN(d))return esc(x.scad);var t=d.toLocaleDateString(LOC);return d<new Date()?'<span class="err">'+t+" ("+T("scaduta")+")</span>":t}
+function modoR(m){RMOD=m;$("rDalL").classList.toggle("hide",!!(m&&m.indice!==undefined));$("bRAgg").textContent=T(m?(m.indice!==undefined?"Ripara":"Salva modifica"):"Aggiungi");$("bRAnn").classList.toggle("hide",!m);$("rId").readOnly=!!(m&&m.indice===undefined);
+  if(!m){$("rId").value="";$("rNome").value="";$("rScad").value="";$("rDal").value="";$("rStato").value="0"}}
+var STATI=["Attiva","Bloccata","Scaduta","Non valida"];
+function statoTxt(v){var t=STATI[+v];return t===undefined?esc(v):(v==="0"?T(t):'<span class="err">'+T(t)+"</span>")}
+var RSEL=-1,NOMI=[],RERR="";
+// un'unica tabella: tessere sulla colonnina (con il periodo di assegnazione) + periodi chiusi (tessere disattivate o riassegnate)
+function mostraRfid(r){
+  var e=$("rEsito");e.classList.toggle("err",!!r.errore||!!r.avviso);
+  RERR=r.errore||"";
+  if(r.errore){e.textContent=T(r.errore);RFID=[]}
+  if(r.lista)RFID=r.lista.map(function(x,i){x.i=i;return x});
+  if(r.backup!==undefined){$("bRRip").classList.toggle("hide",!r.backup);if(r.backup)$("bRRip").title=T("Copia del ")+new Date(r.backup.quando).toLocaleString(LOC,{dateStyle:"short",timeStyle:"short"})+" ("+r.backup.n+T(" tessere)")}
+  disegnaR();
+  if(r.avviso)e.textContent=T(r.avviso);
+  else if(!r.errore&&RFID.some(function(x){return !x.id}))e.textContent=T("Ci sono tessere senza codice: non funzionano finché non le ripari");
+}
+function disegnaR(){
+  var bDate=function(n){return n<0?"":' <button class="nd" data-n="'+n+'">'+T("Date")+'</button>'};
+  var aperto=function(tag){var k=-1;NOMI.forEach(function(p,n){if(p.tag===tag&&!p.al_txt)k=n});return k};
+  var sc=RFID.some(function(x){return x.scad}),tdS=function(v){return sc?td(v):""};
+  var t=row([th(T("Codice tessera")),th(T("Nome")),th(T("Assegnata dal")),th(T("Disattivata il")),sc?th(T("Scadenza")):"",th(T("Stato")),th("")]);
+  var ord=RFID.slice().sort(function(a,b){return a.nome.localeCompare(b.nome,undefined,{numeric:true})});
+  var usati={};
+  ord.forEach(function(x){
+    var n=x.id?aperto(x.id):-1;if(n>=0)usati[n]=1;var p=n>=0?NOMI[n]:null;
+    var az=x.id?'<button class="rm" data-i="'+x.i+'" data-n="'+n+'">'+T("Modifica")+'</button>'
+      :'<button class="p rr" data-i="'+x.i+'">'+T("Ripara")+'</button> <button class="rd" data-i="'+x.i+'">'+T("Elimina")+'</button>';
+    t+='<tr class="rs" data-i="'+x.i+'">'+td(x.id?esc(x.id):'<span class="err">'+T("senza codice")+(x.suggerito?" ("+T("era ")+esc(x.suggerito)+")":"")+"</span>")+td(esc(x.nome))+td(p?esc(p.dal_txt):"")+td("")+tdS(scadTxt(x))+td(statoTxt(x.stato))+'<td class="n">'+az+"</td></tr>";
+  });
+  // periodi chiusi, e (se la colonnina non risponde) quelli aperti dal database del sito
+  NOMI.map(function(p,n){return {p:p,n:n}}).filter(function(o){return !usati[o.n]&&(o.p.al_txt||RERR)})
+    .sort(function(a,b){return a.p.nome.localeCompare(b.p.nome,undefined,{numeric:true})||a.p.dal-b.p.dal})
+    .forEach(function(o){var p=o.p;
+      t+='<tr class="old">'+td(esc(p.tag))+td(esc(p.nome))+td(esc(p.dal_txt))+td(p.al_txt?esc(p.al_txt):"")+tdS("")+td(p.al_txt?T("Disattivata"):T("non verificata"))+'<td class="n">'+bDate(o.n)+"</td></tr>"});
+  $("tabR").innerHTML=t;RSEL=-1;$("bRDis").disabled=true;
+}
+function caricaNomi(){return api("/api/nomi").then(function(L){NOMI=Array.isArray(L)?L:[]})}
+function caricaRfid(){modoR(null);$("rEsito").classList.remove("err");$("rEsito").textContent=T("Leggo la colonnina...");
+  return Promise.all([api("/api/rfid"),caricaNomi()]).then(function(v){$("rEsito").textContent="";mostraRfid(v[0])})}
+function rfid(b,msg){$("rEsito").classList.remove("err");$("rEsito").textContent=T("Scrivo sulla colonnina...");return post("/api/rfid",b).then(function(r){
+  if(!r.errore){caricaRfid().then(function(){$("rEsito").classList.toggle("err",!r.ok);$("rEsito").textContent=r.ok?T(msg):T(r.avviso||"")})}else mostraRfid(r);return r})}
+$("bRAgg").onclick=function(){
+  var b={id:$("rId").value,nome:$("rNome").value,scad:scadIso($("rScad").value),stato:$("rStato").value,dal:$("rDal").value};
+  if(!RMOD)rfid(Object.assign(b,{azione:"aggiungi"}),"Tessera aggiunta");
+  else if(RMOD.indice!==undefined)rfid(Object.assign(b,{azione:"ripara",indice:RMOD.indice}),"Tessera riparata");
+  else{
+    var p=RMOD.p,nd=b.dal?b.dal.split("-").reverse().join("-"):"",cambioData=p&&nd&&nd!==p.dal_txt;
+    var cambioCol=b.nome.trim()!==RMOD.nome||b.stato!==RMOD.stato||$("rScad").value!==RMOD.scad;
+    var data=function(){return cambioData?post("/api/nomi",{tag:p.tag,dal:p.dal,nuovo_dal:nd,nuovo_al:""}).then(function(r){if(r.errore)alert(T(r.errore))}):Promise.resolve()};
+    if(cambioCol)data().then(function(){rfid(Object.assign(b,{azione:"modifica"}),"Tessera aggiornata")});   // scrive sulla colonnina solo se serve
+    else data().then(function(){caricaNomi().then(function(){modoR(null);disegnaR();$("rEsito").classList.remove("err");$("rEsito").textContent=T(cambioData?"Data aggiornata":"Nessuna modifica")})});
+  }
+};
+$("bRAnn").onclick=function(){modoR(null)};
+$("tabR").onclick=function(ev){
+  var b=ev.target.closest("button");
+  if(b&&b.classList.contains("nd")){var p=NOMI[+b.dataset.n];if(!p)return;
+    var d=prompt(T("Assegnata dal (gg-mm-aaaa)"),p.dal_txt);if(d===null)return;
+    var a=prompt(T("Dismessa il (gg-mm-aaaa). Vuoto = ancora assegnata"),p.al_txt);if(a===null)return;
+    post("/api/nomi",{tag:p.tag,dal:p.dal,nuovo_dal:d.trim(),nuovo_al:a.trim()}).then(function(r){if(r.errore)alert(T(r.errore));caricaNomi().then(disegnaR)});return}
+  if(!b){var tr=ev.target.closest("tr.rs");if(!tr)return;var k=+tr.dataset.i;
+    Array.prototype.forEach.call($("tabR").querySelectorAll("tr.rs"),function(q){q.classList.remove("sel")});
+    if(RSEL===k){RSEL=-1}else{RSEL=k;tr.classList.add("sel")}
+    var sx=RFID[RSEL];$("bRDis").disabled=!(sx&&sx.id);return}var x=RFID[+b.dataset.i];if(!x)return;
+  var d=x.scad&&!isNaN(new Date(x.scad))?x.scad.slice(0,10):"";
+  if(b.classList.contains("rm")){var pn=NOMI[+b.dataset.n];modoR({p:pn,nome:x.nome,stato:x.stato,scad:d});$("rDal").value=pn?pn.dal_txt.split("-").reverse().join("-"):"";$("rId").value=x.id;$("rNome").value=x.nome;$("rScad").value=d;$("rStato").value=STATI[+x.stato]?x.stato:"0";$("rNome").focus()}
+  if(b.classList.contains("rr")){modoR({indice:x.i});$("rId").value=x.suggerito||"";$("rNome").value=(x.nome_completo||x.nome).slice(0,25);$("rScad").value=d;$("rStato").value=STATI[+x.stato]?x.stato:"0";$("rId").focus()}
+  if(b.classList.contains("rd")&&confirm(x.id?T("Dismettere la tessera ")+x.id+" - "+x.nome+T("? Viene tolta dalla colonnina, lo storico resta."):T("Eliminare dalla colonnina la tessera ")+T("senza codice")+" - "+x.nome+"?")){
+    var al="";if(x.id){al=prompt(T("Data di dismissione (gg-mm-aaaa). Vuoto = oggi"),"");if(al===null)return;al=al.trim();if(al&&!/^\d{1,2}[\/.-]?\d{1,2}[\/.-]?\d{4}$/.test(al)){alert(T("Data non valida"));return}}
+    rfid(x.id?{azione:"elimina",id:x.id,al:al}:{azione:"elimina",indice:x.i},"Tessera eliminata")}
+};
+$("bRDis").onclick=function(){var x=RFID[RSEL];if(!x||!x.id)return;
+  if(!confirm(T("Disattivare in modo permanente la tessera ")+x.id+" - "+x.nome+T("? Viene tolta dalla colonnina, lo storico resta.")))return;
+  var al=prompt(T("Data di disattivazione (gg-mm-aaaa). Vuoto = oggi"),"");if(al===null)return;al=al.trim();
+  if(al&&!/^\d{1,2}[\/.-]?\d{1,2}[\/.-]?\d{4}$/.test(al)){alert(T("Data non valida"));return}
+  rfid({azione:"elimina",id:x.id,al:al},"Tessera disattivata")};
+$("bRImp").onclick=function(){$("rFile").value="";$("rFile").click()};
+$("rFile").onchange=function(){var f=this.files[0];if(!f)return;f.text().then(function(t){
+  if(confirm(T("Importare le tessere del file ")+f.name+T(" sulla colonnina?")))rfid({azione:"importa",testo:t},"Import completato")})};
+$("bRLeggi").onclick=function(){$("rEsito").classList.remove("err");caricaRfid()};
+$("bREsp").onclick=function(){
+  var s="1\r\n"+RFID.map(function(x){return x.id+";"+x.scad+";"+x.nome+";"+x.stato+"\r\n"}).join("");
+  var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([s],{type:"text/plain"}));a.download="tessere_colonnina_"+new Date().toISOString().slice(0,10)+".txt";a.click();
+};
+$("bRRip").onclick=function(){if(confirm(T("Riportare sulla colonnina la lista com'era prima dell'ultima modifica?")))rfid({azione:"ripristina"},"Lista ripristinata")};
+var MONADM=false,MALDIRTY=false,AVDIRTY=false;
+function caricaMal(){return api("/api/malfunzionamenti").then(disegnaMal)}
+function caricaProfilo(salva){
+  var p=salva?post("/api/profilo",{whatsapp:$("pWa").checked,telegram:$("pTg").checked}):api("/api/profilo");
+  return p.then(function(d){
+    if(!d||d.errore||!d.registrato)return;
+    $("tabP").innerHTML=row([th(T("Nome")),td(esc(d.nome+" "+d.cognome))])+row([th("Email"),td(esc(d.email))])+row([th(T("Telefono")),td(esc(d.tel1||"")+(d.tel2?" / "+esc(d.tel2):""))]);
+    $("pWa").checked=!!d.whatsapp;$("pTg").checked=!!d.telegram;
+    $("pAgg").textContent=d.aggiornato?T("Ultima modifica del consenso: ")+oraTxt(Date.parse(d.aggiornato)):"";
+    if(salva)$("pEsito").textContent=T("Salvato");
+  });
+}
+$("bProfilo").onclick=function(){$("pEsito").textContent="";caricaProfilo(true)};
 
+var TIPIT={tessera:"Tessera smarrita o danneggiata",dati:"Correzione dei dati",cancellazione:"Cancellazione dei dati / dell'utenza",colonnina:"Problema con la colonnina",altro:"Altro",nuova:"Richiesta nuova tessera"};
+var TESST=[];
+function tipoT(){var t=$("tkTipo").value;$("tkTessBox").classList.toggle("hide",t!=="tessera");$("tkTessInfo").style.display=t==="tessera"?"block":"none";$("tkDatiBox").classList.toggle("hide",t!=="dati");$("tkCancInfo").style.display=t==="cancellazione"?"block":"none";$("tkNuovaInfo").style.display=t==="nuova"?"block":"none";$("tkPagBox").classList.toggle("hide",t!=="nuova");$("tkPag").style.display=t==="nuova"?"block":"none";if(t==="nuova")pagTesto()}
+var PAG={};
+function pagLink(k,v){if(/^https:\/\//.test(v))return v;return k==="paypal"?"https://paypal.me/"+v+"/5EUR":k==="satispay"?"https://tag.satispay.com/"+v:"https://revolut.me/"+v}
+function pagTesto(){api("/api/pagamento").then(function(d){if(!d)return;PAG=d;var cur=$("tkPagSel").value,o=[];
+  if(d.paypal)o.push(["paypal","PayPal"]);if(d.satispay)o.push(["satispay","Satispay"]);if(d.revolut)o.push(["revolut","Revolut"]);o.push(["contanti",T("Contanti alla consegna")]);
+  $("tkPagSel").innerHTML=o.map(function(x){return '<option value="'+x[0]+'">'+esc(x[1])+"</option>"}).join("");
+  if(cur&&o.some(function(x){return x[0]===cur}))$("tkPagSel").value=cur;pagMostra()})}
+function causale(){return "Tessera "+((io&&(io.nome_completo||io.nome))||"")}
+function pagMostra(){var v=$("tkPagSel").value,h="";
+  if(v==="contanti")h=T("Pagherai in contanti alla consegna della tessera")+(FEE?" ("+FEE+")":"")+".";
+  else if(PAG[v]){var l=esc(pagLink(v,PAG[v]));h=T("Paga da qui")+(FEE?" ("+FEE+")":"")+': <a href="'+l+'" target="_blank" rel="noopener">'+l+"</a>"+(v==="paypal"?"<br>"+T("Su PayPal scegli «Amici e familiari»."):"")+"<br>"+T("Causale da indicare:")+' <b id="causale">'+esc(causale())+'</b> <button type="button" id="bCopia">'+T("Copia causale")+"</button>"}
+  $("tkPag").innerHTML=h;var bc=$("bCopia");if(bc)bc.onclick=function(){var t=causale();try{navigator.clipboard.writeText(t).then(function(){bc.textContent=T("Copiata")})}catch(e){var r=document.createRange();r.selectNode($("causale"));getSelection().removeAllRanges();getSelection().addRange(r)}}}
+$("tkPagSel").onchange=pagMostra;
+$("bPag").onclick=function(){post("/api/pagamento",{paypal:$("pagPp").value,satispay:$("pagSa").value,revolut:$("pagRe").value}).then(function(r){$("pagEs").textContent=r.errore?T(r.errore):T("Salvato")})};
+$("tkTipo").onchange=tipoT;tipoT();
+function statoT(s){return T(s==="aperto"?"aperta":s==="approvato"?"approvata":s==="rifiutato"?"rifiutata":"chiusa")}
+function extraT(t){
+  var x=t.extra;if(!x)return "";
+  if(t.tipo==="tessera")return T("Tessera ")+esc(x.tessera)+" ("+T(x.motivo==="danneggiata"?"danneggiata":"smarrita")+") - "+T(x.blocco==="sbloccata"?"tessera sbloccata":x.blocco==="ok"?"bloccata sulla colonnina":x.blocco==="assente"?"tessera non presente sulla colonnina":"blocco in attesa: la colonnina non risponde, riprovo ogni 5 minuti");
+  if(t.tipo==="nuova"&&x.pagamento)return T("Pagamento")+": "+({paypal:"PayPal",satispay:"Satispay",revolut:"Revolut",contanti:T("Contanti alla consegna")}[x.pagamento]||esc(x.pagamento));
+  if(t.tipo==="dati"){var p=[];if(x.nome)p.push(T("Nome")+": "+esc(x.nome));if(x.cognome)p.push(T("Cognome")+": "+esc(x.cognome));if(x.tel1)p.push(T("Telefono")+": "+esc(x.tel1));if(x.tel2)p.push(T("Secondo telefono")+": "+esc(x.tel2));return p.join(", ")}
+  return "";
+}
+function badgeTicket(){
+  return api("/api/ticket").then(function(L){
+    if(!Array.isArray(L))return;
+    var n=L.filter(function(x){return x.stato==="aperto"}).length;
+    $("navTN").textContent=n?String(n):"";
+  });
+}
+function caricaTicket(){
+  var adm=io&&io.ruolo==="admin";
+  var pt=adm?api("/api/tessere").then(function(L){TESST=Array.isArray(L)?L:[]}):Promise.resolve();
+  return pt.then(function(){return api("/api/ticket")}).then(function(L){
+    if(!Array.isArray(L))return;
+    var h="";
+    L.forEach(function(t){
+      var ap=t.stato==="aperto";
+      h+='<div style="padding:8px 0;border-top:1px solid var(--line)"><b>#'+t.id+" "+T(TIPIT[t.tipo]||t.tipo)+'</b> <small>'+esc(oraTxt(Date.parse(t.creato)))+" - "+statoT(t.stato)+"</small>";
+      if(adm)h+="<br><small>"+esc(t.nome_utente?t.nome_utente+" - ":"")+esc(t.utente)+"</small>";
+      var ex=extraT(t);if(ex)h+="<br>"+ex;
+      if(t.testo)h+="<br>"+esc(t.testo).replace(/\n/g,"<br>");
+      (t.integrazioni||[]).forEach(function(g){h+='<div style="margin:4px 0 0 10px;padding-left:8px;border-left:3px solid var(--line)"><small>'+T("Integrazione")+" - "+esc(oraTxt(Date.parse(g.ts)))+"</small><br>"+esc(g.testo).replace(/\n/g,"<br>")+"</div>"});
+      if(!adm&&ap)h+='<div class="bar"><input id="ig'+t.id+'" placeholder="'+T("Aggiungi informazioni a questa richiesta")+'" size="34" maxlength="1000"><button class="igb" data-i="'+t.id+'">'+T("Aggiungi")+"</button></div>";
+      if(t.nota)h+='<br><small>'+T("Nota dell'Amministratore: ")+esc(t.nota)+"</small>";
+      if(adm&&!ap&&t.tipo==="tessera"&&t.extra&&(t.extra.blocco==="ok"||t.extra.blocco==="in attesa"))h+='<div class="bar"><button class="tkb" data-i="'+t.id+'" data-e="sblocca">'+T("Sblocca tessera")+"</button></div>";
+      if(adm&&ap){
+        h+='<div class="bar"><input id="tn'+t.id+'" placeholder="'+T("Nota per l'utente (facoltativa)")+'" size="30" maxlength="500">';
+        if(t.tipo==="tessera"||t.tipo==="nuova")h+='<select id="tx'+t.id+'"><option value="">'+T(t.tipo==="nuova"?"scegli la tessera da assegnare":"nessuna nuova tessera (la vecchia viene solo dismessa)")+'</option>'+TESST.map(function(x){return '<option value="'+esc(x.tag)+'">'+esc(x.tag)+" - "+esc(x.nome)+"</option>"}).join("")+"</select>";
+        if(t.tipo==="tessera"||t.tipo==="dati"||t.tipo==="cancellazione"||t.tipo==="nuova")h+='<button class="p tkb" data-i="'+t.id+'" data-e="approva" data-t="'+t.tipo+'" data-u="'+esc(t.utente)+'">'+T(t.tipo==="tessera"?"Sostituisci tessera":t.tipo==="nuova"?"Assegna tessera":"Approva")+"</button>";
+        if(t.tipo!=="tessera")h+='<button class="tkb" data-i="'+t.id+'" data-e="rifiuta">'+T("Rifiuta")+"</button>";
+        if(t.tipo==="tessera"&&t.extra&&t.extra.blocco!=="sbloccata")h+='<button class="tkb" data-i="'+t.id+'" data-e="ritrovata">'+T("Ritrovata: sblocca e chiudi")+"</button>";
+        if(t.tipo==="colonnina"||t.tipo==="altro")h+='<button class="tkb" data-i="'+t.id+'" data-e="chiudi">'+T("Chiudi")+"</button>";
+        h+="</div>";
+      }
+      h+="</div>";
+    });
+    $("listaT").innerHTML=h||'<p class="sub">'+T("Nessuna richiesta")+"</p>";
+    document.querySelectorAll("#listaT .igb").forEach(function(b){b.onclick=function(){
+      var i=$("ig"+b.dataset.i);if(!i.value.trim())return;
+      post("/api/ticket",{azione:"integra",id:+b.dataset.i,testo:i.value}).then(function(r){
+        if(r.errore){alert(T(r.errore));return}
+        caricaTicket()})}});
+    document.querySelectorAll("#listaT .tkb").forEach(function(b){b.onclick=function(){
+      var e=b.dataset.e,t=b.dataset.t;
+      if(e==="approva"&&t==="cancellazione"&&!confirm(T("Cancellare definitivamente l'utenza e i dati di ")+b.dataset.u+"?"))return;
+      if(e==="approva"&&t==="tessera"&&!confirm(T("Scollegare la tessera dall'utente?")))return;
+      var n=$("tx"+b.dataset.i);
+      if(e==="approva"&&t==="nuova"&&!(n&&n.value)){alert(T("Scegli la tessera da assegnare"));return}
+      var corpo=e==="sblocca"?{azione:"sblocca",id:+b.dataset.i}:{azione:"gestisci",id:+b.dataset.i,esito:e,nota:$("tn"+b.dataset.i).value,nuova:n?n.value:""};
+      post("/api/ticket",corpo).then(function(r){
+        if(r.errore){alert(T(r.errore));return}
+        if(r.applicato)alert(T(r.applicato));
+        caricaTicket();badgeTicket()})}});
+  });
+}
+$("bTk").onclick=function(){
+  var e=$("tkEsito");e.textContent="";
+  var tipo=$("tkTipo").value;
+  $("bTk").disabled=true;
+  post("/api/ticket",{azione:"apri",tipo:tipo,pagamento:$("tkPagSel").value,testo:$("tkTesto").value,tessera:$("tkTess").value,motivo:$("tkMotivo").value,
+    nome:$("tkNome").value,cognome:$("tkCognome").value,tel1:$("tkTel1").value,tel2:$("tkTel2").value}).then(function(r){
+    $("bTk").disabled=false;
+    if(r.errore){e.textContent=T(r.errore);return}
+    e.textContent=T("Richiesta inviata: riceverai l'esito per email");
+    ["tkTesto","tkNome","tkCognome","tkTel1","tkTel2"].forEach(function(i){$(i).value=""});
+    caricaTicket()});
+};
+function badgeUtenti(){
+  return api("/api/utenti").then(function(L){
+    if(!Array.isArray(L))return;
+    var n=L.filter(function(x){return x.in_attesa_tessera}).length;      // registrati con email confermata, in attesa della tessera
+    $("navUN").textContent=n?String(n):"";
+    return L;
+  });
+}
+function caricaNot(letti){
+  return (letti?post("/api/notifiche",{}):api("/api/notifiche")).then(function(d){
+    if(!d||d.errore)return;
+    $("navN").textContent=d.nonLette?String(d.nonLette):"";
+    var h="";d.notifiche.forEach(function(n){h+='<div style="padding:5px 0;border-top:1px solid var(--line)'+(n.letta?";opacity:.65":"")+'"><b>'+esc(T(n.titolo))+'</b> <small>'+esc(oraTxt(n.ts))+'</small><br>'+esc(n.dett)+"</div>"});
+    $("listaNot").innerHTML=h||'<p class="sub">'+T("Nessuna notifica")+"</p>";
+    $("bNotLette").classList.toggle("hide",!d.nonLette);
+  });
+}
+$("bNotLette").onclick=function(){caricaNot(true)};
+setInterval(function(){if(MONADM&&!document.hidden){caricaNot();badgeUtenti()}},30000);
+function caricaCf(){
+  return api("/api/consumi").then(function(d){
+    if(!d||d.errore&&!d.configurato)return;
+    if(!d.configurato){$("tabCf").innerHTML="";$("cfNota").textContent=T("Per vedere i consumi serve un token Cloudflare con il permesso Account Analytics: Read (secret CF_API_TOKEN) e CF_ACCOUNT_ID in wrangler.toml.");return}
+    if(d.errore){$("tabCf").innerHTML="";$("cfNota").textContent=d.errore;return}
+    function pc(v,l){var p=v/l*100;return v.toLocaleString(LOC)+' <small>('+(p<0.1?"<0,1":p.toLocaleString(LOC,{maximumFractionDigits:1}))+"%)</small>"}
+    var L=d.limiti,t=row([th(T("Giorno (UTC)")),th(T("Richieste sito")),th(T("Errori")),th("CPU 99% ms"),th(T("D1 righe lette")),th(T("D1 righe scritte")),th(T("Richieste OCPP")),th("OCPP GB-s"),th(T("OCPP righe lette")),th(T("OCPP righe scritte"))]);
+    t+=row([td("<b>"+T("Limite giornaliero")+"</b>"),td(L.req.toLocaleString(LOC),1),td("-",1),td("-",1),td(L.d1r.toLocaleString(LOC),1),td(L.d1w.toLocaleString(LOC),1),td(L.dor.toLocaleString(LOC),1),td(L.dogbs.toLocaleString(LOC),1),td(L.dorr.toLocaleString(LOC),1),td(L.dorw.toLocaleString(LOC),1)]);
+    d.giorni.forEach(function(g){t+=row([td(esc(g.giorno.split("-").reverse().join("-"))),td(pc(g.req,L.req),1),td(String(g.err),1),td(g.cpu99.toLocaleString(LOC,{maximumFractionDigits:1}),1),td(pc(g.d1r,L.d1r),1),td(pc(g.d1w,L.d1w),1),td(pc(g.dor,L.dor),1),td(pc(Math.round(g.dogbs),L.dogbs),1),td(pc(g.dorr,L.dorr),1),td(pc(g.dorw,L.dorw),1)])});
+    $("tabCf").innerHTML=t;
+    var M=row([th(T("Mese")),th(T("Richieste sito")),th(T("D1 righe lette")),th(T("D1 righe scritte")),th(T("Richieste OCPP")),th("OCPP GB-s"),th(T("OCPP righe lette")),th(T("OCPP righe scritte")),th(T("Giorno di picco"))]);
+    d.mesi.forEach(function(m){var p=m.picco,mm=m.mese.split("-").reverse().join("-");
+      M+=row([td(esc(mm)),td(m.req.toLocaleString(LOC),1),td(m.d1r.toLocaleString(LOC),1),td(m.d1w.toLocaleString(LOC),1),td(m.dor.toLocaleString(LOC),1),td(Math.round(m.dogbs).toLocaleString(LOC),1),td(m.dorr.toLocaleString(LOC),1),td(m.dorw.toLocaleString(LOC),1),
+        td(p.voce?esc(p.giorno.split("-").reverse().join("-"))+" - "+esc(T(p.voce))+" "+p.pct.toLocaleString(LOC,{maximumFractionDigits:1})+"%":"-")])});
+    $("tabCfM").innerHTML=M;
+    function by(n){return n>=1e9?(n/1e9).toLocaleString(LOC,{maximumFractionDigits:2})+" GB":n>=1e6?(n/1e6).toLocaleString(LOC,{maximumFractionDigits:1})+" MB":Math.round(n/1e3).toLocaleString(LOC)+" KB"}
+    var sp=d.spazio||{};
+    $("cfSpazio").innerHTML=T("Spazio occupato (limite 5 GB ciascuno, totale):")+" D1 <b>"+(sp.d1?by(sp.d1)+" ("+(sp.d1/L.spazio*100).toLocaleString(LOC,{maximumFractionDigits:3})+"%)":"-")+"</b>; "+T("server OCPP")+" <b>"+(sp.ocpp?by(sp.ocpp)+" ("+(sp.ocpp/L.spazio*100).toLocaleString(LOC,{maximumFractionDigits:3})+"%)":"-")+"</b>";
+    $("cfNota").textContent=T("Tutti i limiti del piano gratuito sono giornalieri e si azzerano alle 00:00 UTC (01:00 ora solare, 02:00 ora legale in Italia); non ce ne sono di mensili. Tra parentesi la quota del limite del giorno. Il giorno corrente è parziale. Il riepilogo mensile somma i giorni e indica il giorno più vicino al limite. Lo spazio (5 GB totali per D1 e per il server OCPP) non è giornaliero: si accumula e conta nell'avviso. Non monitorata la CPU (10 ms per richiesta). Dati aggiornati alle ")+oraTxt(d.ts)+".";
+  });
+}
+function disegnaMal(d){
+  if(!d||d.errore)return;
+  function statoTxt(r){var st=d.stato[r.id];return !r.on?T("disattivato"):!st?T("regolare"):st.notificato?T("segnalato il ")+oraTxt(st.notificato):T("in corso dal ")+oraTxt(st.da)+(st.esito&&st.esito!=="inviata"?" - "+T("mail non inviata"):"")}
+  if(MALDIRTY){d.regole.forEach(function(r){var c=document.querySelector('#tabMal td[data-s="'+r.id+'"]');if(c){var cb=document.querySelector('#tabMal input[data-m="'+r.id+'"]'),cn=document.querySelector('#tabMal input[data-n="'+r.id+'"]');c.textContent=cb&&!cb.checked&&cn&&!cn.checked?T("disattivato"):statoTxt(Object.assign({},r,{on:true}))}})}   // modifiche non salvate: non ridisegno la tabella
+  else{$("mA").value=d.a.join(", ");$("mCc").value=d.cc.join(", ");
+    var h=row([th(T("Mail")),th(T("Notifica")),th(T("Controllo")),th(T("Soglia")),th(T("Stato"))]),g="";
+    d.regole.forEach(function(r){
+      if(r.g!==g){g=r.g;h+='<tr><th colspan="5" style="background:var(--bg)">'+esc(T(g))+"</th></tr>"}
+      var t=statoTxt(r);
+      var v=r.tipo==="evento"?'<span class="sub">'+T("avviso singolo")+"</span>":'<input type="number" data-v="'+r.id+'" min="'+r.da+'" max="'+r.a+'" value="'+r.valore+'" style="width:5em"> '+esc(T(r.unita));
+      h+=row([td('<input type="checkbox" data-m="'+r.id+'"'+(r.mail?" checked":"")+">"),td('<input type="checkbox" data-n="'+r.id+'"'+(r.not?" checked":"")+">"),td(esc(T(r.label))),td(v),'<td data-s="'+r.id+'">'+esc(t)+'</td>'])});
+    $("tabMal").innerHTML=h}
+  if(d.avvisi&&!AVDIRTY){$("avOn").checked=!!d.avvisi.on;$("avAt").value=d.avvisi.attesa;$("avSo").value=d.avvisi.sollecito}
+  var ep=row([th(T("Controllo")),th(T("Dal")),th(T("Al")),th(T("Mail"))]);
+  if(!d.storico.length)ep+='<tr><td colspan="4" class="sub">'+T("Nessun episodio registrato")+"</td></tr>";
+  d.storico.forEach(function(x){ep+=row([td(esc(T(x.label))),td(oraTxt(x.dal)),td(x.evento?"-":x.al?oraTxt(x.al):T("in corso")),td(x.evento?(x.inviata?T("inviata"):T("non inviata")):"")])});
+  $("tabEp").innerHTML=ep;
+  $("mUlt").textContent=d.ultimo?T("Ultimo controllo: ")+oraTxt(d.ultimo):T("Il controllo non è ancora partito")}
+function leggiMal(){
+  var rg={};document.querySelectorAll("#tabMal input[data-m]").forEach(function(c){var id=c.getAttribute("data-m");var vi=document.querySelector('#tabMal input[data-v="'+id+'"]');var cn=document.querySelector('#tabMal input[data-n="'+id+'"]');rg[id]={mail:c.checked,not:!!(cn&&cn.checked),valore:vi?vi.value:0}});
+  return {a:$("mA").value,cc:$("mCc").value,regole:rg}}
+["tabMal","mA","mCc"].forEach(function(id){var e=$(id);e.addEventListener("input",function(){MALDIRTY=true});e.addEventListener("change",function(){MALDIRTY=true})});
+["avOn","avAt","avSo"].forEach(function(id){$(id).addEventListener("input",function(){AVDIRTY=true});$(id).addEventListener("change",function(){AVDIRTY=true})});
+$("bAv").onclick=function(){post("/api/malfunzionamenti",{azione:"avvisi",on:$("avOn").checked,attesa:$("avAt").value,sollecito:$("avSo").value}).then(function(r){
+  $("avEsito").textContent=r.errore?T(r.errore):T("Salvato");if(!r.errore)AVDIRTY=false})};
+$("bMal").onclick=function(){post("/api/malfunzionamenti",leggiMal()).then(function(r){
+  $("mEsito").textContent=r.errore?T(r.errore):T("Impostazioni salvate");if(!r.errore){MALDIRTY=false;disegnaMal(r)}})};
+$("bMalProva").onclick=function(){post("/api/malfunzionamenti",{azione:"prova"}).then(function(r){$("mEsito").textContent=r.errore?T(r.errore):T("Mail di prova inviata")})};
+function caricaDest(){return api("/api/destinatari").then(function(d){if(d&&d.a){$("dA").value=d.a.join(", ");$("dCc").value=d.cc.join(", ")}})}
+$("bDest").onclick=function(){
+  post("/api/destinatari",{a:$("dA").value,cc:$("dCc").value}).then(function(r){
+    $("dEsito").textContent=r.errore?T(r.errore):T("Destinatari salvati");if(r.a){$("dA").value=r.a.join(", ");$("dCc").value=r.cc.join(", ")}});
+};
+var io=null;
+var ETI={report:"report",storico:"storico",sessioni:"sessioni",prezzo:"prezzo",stampa:"stampa",scarica:"scarico",app:"app",live:"ricarica in corso"};
+function permForm(){var p={};document.querySelectorAll("#uPerm input").forEach(function(c){p[c.dataset.p]=c.checked});return p}
+function setPermForm(p){document.querySelectorAll("#uPerm input").forEach(function(c){c.checked=!!p[c.dataset.p]})}
+setPermForm({report:1,storico:1,sessioni:1,stampa:1});
+var ATT=null;
+function modoUtente(att){
+  ATT=att||null;
+  $("bUInvita").textContent=T(ATT?"Attiva utenza":"Invia invito");
+  $("bUPerm").classList.toggle("hide",!!ATT);
+  if(ATT){$("uTipo").value="c";tipoUI()}
+}
+function tipoUI(){var c=$("uTipo").value==="c";$("uTessBox").classList.toggle("hide",!c);$("uPerm").classList.toggle("hide",c)}
+$("uTipo").onchange=tipoUI;
+function caricaTessere(){
+  return api("/api/tessere").then(function(L){
+    if(!Array.isArray(L))return;var cur=$("uTess").value;
+    $("uTess").innerHTML='<option value="">'+T("- scegli la tessera -")+'</option>'+L.map(function(x){return '<option value="'+esc(x.tag)+'">'+esc(x.tag)+' - '+esc(x.nome)+'</option>'}).join("");
+    $("uTess").value=cur;
+    var cur2=Array.prototype.map.call($("uTess2").selectedOptions,function(o){return o.value});
+    $("uTess2").innerHTML=L.map(function(x){return '<option value="'+esc(x.tag)+'">'+esc(x.tag)+' - '+esc(x.nome)+'</option>'}).join("");
+    Array.prototype.forEach.call($("uTess2").options,function(o){o.selected=cur2.indexOf(o.value)>=0});
+  });
+}
+function invia(email,perm,tess,altre){
+  $("uEsito").textContent="";$("uLink").classList.add("hide");
+  return post("/api/utenti",{azione:"invita",nome:email,permessi:perm,tessera:tess||"",tessere_altre:altre||[],lang:LANG}).then(function(r){
+    if(r.errore){$("uEsito").textContent=T(r.errore);return}
+    if(r.mail==="inviata")$("uEsito").textContent=T("Invito inviato a ")+email;
+    else{$("uEsito").textContent=T("Mail non inviata (")+T(r.mail)+T("). Copia il link e invialo tu:");$("uLink").value=r.link;$("uLink").classList.remove("hide")}
+    $("uNome").value="";caricaUtenti();
+  });
+}
+function caricaUtenti(){
+  return api("/api/utenti").then(function(L){
+    if(!Array.isArray(L))return;
+    var na=L.filter(function(x){return x.in_attesa_tessera}).length;$("navUN").textContent=na?String(na):"";
+    caricaTessere();
+    api("/api/cifratura").then(function(c){if(!c||c.errore)return;
+      $("cifraInfo").textContent=c.attiva?T("Cifratura dei dati personali: attiva")+(c.utenti?" ("+c.cifrati+" "+T("campi cifrati")+(c.chiaro?", "+c.chiaro+" "+T("in chiaro"):"")+")":""):T("Cifratura dei dati personali NON attiva: manca il secret DATA_KEY, i dati dei nuovi utenti restano in chiaro (vedi README)");
+      $("cifraInfo").style.color=c.attiva&&!c.chiaro?"":"var(--err)";
+      if(!c.turnstile)$("cifraInfo").textContent+=" - "+T("Controllo anti-robot nella registrazione NON attivo: mancano TURNSTILE_SITE_KEY e TURNSTILE_SECRET (vedi README)")});
+    var t=row([th(T("Utente")),th(T("Stato")),th(T("Permessi / tessera")),th("")]);
+    L.forEach(function(x){
+      var adm=x.ruolo==="admin";
+      var an=x.anagrafica;
+      var st=adm?"admin":T(an&&an.da_confermare?"email da confermare":x.in_attesa_tessera?"in attesa di tessera":(x.attivo?"attivo":(x.invito_scaduto?"invito scaduto":"invito in attesa")));
+      var pe=adm?T("tutti"):x.tessera?(x.tessera+" - "+(x.tessera_nome||"")+(x.tessere_altre&&x.tessere_altre.length?" + "+x.tessere_altre.map(function(a){return a.tag+" - "+(a.nome||"")}).join(" + "):"")):Object.keys(x.perm).filter(function(k){return x.perm[k]}).map(function(k){return T(ETI[k])}).join(", ")||T("nessuno");
+      var attiva=an&&(x.in_attesa_tessera||an.da_confermare);
+      var az=adm?"":'<button class="bm" data-m="'+esc(x.nome)+'">'+T("Modifica")+'</button> '+(attiva?'<button class="ba" data-m="'+esc(x.nome)+'">'+T("Attiva utenza")+'</button> ':'<button class="br" data-m="'+esc(x.nome)+'" title="'+T(x.attivo?"Manda un link per reimpostare la password":"Manda di nuovo il link di invito")+'">'+T(x.attivo?"Reimposta":"Reinvia")+'</button> ')+'<button class="bd" data-d="'+esc(x.nome)+'">'+T("Elimina")+'</button>';
+      var ut=esc(x.nome);
+      if(an)ut='<b>'+esc((an.nome||"")+" "+(an.cognome||""))+'</b><br>'+ut+'<br><small>'+esc(an.tel1||"")+(an.tel2?" / "+esc(an.tel2):"")+(an.messaggi?" - WhatsApp/Telegram: "+T("sì"):"")+'</small>';
+      t+=row([td(ut),td(st),td(esc(pe)),'<td class="n">'+az+"</td>"]);
+    });
+    $("tabU").innerHTML=t;
+    var per={};L.forEach(function(x){per[x.nome]=x});
+    document.querySelectorAll("#tabU .bm,#tabU .ba").forEach(function(b){b.onclick=function(){var x=per[b.dataset.m];$("uNome").value=x.nome;setPermForm(x.perm);$("uTipo").value=x.tessera?"c":"g";tipoUI();$("uTess").value=x.tessera||"";var al=(x.tessere_altre||[]).map(function(a){return a.tag});Array.prototype.forEach.call($("uTess2").options,function(o){o.selected=al.indexOf(o.value)>=0});modoUtente(b.classList.contains("ba")?x.nome:null);$("uTess").focus();window.scrollTo(0,0)}});
+    document.querySelectorAll("#tabU .br").forEach(function(b){b.onclick=function(){
+      if(confirm(T("Mandare un nuovo link a ")+b.dataset.m+"?"))invia(b.dataset.m,per[b.dataset.m].perm,per[b.dataset.m].tessera,(per[b.dataset.m].tessere_altre||[]).map(function(a){return a.tag}))}});
+    document.querySelectorAll("#tabU .bd").forEach(function(b){b.onclick=function(){
+      if(!confirm(T("Eliminare l'utente ")+b.dataset.d+"?"))return;
+      post("/api/utenti",{azione:"elimina",nome:b.dataset.d}).then(function(r){$("uEsito").textContent=T(r.errore)||"";caricaUtenti()})}});
+  });
+}
+function datiForm(){
+  var c=$("uTipo").value==="c";
+  if(c&&!$("uTess").value){$("uEsito").textContent=T("Scegli la tessera da abbinare");return null}
+  return {perm:c?{}:permForm(),tess:c?$("uTess").value:"",altre:c?Array.prototype.map.call($("uTess2").selectedOptions,function(o){return o.value}):[]};
+}
+$("bUInvita").onclick=function(){
+  var d=datiForm();if(!d)return;
+  if(!ATT){invia($("uNome").value,d.perm,d.tess,d.altre);return}
+  post("/api/utenti",{azione:"permessi",nome:ATT,permessi:{},tessera:d.tess,tessere_altre:d.altre}).then(function(r){
+    if(r.errore){$("uEsito").textContent=T(r.errore);return}
+    $("uEsito").textContent=r.mail==="inviata"?T("Utenza attivata: mail inviata a ")+ATT:r.mail?T("Utenza attivata, ma la mail non è partita (")+T(r.mail)+")":T("Tessera abbinata: l'utenza si attiverà quando l'utente conferma l'email");
+    modoUtente(null);$("uNome").value="";caricaUtenti()});
+};
+$("uNome").addEventListener("input",function(){if(ATT&&$("uNome").value.trim().toLowerCase()!==ATT)modoUtente(null)});
+$("bUPerm").onclick=function(){
+  var d=datiForm();if(!d)return;
+  post("/api/utenti",{azione:"permessi",nome:$("uNome").value,permessi:d.perm,tessera:d.tess,tessere_altre:d.altre}).then(function(r){
+    $("uEsito").textContent=T(r.errore)||T("Permessi salvati");caricaUtenti()});
+};
+$("bBackup").onclick=function(){
+  var p=$("bkP").value,e=$("bkEsito");e.textContent="";
+  if(p.length<12){e.textContent=T("La passphrase deve avere almeno 12 caratteri");return}
+  if(p!==$("bkP2").value){e.textContent=T("Le due passphrase non coincidono");return}
+  var enc=new TextEncoder(),salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+  e.textContent="...";
+  fetch("/api/backup").then(function(r){if(!r.ok)throw new Error("http");return r.arrayBuffer()}).then(function(buf){
+    return crypto.subtle.importKey("raw",enc.encode(p),"PBKDF2",false,["deriveKey"]).then(function(km){
+      return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:600000,hash:"SHA-256"},km,{name:"AES-GCM",length:256},false,["encrypt"])})
+    .then(function(k){return crypto.subtle.encrypt({name:"AES-GCM",iv:iv},k,buf)})
+  }).then(function(ct){
+    var magic=enc.encode("RBK1"),out=new Uint8Array(4+16+12+ct.byteLength);
+    out.set(magic,0);out.set(salt,4);out.set(iv,20);out.set(new Uint8Array(ct),32);
+    var a=document.createElement("a"),d=new Date().toISOString().slice(0,10);
+    a.href=URL.createObjectURL(new Blob([out],{type:"application/octet-stream"}));a.download="ricariche_"+d+".sql.enc";
+    document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},5000);
+    $("bkP").value="";$("bkP2").value="";e.textContent=T("Backup cifrato scaricato");
+  }).catch(function(){e.textContent=T("Backup non riuscito")});
+};
 $("bEsci").onclick=function(){post("/api/logout",{}).then(function(){location.reload()})};
 $("bPw").onclick=function(){$("boxPw").classList.toggle("hide")};
 $("bPwOk").onclick=function(){
-  if($("pwNew").value!==$("pwNew2").value){$("pwEsito").textContent=T("pw_mismatch");return}
+  if($("pwNew").value!==$("pwNew2").value){$("pwEsito").textContent=T("Le due nuove password non coincidono");return}
   post("/api/miapassword",{vecchia:$("pwOld").value,nuova:$("pwNew").value,ripeti:$("pwNew2").value}).then(function(r){
-    $("pwEsito").textContent=r.errore?E(r):T("pw_changed");if(r.ok){$("pwOld").value="";$("pwNew").value="";$("pwNew2").value=""}});
+    $("pwEsito").textContent=T(r.errore)||T("Password cambiata");if(r.ok){$("pwOld").value="";$("pwNew").value="";$("pwNew2").value=""}});
 };
 api("/api/me").then(function(m){
-  io=m;var P=m.perm;CUR=m.valuta||"€";TAXL=m.tax_label||T("tax_default");TITLE=m.titolo;etichette();
+  io=m;var P=m.perm;
+  if(m.completa){location.href="/?completa=1";return}
+  applicaConfig(m);
+  if(m.registrato){$("navP").classList.remove("hide");$("navT").classList.remove("hide")}
+  if(m.tessere&&m.tessere.length)$("tkTess").innerHTML=m.tessere.map(function(t){return '<option value="'+esc(t.tag)+'">'+esc(t.tag)+(t.nome?" - "+esc(t.nome):"")+'</option>'}).join("");
+  if(m.senzaTessera){
+    document.querySelectorAll("nav button").forEach(function(b){b.classList.add("hide")});
+    $("navP").classList.remove("hide");$("navT").classList.remove("hide");$("bScarica").classList.add("hide");$("bImporta").classList.add("hide");$("stato").classList.add("hide");
+    $("cSenzaT").classList.remove("hide");var po=$("tkTipo").querySelector('option[value="tessera"]');if(po)po.remove();$("tkTipo").value="nuova";tipoT();
+  }
   $("chi").innerHTML=esc(m.nome)+(m.ruolo==="admin"&&m.nome!=="admin"?' <span class="pill">admin</span>':"");
+  if(m.senzaTessera){$("chi").innerHTML=esc(m.nome);$("navT").click();return}
   if(m.tessera){
     document.querySelectorAll("nav button").forEach(function(b){b.classList.add("hide")});
-    $("navM").classList.remove("hide");$("bScarica").classList.add("hide");$("bImporta").classList.add("hide");$("stato").classList.add("hide");
-    $("mieTit").textContent=T("my_title")+(m.tessera.nome?" - "+m.tessera.nome+" ("+m.tessera.tag+")":"");
+    $("navM").classList.remove("hide");$("navL").classList.remove("hide");if(m.registrato){$("navP").classList.remove("hide");$("navT").classList.remove("hide")}$("bScarica").classList.add("hide");$("bImporta").classList.add("hide");$("stato").classList.add("hide");
+    $("mieTit").textContent=T("Le mie ricariche")+((m.tessere&&m.tessere.length>1)?" - "+m.tessere.map(function(t){return (t.nome?t.nome+" ":"")+"("+t.tag+")"}).join(", "):(m.tessera.nome?" - "+m.tessera.nome+" ("+m.tessera.tag+")":""));
     $("navM").click();return;
   }
-  if(m.ruolo==="admin"){$("navUt").classList.remove("hide");$("navSet").classList.remove("hide")}
-  if(m.ruolo==="admin"||P.live)$("navCol").classList.remove("hide");
+  if(m.ruolo==="admin"){MONADM=true;caricaNot();badgeUtenti();badgeTicket();$("navT").classList.remove("hide");$("navT").firstChild.nodeValue=T("Ticket");$("navI").classList.remove("hide");$("cTkNuovo").classList.add("hide");$("cPag").classList.remove("hide");api("/api/pagamento").then(function(d){if(d){$("pagPp").value=d.paypal||"";$("pagSa").value=d.satispay||"";$("pagRe").value=d.revolut||""}});$("tkTit").textContent=T("Richieste degli utenti");document.querySelectorAll(".solo-adm").forEach(function(e){e.classList.remove("hide")});$("navUt").classList.remove("hide");$("navSet").classList.remove("hide");$("navOc").classList.remove("hide")}
   function nasc(id,ok){var e=$(id);if(e)e.classList.toggle("hide",!ok)}
   nasc("bScarica",P.scarica);nasc("bImporta",P.scarica);
   document.querySelectorAll("#prezzo,#iva,#bPrezzo").forEach(function(e){(e.tagName==="BUTTON"?e:e.parentNode).classList.toggle("hide",!P.prezzo)});
@@ -990,207 +1520,446 @@ api("/api/me").then(function(m){
 });
 </script>
 </body>
-</html>
-`;
+</html>`;
 
 export const LOGIN = String.raw`<!doctype html>
-<html lang="en">
+<html lang="it">
 <head>
+<script>try{var _t=localStorage.getItem("tema");if(_t)document.documentElement.setAttribute("data-t",_t)}catch(e){}</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--tx:#14181f;--mut:#5b6573;--line:#d9dee5;--acc:#0b6bcb;--err:#b00020}
-@media (prefers-color-scheme:dark){:root{--bg:#12151a;--card:#1b2027;--tx:#e8ecf1;--mut:#9aa6b4;--line:#2f3742;--acc:#5aa6ff;--err:#ff7a8a}}
 *{box-sizing:border-box}
-body{margin:0;font:15px/1.4 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx);display:flex;min-height:100vh;align-items:center;justify-content:center}
-form{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:24px;width:min(360px,92vw);display:flex;flex-direction:column;gap:10px}
-h1{font-size:18px;margin:0 0 2px}.sub{color:var(--mut);font-size:13px}
-input,button,select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--tx)}
-button{background:var(--acc);border-color:var(--acc);color:#fff;cursor:pointer}
+body{margin:0;font:15px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx);display:flex;min-height:100vh;justify-content:center;padding:20px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px;width:min(460px,94vw);align-self:flex-start;margin:auto 0}
+h1{font-size:18px;margin:0 0 4px}
+.sub{color:var(--mut);font-size:13px;margin-bottom:12px}
+.tabs{display:flex;gap:6px;margin:10px 0 14px}
+.tabs button{flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--line)}
+form{display:flex;flex-direction:column;gap:10px}
+label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:3px}
+input,select,button{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--tx);min-width:0}
+.riga{display:flex;gap:8px}
+.riga>label{flex:1;min-width:0}
+label input,label select{width:100%}
+.tel select{width:44%}.tel input{width:auto}.chk input{width:auto}
+.tel{display:flex;gap:6px}
+.tel select{width:44%;flex:none}.tel input{flex:1}
 .err{color:var(--err);min-height:1.2em;font-size:13px}
-#lang{align-self:flex-end;padding:3px 6px;font-size:13px}
-</style>
+.okm{color:var(--ok);font-size:14px}
+.rg{font-size:12px;color:var(--mut);margin:-4px 0 0;display:flex;flex-wrap:wrap;gap:2px 12px}
+.rg span.s{color:var(--ok)}
+.chk{flex-direction:row;gap:8px;align-items:flex-start;font-size:13px;color:var(--tx)}
+.chk input{margin-top:3px;flex:none}
+details{border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px}
+details summary{cursor:pointer;color:var(--acc)}
+details .t{max-height:220px;overflow:auto;margin-top:6px}
+details h4{margin:10px 0 3px;font-size:13px}details p,details li{margin:3px 0}
+.hide{display:none!important}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.piede{margin:24px auto 12px;text-align:center;font-size:12px;color:var(--mut)}.piede a{color:var(--acc)}.noprint-f{}</style>
 </head>
 <body>
-<form id="f">
-  <select id="lang" title="Language"></select>
+<div class="card">
+  <button type="button" id="bLang" style="float:right;background:none;border:0;color:var(--acc);padding:0;cursor:pointer"></button><button type="button" id="bTema" style="float:right;margin-right:12px;background:none;border:0;color:var(--acc);padding:0;cursor:pointer"></button>
   <h1>__TITLE__</h1>
-  <div class="sub" data-i="login_h"></div>
-  <input id="n" data-ph="login_user" autocomplete="username" autocapitalize="none" required>
-  <input id="p" type="password" data-ph="login_pass" autocomplete="current-password" required>
-  <button type="submit" data-i="login_btn"></button>
-  <div class="err" id="e"></div>
-</form>
+  <div class="sub">Accedi o registrati per consultare le tue ricariche</div>
+  <div class="tabs"><button type="button" id="tA" class="on">Accedi</button><button type="button" id="tR">Registrati</button></div>
+
+  <form id="f">
+    <input id="n" placeholder="Email" autocomplete="username" autocapitalize="none" required>
+    <input id="p" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button type="submit" class="p">Accedi</button>
+    <div class="err" id="e"></div>
+  </form>
+
+  <form id="g" class="hide" autocomplete="on" novalidate>
+    <div class="riga">
+      <label>Nome<input id="rN" autocomplete="given-name" required></label>
+      <label>Cognome<input id="rC" autocomplete="family-name" required></label>
+    </div>
+    <label>Indirizzo email<input id="rE" type="email" autocomplete="email" autocapitalize="none" required></label>
+    <label>Password<input id="rP" type="password" autocomplete="new-password" required></label>
+    <div class="rg" id="rg"><span data-k="l">12+ caratteri</span><span data-k="a">minuscola</span><span data-k="A">maiuscola</span><span data-k="d">numero</span><span data-k="s">carattere speciale</span></div>
+    <label>Ripeti la password<input id="rP2" type="password" autocomplete="new-password" required></label>
+    <label>Numero di telefono (obbligatorio)
+      <div class="tel"><select id="pf1"></select><input id="t1" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="333 1234567" required></div>
+    </label>
+    <label>Secondo numero di telefono (facoltativo)
+      <div class="tel"><select id="pf2"></select><input id="t2" type="tel" inputmode="tel" placeholder="333 1234567"></div>
+    </label>
+    <div class="hp" aria-hidden="true"><label>Sito web<input id="hp" tabindex="-1" autocomplete="off"></label></div>
+
+    <details><summary>Leggi il regolamento della colonnina</summary><div class="t" id="regTxt"></div></details>
+    <label class="chk"><input type="checkbox" id="cR"><span>Ho letto e accetto il regolamento per l'uso della colonnina di ricarica.</span></label>
+
+    <details><summary>Leggi l'informativa sulla privacy<span id="edTxt"></span></summary><div class="t" id="prTxt"></div></details>
+    <label class="chk"><input type="checkbox" id="cP"><span>Ho letto l'informativa sulla privacy: i miei dati saranno utilizzati solo ed esclusivamente per erogare il servizio, senza cessione a terzi e senza pubblicità.</span></label>
+
+    <label class="chk"><input type="checkbox" id="cM"><span>Facoltativo: acconsento a ricevere messaggi di servizio su WhatsApp e Telegram quando il servizio sarà attivo. Posso cambiare o revocare il consenso in qualsiasi momento dalla pagina «Il mio profilo», dopo l'accesso.</span></label>
+
+    __TURNSTILE__
+    <button type="submit" class="p" id="bR">Registrati</button>
+    <div class="err" id="re"></div>
+    <div class="okm hide" id="ro"></div>
+  </form>
+<footer class="piede">Orbis Charge Report · software libero, <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">licenza AGPL-3.0</a> · <a href="https://github.com/alexxandro87/orbis-charge-report" target="_blank" rel="noopener">codice sorgente</a></footer>
+</div>
 <script>
-__I18N__
-applyI18n();
-document.title=document.title+" - "+T("login_title");
-document.getElementById("f").onsubmit=function(ev){
+var PREFISSI=[["Afghanistan","Afghanistan",93],["Albania","Albania",355],["Algeria","Algeria",213],["Andorra","Andorra",376],["Angola","Angola",244],["Anguilla","Anguilla",1],["Antigua e Barbuda","Antigua & Barbuda",1],["Arabia Saudita","Saudi Arabia",966],["Argentina","Argentina",54],["Armenia","Armenia",374],["Aruba","Aruba",297],["Australia","Australia",61],["Austria","Austria",43],["Azerbaigian","Azerbaijan",994],["Bahamas","Bahamas",1],["Bahrein","Bahrain",973],["Bangladesh","Bangladesh",880],["Barbados","Barbados",1],["Belgio","Belgium",32],["Belize","Belize",501],["Benin","Benin",229],["Bermuda","Bermuda",1],["Bhutan","Bhutan",975],["Bielorussia","Belarus",375],["Bolivia","Bolivia",591],["Bosnia ed Erzegovina","Bosnia & Herzegovina",387],["Botswana","Botswana",267],["Brasile","Brazil",55],["Brunei","Brunei",673],["Bulgaria","Bulgaria",359],["Burkina Faso","Burkina Faso",226],["Burundi","Burundi",257],["Cambogia","Cambodia",855],["Camerun","Cameroon",237],["Canada","Canada",1],["Capo Verde","Cape Verde",238],["Caraibi Olandesi","Caribbean Netherlands",599],["Cechia","Czechia",420],["Ciad","Chad",235],["Cile","Chile",56],["Cina","China",86],["Cipro","Cyprus",357],["Città del Vaticano","Vatican City",39],["Colombia","Colombia",57],["Comore","Comoros",269],["Congo - Kinshasa","Congo - Kinshasa",243],["Congo-Brazzaville","Congo - Brazzaville",242],["Corea del Nord","North Korea",850],["Corea del Sud","South Korea",82],["Costa d’Avorio","Côte d’Ivoire",225],["Costa Rica","Costa Rica",506],["Croazia","Croatia",385],["Cuba","Cuba",53],["Curaçao","Curaçao",599],["Danimarca","Denmark",45],["Dominica","Dominica",1],["Ecuador","Ecuador",593],["Egitto","Egypt",20],["El Salvador","El Salvador",503],["Emirati Arabi Uniti","United Arab Emirates",971],["Eritrea","Eritrea",291],["Estonia","Estonia",372],["Eswatini","Eswatini",268],["Etiopia","Ethiopia",251],["Figi","Fiji",679],["Filippine","Philippines",63],["Finlandia","Finland",358],["Francia","France",33],["Gabon","Gabon",241],["Gambia","Gambia",220],["Georgia","Georgia",995],["Germania","Germany",49],["Ghana","Ghana",233],["Giamaica","Jamaica",1],["Giappone","Japan",81],["Gibilterra","Gibraltar",350],["Gibuti","Djibouti",253],["Giordania","Jordan",962],["Grecia","Greece",30],["Grenada","Grenada",1],["Groenlandia","Greenland",299],["Guadalupa","Guadeloupe",590],["Guam","Guam",1],["Guatemala","Guatemala",502],["Guernsey","Guernsey",44],["Guinea","Guinea",224],["Guinea Equatoriale","Equatorial Guinea",240],["Guinea-Bissau","Guinea-Bissau",245],["Guyana","Guyana",592],["Guyana Francese","French Guiana",594],["Haiti","Haiti",509],["Honduras","Honduras",504],["India","India",91],["Indonesia","Indonesia",62],["Iran","Iran",98],["Iraq","Iraq",964],["Irlanda","Ireland",353],["Islanda","Iceland",354],["Isola Ascensione","Ascension Island",247],["Isola Christmas","Christmas Island",61],["Isola di Man","Isle of Man",44],["Isola Norfolk","Norfolk Island",672],["Isole Cayman","Cayman Islands",1],["Isole Cocos (Keeling)","Cocos (Keeling) Islands",61],["Isole Cook","Cook Islands",682],["Isole Falkland","Falkland Islands",500],["Isole Fær Øer","Faroe Islands",298],["Isole Marianne Settentrionali","Northern Mariana Islands",1],["Isole Marshall","Marshall Islands",692],["Isole Salomone","Solomon Islands",677],["Isole Turks e Caicos","Turks & Caicos Islands",1],["Isole Vergini Americane","U.S. Virgin Islands",1],["Isole Vergini Britanniche","British Virgin Islands",1],["Isole Åland","Åland Islands",358],["Israele","Israel",972],["Italia","Italy",39],["Jersey","Jersey",44],["Kazakistan","Kazakhstan",7],["Kenya","Kenya",254],["Kirghizistan","Kyrgyzstan",996],["Kiribati","Kiribati",686],["Kosovo","Kosovo",383],["Kuwait","Kuwait",965],["Laos","Laos",856],["Lesotho","Lesotho",266],["Lettonia","Latvia",371],["Libano","Lebanon",961],["Liberia","Liberia",231],["Libia","Libya",218],["Liechtenstein","Liechtenstein",423],["Lituania","Lithuania",370],["Lussemburgo","Luxembourg",352],["Macedonia del Nord","North Macedonia",389],["Madagascar","Madagascar",261],["Malawi","Malawi",265],["Malaysia","Malaysia",60],["Maldive","Maldives",960],["Mali","Mali",223],["Malta","Malta",356],["Marocco","Morocco",212],["Martinica","Martinique",596],["Mauritania","Mauritania",222],["Mauritius","Mauritius",230],["Mayotte","Mayotte",262],["Messico","Mexico",52],["Micronesia","Micronesia",691],["Moldavia","Moldova",373],["Monaco","Monaco",377],["Mongolia","Mongolia",976],["Montenegro","Montenegro",382],["Montserrat","Montserrat",1],["Mozambico","Mozambique",258],["Myanmar (Birmania)","Myanmar (Burma)",95],["Namibia","Namibia",264],["Nauru","Nauru",674],["Nepal","Nepal",977],["Nicaragua","Nicaragua",505],["Niger","Niger",227],["Nigeria","Nigeria",234],["Niue","Niue",683],["Norvegia","Norway",47],["Nuova Caledonia","New Caledonia",687],["Nuova Zelanda","New Zealand",64],["Oman","Oman",968],["Paesi Bassi","Netherlands",31],["Pakistan","Pakistan",92],["Palau","Palau",680],["Panama","Panama",507],["Papua Nuova Guinea","Papua New Guinea",675],["Paraguay","Paraguay",595],["Perù","Peru",51],["Polinesia Francese","French Polynesia",689],["Polonia","Poland",48],["Portogallo","Portugal",351],["Portorico","Puerto Rico",1],["Qatar","Qatar",974],["RAS di Hong Kong","Hong Kong SAR China",852],["RAS di Macao","Macao SAR China",853],["Regno Unito","United Kingdom",44],["Repubblica Centrafricana","Central African Republic",236],["Repubblica Dominicana","Dominican Republic",1],["Riunione","Réunion",262],["Romania","Romania",40],["Ruanda","Rwanda",250],["Russia","Russia",7],["Sahara Occidentale","Western Sahara",212],["Saint Kitts e Nevis","St. Kitts & Nevis",1],["Saint Lucia","St. Lucia",1],["Saint Martin","St. Martin",590],["Saint Vincent e Grenadine","St. Vincent & Grenadines",1],["Saint-Barthélemy","St. Barthélemy",590],["Saint-Pierre e Miquelon","St. Pierre & Miquelon",508],["Samoa","Samoa",685],["Samoa Americane","American Samoa",1],["San Marino","San Marino",378],["Sant’Elena","St. Helena",290],["Senegal","Senegal",221],["Serbia","Serbia",381],["Seychelles","Seychelles",248],["Sierra Leone","Sierra Leone",232],["Singapore","Singapore",65],["Sint Maarten","Sint Maarten",1],["Siria","Syria",963],["Slovacchia","Slovakia",421],["Slovenia","Slovenia",386],["Somalia","Somalia",252],["Spagna","Spain",34],["Sri Lanka","Sri Lanka",94],["Stati Uniti","United States",1],["Sud Sudan","South Sudan",211],["Sudafrica","South Africa",27],["Sudan","Sudan",249],["Suriname","Suriname",597],["Svalbard e Jan Mayen","Svalbard & Jan Mayen",47],["Svezia","Sweden",46],["Svizzera","Switzerland",41],["São Tomé e Príncipe","São Tomé & Príncipe",239],["Tagikistan","Tajikistan",992],["Taiwan","Taiwan",886],["Tanzania","Tanzania",255],["Territori Palestinesi","Palestinian Territories",970],["Territorio Britannico dell’Oceano Indiano","British Indian Ocean Territory",246],["Thailandia","Thailand",66],["Timor Est","Timor-Leste",670],["Togo","Togo",228],["Tokelau","Tokelau",690],["Tonga","Tonga",676],["Trinidad e Tobago","Trinidad & Tobago",1],["Tristan da Cunha","Tristan da Cunha",290],["Tunisia","Tunisia",216],["Turchia","Türkiye",90],["Turkmenistan","Turkmenistan",993],["Tuvalu","Tuvalu",688],["Ucraina","Ukraine",380],["Uganda","Uganda",256],["Ungheria","Hungary",36],["Uruguay","Uruguay",598],["Uzbekistan","Uzbekistan",998],["Vanuatu","Vanuatu",678],["Venezuela","Venezuela",58],["Vietnam","Vietnam",84],["Wallis e Futuna","Wallis & Futuna",681],["Yemen","Yemen",967],["Zambia","Zambia",260],["Zimbabwe","Zimbabwe",263]];
+var LANG="it";try{LANG=localStorage.getItem("lang")||(((navigator.language||"it").slice(0,2)==="it")?"it":"en")}catch(e){}
+var EN={"Orbis Charge Report · software libero,":"Orbis Charge Report · free software,","licenza AGPL-3.0":"AGPL-3.0 licence","codice sorgente":"source code","Sito web":"Website",
+"Accedi o registrati per consultare le tue ricariche":"Sign in or register to view your charges",
+"Accedi":"Sign in","Registrati":"Register","Email":"Email","Password":"Password","Nome":"First name","Cognome":"Last name",
+"Indirizzo email":"Email address","Ripeti la password":"Repeat the password",
+"12+ caratteri":"12+ characters","minuscola":"lowercase","maiuscola":"uppercase","numero":"digit","carattere speciale":"special character",
+"Numero di telefono (obbligatorio)":"Phone number (required)","Secondo numero di telefono (facoltativo)":"Second phone number (optional)",
+"Leggi il regolamento della colonnina":"Read the charger rules",
+"Leggi l'informativa sulla privacy":"Read the privacy notice"," (edizione ":" (edition ","(testo non ancora pubblicato dal gestore del sito)":"(text not yet published by the site operator)","costo":"cost","una tantum":"one-off",
+"Ho letto e accetto il regolamento per l'uso della colonnina di ricarica.":"I have read and accept the rules for using the charging station.",
+"Ho letto l'informativa sulla privacy: i miei dati saranno utilizzati solo ed esclusivamente per erogare il servizio, senza cessione a terzi e senza pubblicità.":"I have read the privacy notice: my data will be used only and exclusively to provide the service, with no disclosure to third parties and no advertising.",
+"Facoltativo: acconsento a ricevere messaggi di servizio su WhatsApp e Telegram quando il servizio sarà attivo. Posso cambiare o revocare il consenso in qualsiasi momento dalla pagina «Il mio profilo», dopo l'accesso.":"Optional: I agree to receive service messages on WhatsApp and Telegram when the service becomes active. I can change or withdraw consent at any time from the “My profile” page, after signing in.",
+"Inserisci nome e cognome":"Enter first and last name","Indirizzo email non valido":"Invalid email address",
+"La password non rispetta i requisiti":"The password does not meet the requirements","Le due password non coincidono":"The two passwords do not match",
+"Numero di telefono non valido":"Invalid phone number","Secondo numero di telefono non valido":"Invalid second phone number",
+"Devi accettare il regolamento":"You must accept the rules","Devi confermare di aver letto l'informativa privacy":"You must confirm you have read the privacy notice",
+"Errore di rete":"Network error","Errore":"Error",
+"Troppi tentativi: riprova tra 10 minuti":"Too many attempts: try again in 10 minutes",
+"Nome o password errati":"Wrong user name or password",
+"Account in attesa di attivazione: sarà attivo quando l'Amministratore avrà abbinato la tua tessera":"Account awaiting activation: it will be active once the Administrator has linked your card",
+"Devi prima confermare l'indirizzo email: controlla la tua posta":"You must confirm your email address first: check your inbox",
+"Registrazione ricevuta. Ti abbiamo mandato una email di conferma: apri il link per confermare l'indirizzo, poi potrai accedere. Se hai già la tessera, l'Amministratore la abbinerà al tuo account e riceverai la mail di Attivazione del servizio; se non ce l'hai, dopo l'accesso potrai richiederla dalla pagina Assistenza.":"Registration received. We sent you a confirmation email: open the link to confirm your address, then you can sign in. If you already have a card, the Administrator will link it to your account and you will receive the Service activation email; if you do not, after signing in you can request one from the Support page.",
+"Troppe registrazioni da questo indirizzo: riprova tra 10 minuti":"Too many registrations from this address: try again in 10 minutes",
+"Non sono riuscito a inviare la mail di conferma: riprova più tardi":"Could not send the confirmation email: try again later"
+};
+function T(s){return(LANG==="en"&&EN.hasOwnProperty(s))?EN[s]:s}
+function $(i){return document.getElementById(i)}
+function trDom(){
+  if(LANG!=="en")return;
+  document.documentElement.lang="en";
+  var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),n,L=[];
+  while(n=w.nextNode())L.push(n);
+  L.forEach(function(x){var v=x.nodeValue,k=v.trim();if(k&&EN.hasOwnProperty(k))x.nodeValue=v.replace(k,EN[k])});
+  document.querySelectorAll("[placeholder]").forEach(function(e){e.placeholder=T(e.placeholder)});
+}
+function cambiaLingua(){try{localStorage.setItem("lang",LANG==="en"?"it":"en")}catch(e){}location.reload()}
+// prefissi: Italia (+39) di default
+function riempi(sel){
+  var h="";PREFISSI.forEach(function(p,i){h+='<option value="'+p[2]+'"'+(p[2]===39&&p[0]==="Italia"?" selected":"")+'>'+(LANG==="en"?p[1]:p[0])+" (+"+p[2]+")</option>"});
+  sel.innerHTML=h;
+}
+riempi($("pf1"));riempi($("pf2"));
+trDom();
+fetch("/api/testi").then(function(r){return r.json()}).then(function(t){
+  var en=LANG==="en",reg=en?(t.reg_en||t.reg_it):(t.reg_it||t.reg_en),pr=en?(t.priv_en||t.priv_it):(t.priv_it||t.priv_en),no='<p class="sub">'+T("(testo non ancora pubblicato dal gestore del sito)")+"</p>";
+  document.getElementById("regTxt").innerHTML=reg||no;document.getElementById("prTxt").innerHTML=pr||no;
+  if(t.edizione)document.getElementById("edTxt").textContent=T(" (edizione ")+t.edizione+")";
+  var f=document.getElementById("feeReg");if(f)f.textContent=t.costo?" ("+T("costo")+" "+t.costo+" "+T("una tantum")+")":"";
+}).catch(function(){});$("bLang").textContent=(LANG==="en")?"Italiano":"English";$("bLang").onclick=cambiaLingua;(function(){var b=$("bTema");function cur(){return document.documentElement.getAttribute("data-t")||"auto"}function lab(){var m=LANG==="en"?{auto:"◐ Auto",light:"☀ Light",dark:"☾ Dark"}:{auto:"◐ Auto",light:"☀ Giorno",dark:"☾ Notte"};b.textContent=m[cur()]}lab();b.onclick=function(){var n={auto:"light",light:"dark",dark:"auto"}[cur()];if(n==="auto")document.documentElement.removeAttribute("data-t");else document.documentElement.setAttribute("data-t",n);try{if(n==="auto")localStorage.removeItem("tema");else localStorage.setItem("tema",n)}catch(e){}lab()}})();
+function mostra(reg){
+  $("f").className=reg?"hide":"";$("g").className=reg?"":"hide";
+  $("tA").className=reg?"":"on";$("tR").className=reg?"on":"";
+}
+$("tA").onclick=function(){mostra(false)};$("tR").onclick=function(){mostra(true)};
+if(location.hash==="#registrati")mostra(true);
+
+$("f").onsubmit=function(ev){
   ev.preventDefault();
   fetch("/api/login",{method:"POST",headers:{"content-type":"application/json"},
-    body:JSON.stringify({nome:document.getElementById("n").value,password:document.getElementById("p").value})})
+    body:JSON.stringify({nome:$("n").value,password:$("p").value})})
   .then(function(r){return r.json()}).then(function(r){
-    if(r.ok)location.reload();else document.getElementById("e").textContent=E(r)})
-  .catch(function(){document.getElementById("e").textContent=T("e_network")});
+    if(r.ok)location.reload();else $("e").textContent=T(r.errore||"Errore")})
+  .catch(function(){$("e").textContent=T("Errore di rete")});
+};
+
+// requisiti password (stessi controlli del server)
+function reqPw(p){return{l:p.length>=12,a:/[a-z]/.test(p),A:/[A-Z]/.test(p),d:/[0-9]/.test(p),s:/[^A-Za-z0-9\s]/.test(p)}}
+function pwOk(p){var r=reqPw(p);return r.l&&r.a&&r.A&&r.d&&r.s}
+$("rP").oninput=function(){
+  var r=reqPw($("rP").value);
+  document.querySelectorAll("#rg span").forEach(function(s){s.className=r[s.dataset.k]?"s":""});
+};
+function nazionale(t){return t.value.replace(/[\s.\-()\/]/g,"")}
+function telOk(pf,n){return /^[0-9]{6,12}$/.test(n)&&/^\+[1-9][0-9]{7,14}$/.test("+"+pf.value+n)}
+$("g").onsubmit=function(ev){
+  ev.preventDefault();
+  var er=$("re");er.textContent="";$("ro").className="okm hide";
+  var nome=$("rN").value.trim(),cog=$("rC").value.trim(),em=$("rE").value.trim().toLowerCase();
+  if(!nome||!cog){er.textContent=T("Inserisci nome e cognome");return}
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)){er.textContent=T("Indirizzo email non valido");return}
+  if(!pwOk($("rP").value)){er.textContent=T("La password non rispetta i requisiti");return}
+  if($("rP").value!==$("rP2").value){er.textContent=T("Le due password non coincidono");return}
+  var n1=nazionale($("t1")),n2=nazionale($("t2")),t1,t2="";
+  if(!telOk($("pf1"),n1)){er.textContent=T("Numero di telefono non valido");return}
+  t1="+"+$("pf1").value+n1;
+  if(n2){if(!telOk($("pf2"),n2)){er.textContent=T("Secondo numero di telefono non valido");return}t2="+"+$("pf2").value+n2}
+  if(!$("cR").checked){er.textContent=T("Devi accettare il regolamento");return}
+  if(!$("cP").checked){er.textContent=T("Devi confermare di aver letto l'informativa privacy");return}
+  $("bR").disabled=true;
+  fetch("/api/registrazione",{method:"POST",headers:{"content-type":"application/json"},
+    body:JSON.stringify({nome:nome,cognome:cog,email:em,password:$("rP").value,tel1:t1,tel2:t2,
+      reg:true,priv:true,msg:$("cM").checked,lang:LANG,hp:$("hp").value,turnstile:(document.querySelector("[name=cf-turnstile-response]")||{}).value||""})})
+  .then(function(r){return r.json()}).then(function(r){
+    $("bR").disabled=false;
+    if(!r.ok&&window.turnstile){try{turnstile.reset()}catch(e){}}
+    if(r.ok){$("g").querySelectorAll("input,select,button.p").forEach(function(x){x.disabled=true});$("ro").textContent=T("Registrazione ricevuta. Ti abbiamo mandato una email di conferma: apri il link per confermare l'indirizzo, poi potrai accedere. Se hai già la tessera, l'Amministratore la abbinerà al tuo account e riceverai la mail di Attivazione del servizio; se non ce l'hai, dopo l'accesso potrai richiederla dalla pagina Assistenza.");$("ro").className="okm"}
+    else er.textContent=T(r.errore||"Errore")})
+  .catch(function(){$("bR").disabled=false;er.textContent=T("Errore di rete")});
 };
 </script>
 </body>
 </html>`;
 
 export const INVITO = String.raw`<!doctype html>
-<html lang="en">
+<html lang="it">
 <head>
+<script>try{var _t=localStorage.getItem("tema");if(_t)document.documentElement.setAttribute("data-t",_t)}catch(e){}</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--tx:#14181f;--mut:#5b6573;--line:#d9dee5;--acc:#0b6bcb;--err:#b00020}
-@media (prefers-color-scheme:dark){:root{--bg:#12151a;--card:#1b2027;--tx:#e8ecf1;--mut:#9aa6b4;--line:#2f3742;--acc:#5aa6ff;--err:#ff7a8a}}
 *{box-sizing:border-box}
-body{margin:0;font:15px/1.4 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx);display:flex;min-height:100vh;align-items:center;justify-content:center}
-form{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:24px;width:min(360px,92vw);display:flex;flex-direction:column;gap:10px}
-h1{font-size:18px;margin:0 0 2px}.sub{color:var(--mut);font-size:13px}
-input,button,select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--tx)}
-button{background:var(--acc);border-color:var(--acc);color:#fff;cursor:pointer}
+body{margin:0;font:15px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx);display:flex;min-height:100vh;justify-content:center;padding:20px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px;width:min(460px,94vw);align-self:flex-start;margin:auto 0}
+h1{font-size:18px;margin:0 0 4px}
+.sub{color:var(--mut);font-size:13px;margin-bottom:12px}
+.tabs{display:flex;gap:6px;margin:10px 0 14px}
+.tabs button{flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--line)}
+form{display:flex;flex-direction:column;gap:10px}
+label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:3px}
+input,select,button{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--tx);min-width:0}
+.riga{display:flex;gap:8px}
+.riga>label{flex:1;min-width:0}
+label input,label select{width:100%}
+.tel select{width:44%}.tel input{width:auto}.chk input{width:auto}
+.tel{display:flex;gap:6px}
+.tel select{width:44%;flex:none}.tel input{flex:1}
 .err{color:var(--err);min-height:1.2em;font-size:13px}
-#lang{align-self:flex-end;padding:3px 6px;font-size:13px}
-</style>
+.okm{color:var(--ok);font-size:14px}
+.rg{font-size:12px;color:var(--mut);margin:-4px 0 0;display:flex;flex-wrap:wrap;gap:2px 12px}
+.rg span.s{color:var(--ok)}
+.chk{flex-direction:row;gap:8px;align-items:flex-start;font-size:13px;color:var(--tx)}
+.chk input{margin-top:3px;flex:none}
+details{border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px}
+details summary{cursor:pointer;color:var(--acc)}
+details .t{max-height:220px;overflow:auto;margin-top:6px}
+details h4{margin:10px 0 3px;font-size:13px}details p,details li{margin:3px 0}
+.hide{display:none!important}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.piede{margin:24px auto 12px;text-align:center;font-size:12px;color:var(--mut)}.piede a{color:var(--acc)}.noprint-f{}</style>
 </head>
 <body>
-<form id="f">
-  <select id="lang" title="Language"></select>
-  <div class="sub">__TITLE__</div>
-  <h1 data-i="inv_h"></h1>
+<div class="card">
+  <button type="button" id="bLang" style="float:right;background:none;border:0;color:var(--acc);padding:0;cursor:pointer"></button><button type="button" id="bTema" style="float:right;margin-right:12px;background:none;border:0;color:var(--acc);padding:0;cursor:pointer"></button>
+  <h1>__TITLE__</h1>
+  <div class="sub" id="tit"></div>
   <div class="sub" id="chi"></div>
-  <input id="p1" type="password" data-ph="inv_p1" autocomplete="new-password" required>
-  <input id="p2" type="password" data-ph="inv_p2" autocomplete="new-password" required>
-  <button type="submit" data-i="inv_btn"></button>
-  <div class="err" id="e"></div>
-</form>
+  <form id="g" autocomplete="on" novalidate>
+    <div class="riga">
+      <label>Nome<input id="rN" autocomplete="given-name" required></label>
+      <label>Cognome<input id="rC" autocomplete="family-name" required></label>
+    </div>
+    <div id="pwBox" style="display:flex;flex-direction:column;gap:10px">
+      <label>Password<input id="rP" type="password" autocomplete="new-password"></label>
+      <div class="rg" id="rg"><span data-k="l">12+ caratteri</span><span data-k="a">minuscola</span><span data-k="A">maiuscola</span><span data-k="d">numero</span><span data-k="s">carattere speciale</span></div>
+      <label>Ripeti la password<input id="rP2" type="password" autocomplete="new-password"></label>
+    </div>
+    <label>Numero di telefono (obbligatorio)
+      <div class="tel"><select id="pf1"></select><input id="t1" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="333 1234567" required></div>
+    </label>
+    <label>Secondo numero di telefono (facoltativo)
+      <div class="tel"><select id="pf2"></select><input id="t2" type="tel" inputmode="tel" placeholder="333 1234567"></div>
+    </label>
+    <details><summary>Leggi il regolamento della colonnina</summary><div class="t" id="regTxt"></div></details>
+    <label class="chk"><input type="checkbox" id="cR"><span>Ho letto e accetto il regolamento per l'uso della colonnina di ricarica.</span></label>
+
+    <details><summary>Leggi l'informativa sulla privacy<span id="edTxt"></span></summary><div class="t" id="prTxt"></div></details>
+    <label class="chk"><input type="checkbox" id="cP"><span>Ho letto l'informativa sulla privacy: i miei dati saranno utilizzati solo ed esclusivamente per erogare il servizio, senza cessione a terzi e senza pubblicità.</span></label>
+
+    <label class="chk"><input type="checkbox" id="cM"><span>Facoltativo: acconsento a ricevere messaggi di servizio su WhatsApp e Telegram quando il servizio sarà attivo. Posso cambiare o revocare il consenso in qualsiasi momento dalla pagina «Il mio profilo».</span></label>
+
+    <button type="submit" class="p" id="bR">Salva e accedi</button>
+    <div class="err" id="re"></div>
+    <button type="button" id="bEsci" class="p hide" style="align-self:flex-start">Esci</button>
+  </form>
+<footer class="piede">Orbis Charge Report · software libero, <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">licenza AGPL-3.0</a> · <a href="https://github.com/alexxandro87/orbis-charge-report" target="_blank" rel="noopener">codice sorgente</a></footer>
+</div>
 <script>
-__I18N__
-applyI18n();
-document.title=document.title+" - "+T("inv_title");
-var q=new URLSearchParams(location.search),mail=q.get("e")||"",tok=q.get("invito")||"";
-document.getElementById("chi").textContent=T("inv_user",{m:mail});
-document.getElementById("f").onsubmit=function(ev){
+
+var PREFISSI=[["Afghanistan","Afghanistan",93],["Albania","Albania",355],["Algeria","Algeria",213],["Andorra","Andorra",376],["Angola","Angola",244],["Anguilla","Anguilla",1],["Antigua e Barbuda","Antigua & Barbuda",1],["Arabia Saudita","Saudi Arabia",966],["Argentina","Argentina",54],["Armenia","Armenia",374],["Aruba","Aruba",297],["Australia","Australia",61],["Austria","Austria",43],["Azerbaigian","Azerbaijan",994],["Bahamas","Bahamas",1],["Bahrein","Bahrain",973],["Bangladesh","Bangladesh",880],["Barbados","Barbados",1],["Belgio","Belgium",32],["Belize","Belize",501],["Benin","Benin",229],["Bermuda","Bermuda",1],["Bhutan","Bhutan",975],["Bielorussia","Belarus",375],["Bolivia","Bolivia",591],["Bosnia ed Erzegovina","Bosnia & Herzegovina",387],["Botswana","Botswana",267],["Brasile","Brazil",55],["Brunei","Brunei",673],["Bulgaria","Bulgaria",359],["Burkina Faso","Burkina Faso",226],["Burundi","Burundi",257],["Cambogia","Cambodia",855],["Camerun","Cameroon",237],["Canada","Canada",1],["Capo Verde","Cape Verde",238],["Caraibi Olandesi","Caribbean Netherlands",599],["Cechia","Czechia",420],["Ciad","Chad",235],["Cile","Chile",56],["Cina","China",86],["Cipro","Cyprus",357],["Città del Vaticano","Vatican City",39],["Colombia","Colombia",57],["Comore","Comoros",269],["Congo - Kinshasa","Congo - Kinshasa",243],["Congo-Brazzaville","Congo - Brazzaville",242],["Corea del Nord","North Korea",850],["Corea del Sud","South Korea",82],["Costa d’Avorio","Côte d’Ivoire",225],["Costa Rica","Costa Rica",506],["Croazia","Croatia",385],["Cuba","Cuba",53],["Curaçao","Curaçao",599],["Danimarca","Denmark",45],["Dominica","Dominica",1],["Ecuador","Ecuador",593],["Egitto","Egypt",20],["El Salvador","El Salvador",503],["Emirati Arabi Uniti","United Arab Emirates",971],["Eritrea","Eritrea",291],["Estonia","Estonia",372],["Eswatini","Eswatini",268],["Etiopia","Ethiopia",251],["Figi","Fiji",679],["Filippine","Philippines",63],["Finlandia","Finland",358],["Francia","France",33],["Gabon","Gabon",241],["Gambia","Gambia",220],["Georgia","Georgia",995],["Germania","Germany",49],["Ghana","Ghana",233],["Giamaica","Jamaica",1],["Giappone","Japan",81],["Gibilterra","Gibraltar",350],["Gibuti","Djibouti",253],["Giordania","Jordan",962],["Grecia","Greece",30],["Grenada","Grenada",1],["Groenlandia","Greenland",299],["Guadalupa","Guadeloupe",590],["Guam","Guam",1],["Guatemala","Guatemala",502],["Guernsey","Guernsey",44],["Guinea","Guinea",224],["Guinea Equatoriale","Equatorial Guinea",240],["Guinea-Bissau","Guinea-Bissau",245],["Guyana","Guyana",592],["Guyana Francese","French Guiana",594],["Haiti","Haiti",509],["Honduras","Honduras",504],["India","India",91],["Indonesia","Indonesia",62],["Iran","Iran",98],["Iraq","Iraq",964],["Irlanda","Ireland",353],["Islanda","Iceland",354],["Isola Ascensione","Ascension Island",247],["Isola Christmas","Christmas Island",61],["Isola di Man","Isle of Man",44],["Isola Norfolk","Norfolk Island",672],["Isole Cayman","Cayman Islands",1],["Isole Cocos (Keeling)","Cocos (Keeling) Islands",61],["Isole Cook","Cook Islands",682],["Isole Falkland","Falkland Islands",500],["Isole Fær Øer","Faroe Islands",298],["Isole Marianne Settentrionali","Northern Mariana Islands",1],["Isole Marshall","Marshall Islands",692],["Isole Salomone","Solomon Islands",677],["Isole Turks e Caicos","Turks & Caicos Islands",1],["Isole Vergini Americane","U.S. Virgin Islands",1],["Isole Vergini Britanniche","British Virgin Islands",1],["Isole Åland","Åland Islands",358],["Israele","Israel",972],["Italia","Italy",39],["Jersey","Jersey",44],["Kazakistan","Kazakhstan",7],["Kenya","Kenya",254],["Kirghizistan","Kyrgyzstan",996],["Kiribati","Kiribati",686],["Kosovo","Kosovo",383],["Kuwait","Kuwait",965],["Laos","Laos",856],["Lesotho","Lesotho",266],["Lettonia","Latvia",371],["Libano","Lebanon",961],["Liberia","Liberia",231],["Libia","Libya",218],["Liechtenstein","Liechtenstein",423],["Lituania","Lithuania",370],["Lussemburgo","Luxembourg",352],["Macedonia del Nord","North Macedonia",389],["Madagascar","Madagascar",261],["Malawi","Malawi",265],["Malaysia","Malaysia",60],["Maldive","Maldives",960],["Mali","Mali",223],["Malta","Malta",356],["Marocco","Morocco",212],["Martinica","Martinique",596],["Mauritania","Mauritania",222],["Mauritius","Mauritius",230],["Mayotte","Mayotte",262],["Messico","Mexico",52],["Micronesia","Micronesia",691],["Moldavia","Moldova",373],["Monaco","Monaco",377],["Mongolia","Mongolia",976],["Montenegro","Montenegro",382],["Montserrat","Montserrat",1],["Mozambico","Mozambique",258],["Myanmar (Birmania)","Myanmar (Burma)",95],["Namibia","Namibia",264],["Nauru","Nauru",674],["Nepal","Nepal",977],["Nicaragua","Nicaragua",505],["Niger","Niger",227],["Nigeria","Nigeria",234],["Niue","Niue",683],["Norvegia","Norway",47],["Nuova Caledonia","New Caledonia",687],["Nuova Zelanda","New Zealand",64],["Oman","Oman",968],["Paesi Bassi","Netherlands",31],["Pakistan","Pakistan",92],["Palau","Palau",680],["Panama","Panama",507],["Papua Nuova Guinea","Papua New Guinea",675],["Paraguay","Paraguay",595],["Perù","Peru",51],["Polinesia Francese","French Polynesia",689],["Polonia","Poland",48],["Portogallo","Portugal",351],["Portorico","Puerto Rico",1],["Qatar","Qatar",974],["RAS di Hong Kong","Hong Kong SAR China",852],["RAS di Macao","Macao SAR China",853],["Regno Unito","United Kingdom",44],["Repubblica Centrafricana","Central African Republic",236],["Repubblica Dominicana","Dominican Republic",1],["Riunione","Réunion",262],["Romania","Romania",40],["Ruanda","Rwanda",250],["Russia","Russia",7],["Sahara Occidentale","Western Sahara",212],["Saint Kitts e Nevis","St. Kitts & Nevis",1],["Saint Lucia","St. Lucia",1],["Saint Martin","St. Martin",590],["Saint Vincent e Grenadine","St. Vincent & Grenadines",1],["Saint-Barthélemy","St. Barthélemy",590],["Saint-Pierre e Miquelon","St. Pierre & Miquelon",508],["Samoa","Samoa",685],["Samoa Americane","American Samoa",1],["San Marino","San Marino",378],["Sant’Elena","St. Helena",290],["Senegal","Senegal",221],["Serbia","Serbia",381],["Seychelles","Seychelles",248],["Sierra Leone","Sierra Leone",232],["Singapore","Singapore",65],["Sint Maarten","Sint Maarten",1],["Siria","Syria",963],["Slovacchia","Slovakia",421],["Slovenia","Slovenia",386],["Somalia","Somalia",252],["Spagna","Spain",34],["Sri Lanka","Sri Lanka",94],["Stati Uniti","United States",1],["Sud Sudan","South Sudan",211],["Sudafrica","South Africa",27],["Sudan","Sudan",249],["Suriname","Suriname",597],["Svalbard e Jan Mayen","Svalbard & Jan Mayen",47],["Svezia","Sweden",46],["Svizzera","Switzerland",41],["São Tomé e Príncipe","São Tomé & Príncipe",239],["Tagikistan","Tajikistan",992],["Taiwan","Taiwan",886],["Tanzania","Tanzania",255],["Territori Palestinesi","Palestinian Territories",970],["Territorio Britannico dell’Oceano Indiano","British Indian Ocean Territory",246],["Thailandia","Thailand",66],["Timor Est","Timor-Leste",670],["Togo","Togo",228],["Tokelau","Tokelau",690],["Tonga","Tonga",676],["Trinidad e Tobago","Trinidad & Tobago",1],["Tristan da Cunha","Tristan da Cunha",290],["Tunisia","Tunisia",216],["Turchia","Türkiye",90],["Turkmenistan","Turkmenistan",993],["Tuvalu","Tuvalu",688],["Ucraina","Ukraine",380],["Uganda","Uganda",256],["Ungheria","Hungary",36],["Uruguay","Uruguay",598],["Uzbekistan","Uzbekistan",998],["Vanuatu","Vanuatu",678],["Venezuela","Venezuela",58],["Vietnam","Vietnam",84],["Wallis e Futuna","Wallis & Futuna",681],["Yemen","Yemen",967],["Zambia","Zambia",260],["Zimbabwe","Zimbabwe",263]];
+var LANG="it";try{LANG=localStorage.getItem("lang")||(((navigator.language||"it").slice(0,2)==="it")?"it":"en")}catch(e){}
+var EN={"Orbis Charge Report · software libero,":"Orbis Charge Report · free software,","licenza AGPL-3.0":"AGPL-3.0 licence","codice sorgente":"source code","Sito web":"Website",
+"Scegli la tua password e completa i tuoi dati":"Choose your password and complete your details",
+"Completa il tuo profilo":"Complete your profile",
+"Per continuare a usare il servizio servono i tuoi dati, l'accettazione del regolamento e la presa visione dell'informativa privacy.":"To keep using the service we need your details, your acceptance of the rules and confirmation that you have read the privacy notice.",
+"Salva e accedi":"Save and sign in","Salva e continua":"Save and continue","Esci":"Log out","Utente: ":"User: ",
+"Facoltativo: acconsento a ricevere messaggi di servizio su WhatsApp e Telegram quando il servizio sarà attivo. Posso cambiare o revocare il consenso in qualsiasi momento dalla pagina «Il mio profilo».":"Optional: I agree to receive service messages on WhatsApp and Telegram when the service becomes active. I can change or withdraw consent at any time from the “My profile” page.",
+"Link non valido o scaduto: chiedi un nuovo invito":"Invalid or expired link: ask for a new invite",
+"login":"Please sign in again",
+"Accedi o registrati per consultare le tue ricariche":"Sign in or register to view your charges",
+"Accedi":"Sign in","Registrati":"Register","Email":"Email","Password":"Password","Nome":"First name","Cognome":"Last name",
+"Indirizzo email":"Email address","Ripeti la password":"Repeat the password",
+"12+ caratteri":"12+ characters","minuscola":"lowercase","maiuscola":"uppercase","numero":"digit","carattere speciale":"special character",
+"Numero di telefono (obbligatorio)":"Phone number (required)","Secondo numero di telefono (facoltativo)":"Second phone number (optional)",
+"Leggi il regolamento della colonnina":"Read the charger rules",
+"Leggi l'informativa sulla privacy":"Read the privacy notice"," (edizione ":" (edition ","(testo non ancora pubblicato dal gestore del sito)":"(text not yet published by the site operator)","costo":"cost","una tantum":"one-off",
+"Ho letto e accetto il regolamento per l'uso della colonnina di ricarica.":"I have read and accept the rules for using the charging station.",
+"Ho letto l'informativa sulla privacy: i miei dati saranno utilizzati solo ed esclusivamente per erogare il servizio, senza cessione a terzi e senza pubblicità.":"I have read the privacy notice: my data will be used only and exclusively to provide the service, with no disclosure to third parties and no advertising.",
+"Facoltativo: acconsento a ricevere messaggi di servizio su WhatsApp e Telegram quando il servizio sarà attivo. Posso cambiare o revocare il consenso in qualsiasi momento dalla pagina «Il mio profilo», dopo l'accesso.":"Optional: I agree to receive service messages on WhatsApp and Telegram when the service becomes active. I can change or withdraw consent at any time from the “My profile” page, after signing in.",
+"Inserisci nome e cognome":"Enter first and last name","Indirizzo email non valido":"Invalid email address",
+"La password non rispetta i requisiti":"The password does not meet the requirements","Le due password non coincidono":"The two passwords do not match",
+"Numero di telefono non valido":"Invalid phone number","Secondo numero di telefono non valido":"Invalid second phone number",
+"Devi accettare il regolamento":"You must accept the rules","Devi confermare di aver letto l'informativa privacy":"You must confirm you have read the privacy notice",
+"Errore di rete":"Network error","Errore":"Error",
+"Troppi tentativi: riprova tra 10 minuti":"Too many attempts: try again in 10 minutes",
+"Nome o password errati":"Wrong user name or password",
+"Account in attesa di attivazione: sarà attivo quando l'Amministratore avrà abbinato la tua tessera":"Account awaiting activation: it will be active once the Administrator has linked your card",
+"Devi prima confermare l'indirizzo email: controlla la tua posta":"You must confirm your email address first: check your inbox",
+"Registrazione ricevuta. Ti abbiamo mandato una email di conferma: apri il link per confermare l'indirizzo, poi potrai accedere. Se hai già la tessera, l'Amministratore la abbinerà al tuo account e riceverai la mail di Attivazione del servizio; se non ce l'hai, dopo l'accesso potrai richiederla dalla pagina Assistenza.":"Registration received. We sent you a confirmation email: open the link to confirm your address, then you can sign in. If you already have a card, the Administrator will link it to your account and you will receive the Service activation email; if you do not, after signing in you can request one from the Support page.",
+"Troppe registrazioni da questo indirizzo: riprova tra 10 minuti":"Too many registrations from this address: try again in 10 minutes",
+"Non sono riuscito a inviare la mail di conferma: riprova più tardi":"Could not send the confirmation email: try again later"
+};
+function T(s){return(LANG==="en"&&EN.hasOwnProperty(s))?EN[s]:s}
+function $(i){return document.getElementById(i)}
+function trDom(){
+  if(LANG!=="en")return;
+  document.documentElement.lang="en";
+  var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),n,L=[];
+  while(n=w.nextNode())L.push(n);
+  L.forEach(function(x){var v=x.nodeValue,k=v.trim();if(k&&EN.hasOwnProperty(k))x.nodeValue=v.replace(k,EN[k])});
+  document.querySelectorAll("[placeholder]").forEach(function(e){e.placeholder=T(e.placeholder)});
+}
+function cambiaLingua(){try{localStorage.setItem("lang",LANG==="en"?"it":"en")}catch(e){}location.reload()}
+var PREFISSI=[["Afghanistan","Afghanistan",93],["Albania","Albania",355],["Algeria","Algeria",213],["Andorra","Andorra",376],["Angola","Angola",244],["Anguilla","Anguilla",1],["Antigua e Barbuda","Antigua & Barbuda",1],["Arabia Saudita","Saudi Arabia",966],["Argentina","Argentina",54],["Armenia","Armenia",374],["Aruba","Aruba",297],["Australia","Australia",61],["Austria","Austria",43],["Azerbaigian","Azerbaijan",994],["Bahamas","Bahamas",1],["Bahrein","Bahrain",973],["Bangladesh","Bangladesh",880],["Barbados","Barbados",1],["Belgio","Belgium",32],["Belize","Belize",501],["Benin","Benin",229],["Bermuda","Bermuda",1],["Bhutan","Bhutan",975],["Bielorussia","Belarus",375],["Bolivia","Bolivia",591],["Bosnia ed Erzegovina","Bosnia & Herzegovina",387],["Botswana","Botswana",267],["Brasile","Brazil",55],["Brunei","Brunei",673],["Bulgaria","Bulgaria",359],["Burkina Faso","Burkina Faso",226],["Burundi","Burundi",257],["Cambogia","Cambodia",855],["Camerun","Cameroon",237],["Canada","Canada",1],["Capo Verde","Cape Verde",238],["Caraibi Olandesi","Caribbean Netherlands",599],["Cechia","Czechia",420],["Ciad","Chad",235],["Cile","Chile",56],["Cina","China",86],["Cipro","Cyprus",357],["Città del Vaticano","Vatican City",39],["Colombia","Colombia",57],["Comore","Comoros",269],["Congo - Kinshasa","Congo - Kinshasa",243],["Congo-Brazzaville","Congo - Brazzaville",242],["Corea del Nord","North Korea",850],["Corea del Sud","South Korea",82],["Costa d’Avorio","Côte d’Ivoire",225],["Costa Rica","Costa Rica",506],["Croazia","Croatia",385],["Cuba","Cuba",53],["Curaçao","Curaçao",599],["Danimarca","Denmark",45],["Dominica","Dominica",1],["Ecuador","Ecuador",593],["Egitto","Egypt",20],["El Salvador","El Salvador",503],["Emirati Arabi Uniti","United Arab Emirates",971],["Eritrea","Eritrea",291],["Estonia","Estonia",372],["Eswatini","Eswatini",268],["Etiopia","Ethiopia",251],["Figi","Fiji",679],["Filippine","Philippines",63],["Finlandia","Finland",358],["Francia","France",33],["Gabon","Gabon",241],["Gambia","Gambia",220],["Georgia","Georgia",995],["Germania","Germany",49],["Ghana","Ghana",233],["Giamaica","Jamaica",1],["Giappone","Japan",81],["Gibilterra","Gibraltar",350],["Gibuti","Djibouti",253],["Giordania","Jordan",962],["Grecia","Greece",30],["Grenada","Grenada",1],["Groenlandia","Greenland",299],["Guadalupa","Guadeloupe",590],["Guam","Guam",1],["Guatemala","Guatemala",502],["Guernsey","Guernsey",44],["Guinea","Guinea",224],["Guinea Equatoriale","Equatorial Guinea",240],["Guinea-Bissau","Guinea-Bissau",245],["Guyana","Guyana",592],["Guyana Francese","French Guiana",594],["Haiti","Haiti",509],["Honduras","Honduras",504],["India","India",91],["Indonesia","Indonesia",62],["Iran","Iran",98],["Iraq","Iraq",964],["Irlanda","Ireland",353],["Islanda","Iceland",354],["Isola Ascensione","Ascension Island",247],["Isola Christmas","Christmas Island",61],["Isola di Man","Isle of Man",44],["Isola Norfolk","Norfolk Island",672],["Isole Cayman","Cayman Islands",1],["Isole Cocos (Keeling)","Cocos (Keeling) Islands",61],["Isole Cook","Cook Islands",682],["Isole Falkland","Falkland Islands",500],["Isole Fær Øer","Faroe Islands",298],["Isole Marianne Settentrionali","Northern Mariana Islands",1],["Isole Marshall","Marshall Islands",692],["Isole Salomone","Solomon Islands",677],["Isole Turks e Caicos","Turks & Caicos Islands",1],["Isole Vergini Americane","U.S. Virgin Islands",1],["Isole Vergini Britanniche","British Virgin Islands",1],["Isole Åland","Åland Islands",358],["Israele","Israel",972],["Italia","Italy",39],["Jersey","Jersey",44],["Kazakistan","Kazakhstan",7],["Kenya","Kenya",254],["Kirghizistan","Kyrgyzstan",996],["Kiribati","Kiribati",686],["Kosovo","Kosovo",383],["Kuwait","Kuwait",965],["Laos","Laos",856],["Lesotho","Lesotho",266],["Lettonia","Latvia",371],["Libano","Lebanon",961],["Liberia","Liberia",231],["Libia","Libya",218],["Liechtenstein","Liechtenstein",423],["Lituania","Lithuania",370],["Lussemburgo","Luxembourg",352],["Macedonia del Nord","North Macedonia",389],["Madagascar","Madagascar",261],["Malawi","Malawi",265],["Malaysia","Malaysia",60],["Maldive","Maldives",960],["Mali","Mali",223],["Malta","Malta",356],["Marocco","Morocco",212],["Martinica","Martinique",596],["Mauritania","Mauritania",222],["Mauritius","Mauritius",230],["Mayotte","Mayotte",262],["Messico","Mexico",52],["Micronesia","Micronesia",691],["Moldavia","Moldova",373],["Monaco","Monaco",377],["Mongolia","Mongolia",976],["Montenegro","Montenegro",382],["Montserrat","Montserrat",1],["Mozambico","Mozambique",258],["Myanmar (Birmania)","Myanmar (Burma)",95],["Namibia","Namibia",264],["Nauru","Nauru",674],["Nepal","Nepal",977],["Nicaragua","Nicaragua",505],["Niger","Niger",227],["Nigeria","Nigeria",234],["Niue","Niue",683],["Norvegia","Norway",47],["Nuova Caledonia","New Caledonia",687],["Nuova Zelanda","New Zealand",64],["Oman","Oman",968],["Paesi Bassi","Netherlands",31],["Pakistan","Pakistan",92],["Palau","Palau",680],["Panama","Panama",507],["Papua Nuova Guinea","Papua New Guinea",675],["Paraguay","Paraguay",595],["Perù","Peru",51],["Polinesia Francese","French Polynesia",689],["Polonia","Poland",48],["Portogallo","Portugal",351],["Portorico","Puerto Rico",1],["Qatar","Qatar",974],["RAS di Hong Kong","Hong Kong SAR China",852],["RAS di Macao","Macao SAR China",853],["Regno Unito","United Kingdom",44],["Repubblica Centrafricana","Central African Republic",236],["Repubblica Dominicana","Dominican Republic",1],["Riunione","Réunion",262],["Romania","Romania",40],["Ruanda","Rwanda",250],["Russia","Russia",7],["Sahara Occidentale","Western Sahara",212],["Saint Kitts e Nevis","St. Kitts & Nevis",1],["Saint Lucia","St. Lucia",1],["Saint Martin","St. Martin",590],["Saint Vincent e Grenadine","St. Vincent & Grenadines",1],["Saint-Barthélemy","St. Barthélemy",590],["Saint-Pierre e Miquelon","St. Pierre & Miquelon",508],["Samoa","Samoa",685],["Samoa Americane","American Samoa",1],["San Marino","San Marino",378],["Sant’Elena","St. Helena",290],["Senegal","Senegal",221],["Serbia","Serbia",381],["Seychelles","Seychelles",248],["Sierra Leone","Sierra Leone",232],["Singapore","Singapore",65],["Sint Maarten","Sint Maarten",1],["Siria","Syria",963],["Slovacchia","Slovakia",421],["Slovenia","Slovenia",386],["Somalia","Somalia",252],["Spagna","Spain",34],["Sri Lanka","Sri Lanka",94],["Stati Uniti","United States",1],["Sud Sudan","South Sudan",211],["Sudafrica","South Africa",27],["Sudan","Sudan",249],["Suriname","Suriname",597],["Svalbard e Jan Mayen","Svalbard & Jan Mayen",47],["Svezia","Sweden",46],["Svizzera","Switzerland",41],["São Tomé e Príncipe","São Tomé & Príncipe",239],["Tagikistan","Tajikistan",992],["Taiwan","Taiwan",886],["Tanzania","Tanzania",255],["Territori Palestinesi","Palestinian Territories",970],["Territorio Britannico dell’Oceano Indiano","British Indian Ocean Territory",246],["Thailandia","Thailand",66],["Timor Est","Timor-Leste",670],["Togo","Togo",228],["Tokelau","Tokelau",690],["Tonga","Tonga",676],["Trinidad e Tobago","Trinidad & Tobago",1],["Tristan da Cunha","Tristan da Cunha",290],["Tunisia","Tunisia",216],["Turchia","Türkiye",90],["Turkmenistan","Turkmenistan",993],["Tuvalu","Tuvalu",688],["Ucraina","Ukraine",380],["Uganda","Uganda",256],["Ungheria","Hungary",36],["Uruguay","Uruguay",598],["Uzbekistan","Uzbekistan",998],["Vanuatu","Vanuatu",678],["Venezuela","Venezuela",58],["Vietnam","Vietnam",84],["Wallis e Futuna","Wallis & Futuna",681],["Yemen","Yemen",967],["Zambia","Zambia",260],["Zimbabwe","Zimbabwe",263]];
+function riempi(sel){
+  var h="";PREFISSI.forEach(function(p){h+='<option value="'+p[2]+'"'+(p[2]===39&&p[0]==="Italia"?" selected":"")+'>'+(LANG==="en"?p[1]:p[0])+" (+"+p[2]+")</option>"});
+  sel.innerHTML=h;
+}
+var q=new URLSearchParams(location.search),mail=q.get("e")||"",tok=q.get("invito")||"",COMPLETA=!!q.get("completa");
+riempi($("pf1"));riempi($("pf2"));
+if(COMPLETA){
+  $("pwBox").style.display="none";$("tit").textContent="Completa il tuo profilo";
+  $("chi").textContent="Per continuare a usare il servizio servono i tuoi dati, l'accettazione del regolamento e la presa visione dell'informativa privacy.";
+  $("bR").textContent="Salva e continua";$("bEsci").classList.remove("hide");
+  $("bEsci").onclick=function(){fetch("/api/logout",{method:"POST"}).then(function(){location.href="/"})};
+}else{
+  $("tit").textContent="Scegli la tua password e completa i tuoi dati";$("chi").textContent="Utente: "+mail;
+}
+trDom();
+fetch("/api/testi").then(function(r){return r.json()}).then(function(t){
+  var en=LANG==="en",reg=en?(t.reg_en||t.reg_it):(t.reg_it||t.reg_en),pr=en?(t.priv_en||t.priv_it):(t.priv_it||t.priv_en),no='<p class="sub">'+T("(testo non ancora pubblicato dal gestore del sito)")+"</p>";
+  document.getElementById("regTxt").innerHTML=reg||no;document.getElementById("prTxt").innerHTML=pr||no;
+  if(t.edizione)document.getElementById("edTxt").textContent=T(" (edizione ")+t.edizione+")";
+  var f=document.getElementById("feeReg");if(f)f.textContent=t.costo?" ("+T("costo")+" "+t.costo+" "+T("una tantum")+")":"";
+}).catch(function(){});$("bLang").textContent=(LANG==="en")?"Italiano":"English";$("bLang").onclick=cambiaLingua;(function(){var b=$("bTema");function cur(){return document.documentElement.getAttribute("data-t")||"auto"}function lab(){var m=LANG==="en"?{auto:"◐ Auto",light:"☀ Light",dark:"☾ Dark"}:{auto:"◐ Auto",light:"☀ Giorno",dark:"☾ Notte"};b.textContent=m[cur()]}lab();b.onclick=function(){var n={auto:"light",light:"dark",dark:"auto"}[cur()];if(n==="auto")document.documentElement.removeAttribute("data-t");else document.documentElement.setAttribute("data-t",n);try{if(n==="auto")localStorage.removeItem("tema");else localStorage.setItem("tema",n)}catch(e){}lab()}})();
+function reqPw(p){return{l:p.length>=12,a:/[a-z]/.test(p),A:/[A-Z]/.test(p),d:/[0-9]/.test(p),s:/[^A-Za-z0-9\s]/.test(p)}}
+function pwOk(p){var r=reqPw(p);return r.l&&r.a&&r.A&&r.d&&r.s}
+$("rP").oninput=function(){
+  var r=reqPw($("rP").value);
+  document.querySelectorAll("#rg span").forEach(function(s){s.className=r[s.dataset.k]?"s":""});
+};
+function nazionale(t){return t.value.replace(/[\s.\-()\/]/g,"")}
+function telOk(pf,n){return /^[0-9]{6,12}$/.test(n)&&/^\+[1-9][0-9]{7,14}$/.test("+"+pf.value+n)}
+$("g").onsubmit=function(ev){
   ev.preventDefault();
-  var a=document.getElementById("p1").value,b=document.getElementById("p2").value,e=document.getElementById("e");
-  if(a!==b){e.textContent=T("pw_mismatch");return}
-  fetch("/api/invito",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({nome:mail,token:tok,password:a})})
+  var er=$("re");er.textContent="";
+  var nome=$("rN").value.trim(),cog=$("rC").value.trim();
+  if(!nome||!cog){er.textContent=T("Inserisci nome e cognome");return}
+  if(!COMPLETA){
+    if(!pwOk($("rP").value)){er.textContent=T("La password non rispetta i requisiti");return}
+    if($("rP").value!==$("rP2").value){er.textContent=T("Le due password non coincidono");return}
+  }
+  var n1=nazionale($("t1")),n2=nazionale($("t2")),t1,t2="";
+  if(!telOk($("pf1"),n1)){er.textContent=T("Numero di telefono non valido");return}
+  t1="+"+$("pf1").value+n1;
+  if(n2){if(!telOk($("pf2"),n2)){er.textContent=T("Secondo numero di telefono non valido");return}t2="+"+$("pf2").value+n2}
+  if(!$("cR").checked){er.textContent=T("Devi accettare il regolamento");return}
+  if(!$("cP").checked){er.textContent=T("Devi confermare di aver letto l'informativa privacy");return}
+  var body={nome:nome,cognome:cog,tel1:t1,tel2:t2,reg:true,priv:true,msg:$("cM").checked};
+  if(!COMPLETA){body.password=$("rP").value;body.token=tok;body.email=mail}
+  $("bR").disabled=true;
+  fetch(COMPLETA?"/api/profilo":"/api/invito",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)})
   .then(function(r){return r.json()}).then(function(r){
-    if(r.ok)location.href="/";else e.textContent=E(r)})
-  .catch(function(){e.textContent=T("e_network")});
+    $("bR").disabled=false;
+    if(r.ok)location.href="/";else er.textContent=T(r.errore||"Errore")})
+  .catch(function(){$("bR").disabled=false;er.textContent=T("Errore di rete")});
 };
 </script>
 </body>
 </html>`;
 
+// Prima configurazione: compare finche' non esiste un amministratore (e non si usa il secret APP_PASSWORD).
 export const SETUP = String.raw`<!doctype html>
-<html lang="en">
+<html lang="it">
 <head>
+<script>try{var _t=localStorage.getItem("tema");if(_t)document.documentElement.setAttribute("data-t",_t)}catch(e){}</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Orbis Charge Report</title>
+<title>__TITLE__</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--tx:#14181f;--mut:#5b6573;--line:#d9dee5;--acc:#0b6bcb;--err:#b00020}
-@media (prefers-color-scheme:dark){:root{--bg:#12151a;--card:#1b2027;--tx:#e8ecf1;--mut:#9aa6b4;--line:#2f3742;--acc:#5aa6ff;--err:#ff7a8a}}
 *{box-sizing:border-box}
-body{margin:0;font:15px/1.4 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx)}
-main{max-width:820px;margin:0 auto;padding:16px}
-h1{font-size:20px;margin:8px 0}h2{font-size:15px;margin:0 0 8px}
-.sub{color:var(--mut);font-size:13px}.err{color:var(--err)}.ok{color:var(--acc)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0}
-button,select,input{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--tx)}
-button{cursor:pointer}button.p{background:var(--acc);border-color:var(--acc);color:#fff}button:disabled{opacity:.5}
-.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px 14px}
-.fg label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--mut)}
-.fg input,.fg select{width:100%;color:var(--tx);font-size:15px}.fg .wide{grid-column:1/-1}
-.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
-pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;margin:6px 0}
-#lang{float:right;padding:3px 6px;font-size:13px}
+body{margin:0;font:15px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx);display:flex;min-height:100vh;justify-content:center;padding:20px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px;width:min(560px,94vw);align-self:flex-start;margin:auto 0}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:14px 0 6px}
+.sub{color:var(--mut);font-size:13px;margin-bottom:10px}
+form{display:flex;flex-direction:column;gap:10px}
+label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:3px}
+input,select,button{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--tx);min-width:0}
+.riga{display:flex;gap:8px}.riga>label{flex:1;min-width:0}label input{width:100%}
+.err{color:var(--err);min-height:1.2em;font-size:13px}.okm{color:var(--ok);font-size:13px}
+pre{white-space:pre-wrap;font-size:12px;max-height:140px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px}
+.hide{display:none!important}
 </style>
 </head>
 <body>
-<main>
-<select id="lang" title="Language"></select>
-<h1 data-i="setup_h"></h1>
-<div class="sub" data-i="setup_intro"></div>
-<div class="sub err" data-i="setup_sec"></div>
-
-<div class="card" id="boxCode" style="display:none">
-  <div class="fg"><label class="wide"><span data-i="setup_code"></span><input id="s_code" type="password" autocomplete="off"><span class="sub" data-i="setup_code_h"></span></label></div>
-</div>
-
 <div class="card">
-  <div class="fg">
-    <label><span data-i="setup_admin"></span><input id="s_nome" value="admin" autocomplete="username" autocapitalize="none"></label>
-    <label><span data-i="setup_pass"></span><input id="s_p1" type="password" autocomplete="new-password"></label>
-    <label><span data-i="setup_pass2"></span><input id="s_p2" type="password" autocomplete="new-password"></label>
-  </div>
+  <button type="button" id="bLang" style="float:right;background:none;border:0;color:var(--acc);padding:0;cursor:pointer"></button>
+  <h1>Prima configurazione</h1>
+  <div class="sub">Crea l'amministratore e indica la colonnina. Tutto si può cambiare dopo dalla scheda Impostazioni.</div>
+  <form id="f">
+    <h2>Amministratore</h2>
+    <div class="riga"><label>Nome utente<input id="s_nome" value="admin" autocomplete="username" required></label></div>
+    <div class="riga"><label>Password<input id="s_pw" type="password" autocomplete="new-password" required></label><label>Ripeti la password<input id="s_pw2" type="password" autocomplete="new-password" required></label></div>
+    <div class="sub">Almeno 12 caratteri con minuscola, maiuscola, numero e carattere speciale.</div>
+    <div class="riga hide" id="codeBox"><label>Codice di configurazione (SETUP_CODE)<input id="s_code" autocomplete="off"></label></div>
+    <h2>Colonnina</h2>
+    <div class="riga"><label>Indirizzo (http:// o https://, con la porta se serve)<input id="cf_url" placeholder="http://colonnina.esempio.it:81" autocomplete="off"></label></div>
+    <div class="riga"><label>Utente (se la colonnina chiede una password)<input id="cf_user" autocomplete="off"></label><label>Password<input id="cf_password" type="password" autocomplete="new-password"></label></div>
+    <h2>Sito</h2>
+    <div class="riga"><label>Titolo del sito<input id="cf_title" value="EV Charger"></label></div>
+    <div class="riga"><label>Fuso orario<input id="cf_tz" value="Europe/Rome"></label><label>Valuta<input id="cf_currency" value="&euro;"></label></div>
+    <h2>Mail (facoltativo, Resend)</h2>
+    <div class="riga"><label>Chiave API Resend<input id="cf_resend_key" type="password" autocomplete="new-password"></label><label>Mittente<input id="cf_mail_from" placeholder="Colonnina &lt;ricariche@esempio.it&gt;"></label></div>
+    <div class="riga"><button type="button" id="bProva">Prova il collegamento</button><button type="submit" class="p" id="bOk" style="background:var(--acc);color:var(--btx);border-color:var(--acc)">Salva e inizia</button></div>
+    <div class="err" id="er"></div><div id="prova"></div>
+  </form>
 </div>
-
-<div class="card">
-  <h2 data-i="s_conn"></h2>
-  <div class="fg">
-    <label class="wide"><span data-i="s_url"></span><input id="cf_url" placeholder="http://charger.example.com" autocomplete="off"><span class="sub" data-i="s_url_h"></span></label>
-    <label><span data-i="s_user"></span><input id="cf_user" autocomplete="off"></label>
-    <label><span data-i="s_pass"></span><input id="cf_password" type="password" autocomplete="new-password"></label>
-    <label><span data-i="s_hname"></span><input id="cf_header_name" autocomplete="off"></label>
-    <label><span data-i="s_hval"></span><input id="cf_header_value" autocomplete="off"></label>
-    <label class="wide"><span data-i="s_hist"></span><input id="cf_history_path" value="/modules/modulator/historic?from=0&to=-1"></label>
-    <label class="wide"><span data-i="s_tags"></span><input id="cf_tags_path" value="/modules/tags?level=file"></label>
-  </div>
-  <div class="bar"><button id="bProva" data-i="s_test"></button></div>
-  <div id="prova"></div>
-</div>
-
-<div class="card">
-  <h2 data-i="s_gen"></h2>
-  <div class="fg">
-    <label class="wide"><span data-i="s_title"></span><input id="cf_title" value="EV Charger"></label>
-    <label><span data-i="s_tz"></span><input id="cf_tz" value="Europe/Rome"></label>
-    <label><span data-i="s_cur"></span><input id="cf_currency" value="&euro;" size="4"></label>
-    <span class="sub wide" data-i="s_tz_h"></span>
-  </div>
-</div>
-
-<div class="card">
-  <h2 data-i="s_email"></h2>
-  <div class="sub" data-i="s_email_h"></div>
-  <div class="fg" style="margin-top:8px">
-    <label><span data-i="s_rkey"></span><input id="cf_resend_key" type="password" autocomplete="new-password" placeholder="re_..."></label>
-    <label class="wide"><span data-i="s_mfrom"></span><input id="cf_mail_from" autocomplete="off"></label>
-  </div>
-</div>
-
-<div class="bar"><button class="p" id="bFine" data-i="setup_btn"></button></div>
-<div class="sub err" id="esito"></div>
-</main>
 <script>
-__I18N__
-applyI18n();
-document.title=document.title+" - "+T("setup_title");
+var LANG="it";try{LANG=localStorage.getItem("lang")||(((navigator.language||"it").slice(0,2)==="it")?"it":"en")}catch(e){}
+var EN={"Prima configurazione":"First-run setup","Crea l'amministratore e indica la colonnina. Tutto si può cambiare dopo dalla scheda Impostazioni.":"Create the administrator and point to the charger. Everything can be changed later from the Settings tab.",
+"Amministratore":"Administrator","Nome utente":"User name","Password":"Password","Ripeti la password":"Repeat the password","Almeno 12 caratteri con minuscola, maiuscola, numero e carattere speciale.":"At least 12 characters with lower case, upper case, a digit and a special character.",
+"Codice di configurazione (SETUP_CODE)":"Setup code (SETUP_CODE)","Colonnina":"Charger","Indirizzo (http:// o https://, con la porta se serve)":"Address (http:// or https://, with the port if needed)","Utente (se la colonnina chiede una password)":"User (if the charger asks for a password)",
+"Sito":"Site","Titolo del sito":"Site title","Fuso orario":"Time zone","Valuta":"Currency","Mail (facoltativo, Resend)":"Email (optional, Resend)","Chiave API Resend":"Resend API key","Mittente":"Sender","Prova il collegamento":"Test the connection","Salva e inizia":"Save and start",
+"Le password non coincidono":"The passwords do not match","Provo la connessione...":"Testing the connection...","Storico":"History","Elenco tessere":"Card list","ok":"ok","errore":"error","Righe lette: ":"Rows read: ",
+"La password non rispetta i requisiti":"The password does not meet the requirements","Nome utente non valido":"Invalid user name","Codice di configurazione errato":"Wrong setup code","Configurazione gia' completata":"Setup already completed","L'indirizzo della colonnina deve iniziare con http:// o https://":"The charger address must start with http:// or https://","Fuso orario sconosciuto":"Unknown time zone","Indirizzo della colonnina non impostato":"Charger address not set"};
+function T(s){return(LANG==="en"&&EN.hasOwnProperty(s))?EN[s]:s}
 function $(i){return document.getElementById(i)}
-var IDS=["url","user","password","header_name","header_value","history_path","tags_path","title","tz","currency","resend_key","mail_from"];
-fetch("/api/setup").then(function(r){return r.json()}).then(function(r){if(r.code_required)$("boxCode").style.display="block";if(r.done)location.href="/"});
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+(function(){if(LANG!=="en")return;document.documentElement.lang="en";var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),n,L=[];while(n=w.nextNode())L.push(n);L.forEach(function(x){var v=x.nodeValue,k=v.trim();if(k&&EN.hasOwnProperty(k))x.nodeValue=v.replace(k,EN[k])})})();
+$("bLang").textContent=(LANG==="en")?"Italiano":"English";$("bLang").onclick=function(){try{localStorage.setItem("lang",LANG==="en"?"it":"en")}catch(e){}location.reload()};
+var IDS=["url","user","password","title","tz","currency","resend_key","mail_from"];
 function dati(){var o={};IDS.forEach(function(k){o[k]=$("cf_"+k).value});o.code=$("s_code").value;return o}
-$("bProva").onclick=function(){
-  $("prova").innerHTML='<div class="sub">'+T("s_testing")+'</div>';$("esito").textContent="";
-  fetch("/api/setup/test",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(dati())}).then(function(r){return r.json()}).then(function(r){
-    if(r.errore){$("prova").innerHTML="";$("esito").textContent=E(r);return}
-    $("prova").innerHTML=bloccoProva(T("s_t_hist"),r.history)+(r.tags?bloccoProva(T("s_t_tags"),r.tags):"");
-  }).catch(function(){$("prova").innerHTML="";$("esito").textContent=T("e_network")});
-};
-$("bFine").onclick=function(){
-  $("esito").textContent="";
-  if($("s_p1").value!==$("s_p2").value){$("esito").textContent=T("pw_mismatch");return}
-  var o=dati();o.nome=$("s_nome").value;o.password_admin=$("s_p1").value;
-  $("bFine").disabled=true;
-  fetch("/api/setup",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(o)}).then(function(r){return r.json()}).then(function(r){
-    if(r.ok)location.href="/";else{$("esito").textContent=E(r);$("bFine").disabled=false}
-  }).catch(function(){$("esito").textContent=T("e_network");$("bFine").disabled=false});
+function post(p,b){return fetch(p,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)}).then(function(r){return r.json()})}
+fetch("/api/setup").then(function(r){return r.json()}).then(function(r){if(r.done){location.href="/";return}$("codeBox").classList.toggle("hide",!r.code_required)});
+function blocco(nome,x){if(!x)return "";var h="<h2>"+esc(nome)+": "+(x.ok?T("ok"):T("errore"))+" <span class=\"sub\">("+x.ms+" ms)</span></h2>";if(x.errore)h+='<div class="err">'+esc(x.errore)+"</div>";if(x.righe!==undefined)h+='<div class="sub">'+T("Righe lette: ")+x.righe+"</div>";if(x.sample)h+="<pre>"+esc(x.sample)+"</pre>";return h}
+$("bProva").onclick=function(){$("er").textContent="";$("prova").innerHTML='<div class="sub">'+T("Provo la connessione...")+"</div>";
+  post("/api/setup/test",dati()).then(function(r){if(r.errore){$("prova").innerHTML="";$("er").textContent=T(r.errore);return}$("prova").innerHTML=blocco(T("Storico"),r.history)+blocco(T("Elenco tessere"),r.tags)})};
+$("f").onsubmit=function(e){e.preventDefault();$("er").textContent="";
+  if($("s_pw").value!==$("s_pw2").value){$("er").textContent=T("Le password non coincidono");return}
+  var d=dati();d.nome=$("s_nome").value;d.password_admin=$("s_pw").value;
+  $("bOk").disabled=true;
+  post("/api/setup",d).then(function(r){$("bOk").disabled=false;if(r.errore){$("er").textContent=T(r.errore);return}location.href="/"});
 };
 </script>
 </body>
