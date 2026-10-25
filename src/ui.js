@@ -1156,7 +1156,7 @@ function caricaLive(){
         if(d.agg)agg=T("Aggiornato alle ")+new Date(d.agg).toLocaleTimeString(LOC,{timeStyle:"short"})}}
     $("liveTit").textContent=tit;$("tabL").innerHTML=h;$("liveAgg").textContent=agg});
 }
-setInterval(function(){if(!document.hidden&&!$("t9").classList.contains("hide")){caricaLive();if(MONADM)caricaMal()}},10000);
+var MONN=0;setInterval(function(){if(!document.hidden&&!$("t9").classList.contains("hide")){caricaLive();if(MONADM&&++MONN%6===0)caricaMal()}},10000);   // live status every 10 s, rules every 60 s (they change with the 5-minute cron)
 var RFID=[],RMOD=null;
 function scadIso(d){if(!d)return"";var o=-new Date(d+"T23:59:00").getTimezoneOffset(),z=o>=0?"+":"-";o=Math.abs(o);return d+"T23:59:00"+z+String(Math.floor(o/60)).padStart(2,"0")+":"+String(o%60).padStart(2,"0")}
 function scadTxt(x){if(!x.scad)return"";var d=new Date(x.scad);if(isNaN(d))return esc(x.scad);var t=d.toLocaleDateString(LOC);return d<new Date()?'<span class="err">'+t+" ("+T("scaduta")+")</span>":t}
