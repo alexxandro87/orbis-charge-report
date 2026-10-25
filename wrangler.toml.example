@@ -1,4 +1,4 @@
-name = "orbis-charge-report"
+name = "orbis-viaris-charge-report"
 main = "src/index.js"
 compatibility_date = "2025-01-01"
 
