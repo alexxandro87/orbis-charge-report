@@ -2,27 +2,38 @@ name = "orbis-charge-report"
 main = "src/index.js"
 compatibility_date = "2025-01-01"
 
-# Optional custom domain (the domain must be on your Cloudflare account)
+# Optional custom domain (the domain must be on your Cloudflare account).
+# Needed for the OCPP connection from the charger (wss:// on port 443).
 # routes = [{ pattern = "charge.example.com", custom_domain = true }]
 
-# Everything about the charger, the site title, time zone, currency and email
-# is entered in the web page on first start (and later in the Settings tab).
-# You may also pre-set defaults here; values saved in the web page win.
+# Everything about the charger, the site title, time zone, currency, email, card fee,
+# legal texts and contact is entered in the web page (first-run setup, then the Settings tab).
+# You may pre-set defaults here; values saved in the web page win.
 # [vars]
-# CHARGER_URL = "http://your-charger.example.com"
-# SITE_TITLE  = "EV Charger - My Building"
-# TIMEZONE    = "Europe/Rome"
-# CURRENCY    = "EUR"
-# MAIL_FROM   = "EV Charger <charge@example.com>"
+# CHARGER_URL   = "http://your-charger.example.com:81"
+# SITE_TITLE    = "EV Charger - My Building"
+# TIMEZONE      = "Europe/Rome"
+# CURRENCY      = "EUR"
+# MAIL_FROM     = "EV Charger <charge@example.com>"
+# CF_ACCOUNT_ID = "your Cloudflare account id"     # only for the "Cloudflare usage" box (with the CF_API_TOKEN secret)
+# TURNSTILE_SITE_KEY = "your Turnstile site key"   # anti-bot check on registration (with the TURNSTILE_SECRET secret)
+
+# Secrets (npx wrangler secret put NAME), all optional:
+#   SETUP_CODE      protects the first-run page (recommended)
+#   RESEND_API_KEY  email sending (can also be entered in the Settings tab)
+#   DATA_KEY        encryption of users' personal data, 32 random bytes in base64 (see docs/ENCRYPTION.md)
+#   CF_API_TOKEN    Cloudflare API token with "Account Analytics: Read", for the "Cloudflare usage" box
+#   TURNSTILE_SECRET  Cloudflare Turnstile secret key, anti-bot check on registration
+#   APP_PASSWORD    legacy: creates the user "admin" with this password and skips the setup page
 
 [[d1_databases]]
 binding = "DB"
 database_name = "ricariche"
 database_id = "PUT-YOUR-D1-DATABASE-ID-HERE"
 
-# Live charging status over OCPP 1.6 (optional but recommended): the charger connects to
-# wss://<your-domain>/ocpp/<secret>/CHARGER (the address is shown in the "Charger" tab).
-# Works on the free plan (SQLite-backed Durable Object). Needs a custom domain for the charger to reach it.
+# OCPP 1.6 server for the live status (recommended): the charger connects to
+# wss://<your-domain>/ocpp/<secret>/<charger id> (the address is shown in the "OCPP" tab).
+# Works on the free plan (SQLite-backed Durable Object).
 [[durable_objects.bindings]]
 name = "COLONNINA"
 class_name = "Colonnina"
@@ -31,7 +42,7 @@ class_name = "Colonnina"
 tag = "v1"
 new_sqlite_classes = ["Colonnina"]
 
-# Automatic download from the charger every 6 hours
-# (can be switched off in the Settings tab; the schedule itself is set here)
+# Scheduled runs: download from the charger every 6 hours (can be switched off in Settings)
+# and the monitoring checks every 5 minutes (each check is off until you enable it).
 [triggers]
-crons = ["0 */6 * * *"]
+crons = ["0 */6 * * *", "*/5 * * * *"]

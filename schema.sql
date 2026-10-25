@@ -1,7 +1,8 @@
+-- Initial tables. Columns and tables added later (users' profile, tickets, card holders) are created by the Worker itself.
 CREATE TABLE IF NOT EXISTS sessioni (
   inizio_utc  INTEGER NOT NULL,
   fine_utc    INTEGER NOT NULL,
-  tag         TEXT NOT NULL,        -- tessera all'avvio (vuoto = avviata da app)
+  tag         TEXT NOT NULL,        -- card at start (empty = started from the app)
   tag_tipo    TEXT,                 -- rfid_tag / app / evsm / viaris
   cont_ini_wh INTEGER NOT NULL,
   cont_fin_wh INTEGER NOT NULL,
