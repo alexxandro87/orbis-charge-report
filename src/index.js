@@ -186,10 +186,18 @@ function nomeAl(storia, tag, t) {
 }
 
 // -------------------------------------------------------------- data access
-async function reportMese(env, anno, mese, riservato = false) {
+// Card holders and all prices, loaded once for the reports of a whole year: calling reportMese 12 times without them
+// costs about 10 queries per month, over the 50 queries per request allowed by D1 on the free plan.
+async function datiAnno(env) {
+  const prezzi = (await env.DB.prepare("SELECT anno, mese, eur_kwh, iva FROM prezzi ORDER BY anno, mese").all()).results;
+  return { storia: await nomiStorici(env), prezzi };
+}
+
+async function reportMese(env, anno, mese, riservato = false, pre = null) {
   const [ini, fin] = intervalloMese(anno, mese);
-  const storia = await nomiStorici(env);
-  const pr = await env.DB.prepare("SELECT eur_kwh, iva FROM prezzi WHERE anno=? AND mese=?").bind(anno, mese).first();
+  const storia = pre ? pre.storia : await nomiStorici(env);
+  const pr = pre ? pre.prezzi.find((p) => p.anno === anno && p.mese === mese) || null
+    : await env.DB.prepare("SELECT eur_kwh, iva FROM prezzi WHERE anno=? AND mese=?").bind(anno, mese).first();
   const prezzo = pr ? pr.eur_kwh : null;
   const ivaPct = pr ? pr.iva : null;
   const righe = (await env.DB.prepare(
@@ -211,8 +219,9 @@ async function reportMese(env, anno, mese, riservato = false) {
     }
   }
   const ivaUsata = ivaPct ?? 0;
-  const prec = pr ? null : await env.DB.prepare(
-    "SELECT iva FROM prezzi WHERE (anno*12+mese) < ? ORDER BY anno DESC, mese DESC LIMIT 1").bind(anno * 12 + mese).first();
+  const prec = pr ? null : pre ? pre.prezzi.filter((p) => p.anno * 12 + p.mese < anno * 12 + mese).pop() || null
+    : await env.DB.prepare(
+      "SELECT iva FROM prezzi WHERE (anno*12+mese) < ? ORDER BY anno DESC, mese DESC LIMIT 1").bind(anno * 12 + mese).first();
   const tessere = Object.values(perTag)
     .sort((a, b) => a.nome.toUpperCase().localeCompare(b.nome.toUpperCase()))
     .map((d) => {
@@ -249,8 +258,8 @@ async function reportMese(env, anno, mese, riservato = false) {
 }
 
 async function storicoAnno(env, anno, riservato = false) {
-  const out = [];
-  for (let m = 1; m <= 12; m++) out.push(await reportMese(env, anno, m, riservato));
+  const out = [], pre = await datiAnno(env);
+  for (let m = 1; m <= 12; m++) out.push(await reportMese(env, anno, m, riservato, pre));
   return out.map((r) => ({ riservato, mese: r.mese, nome: MESI[r.mese - 1], sessioni: r.sessioni, kwh_tessere: r.kwh_tessere,
     kwh_app: r.kwh_app, kwh_tot: r.kwh_tot, prezzo: r.prezzo, iva_pct: r.iva_pct, imp_tot: r.imp_tot,
     iva_tot: r.iva_tot, eur_tot: r.eur_tot }));
@@ -1126,9 +1135,9 @@ function pdfReportPrezzo(r) {
 
 async function mieRicariche(env, tags, anno) {
   tags = Array.isArray(tags) ? tags : [tags];
-  const out = [];
+  const out = [], pre = await datiAnno(env);
   for (let m = 1; m <= 12; m++) {
-    const r = await reportMese(env, anno, m, false);
+    const r = await reportMese(env, anno, m, false, pre);
     const ts = r.tessere.filter((x) => tags.includes(x.tag));          // if the card changed name during the month it appears more than once
     const sm = (k) => ts.reduce((z, x) => z + (x[k] || 0), 0);
     const t = ts.length ? { n: sm("n"), kwh: sm("kwh"), imp: ts[0].imp == null ? null : r2(sm("imp")), iva: ts[0].iva == null ? null : r2(sm("iva")),
