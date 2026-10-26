@@ -217,6 +217,8 @@ Serve Resend per le mail di registrazione: senza mail la registrazione è rifiut
 
 Con «Modifica» su un utente che ha già un profilo (registrato o completato) il modulo mostra anche nome, cognome, telefono e telefono facoltativo: «Salva permessi e dati» li aggiorna con gli stessi controlli della registrazione (numero in formato internazionale, cifratura con `DATA_KEY`). Per gli utenti invitati che non hanno ancora completato il profilo i campi non compaiono. La richiesta «Correzione dati» dall'Assistenza continua a funzionare.
 
+«Canali di contatto», nella scheda Utenti, conta gli utenti con profilo per consenso Telegram, Telegram collegato (e con due chat) e nessun consenso. «Comunicazione a tutti gli utenti» manda una mail (oggetto, testo italiano e inglese, una riga per riga) a tutti gli account attivi con email confermata tranne l'admin, con anteprima prima e conferma all'invio; la spunta manda lo stesso testo anche su Telegram a chi lo ha collegato, tramite la coda. Massimo 44 mail per invio (limite del piano gratuito).
+
 ## Assistenza (ticket)
 
 Dalla scheda **Assistenza** l'utente apre una richiesta: tessera smarrita o danneggiata, richiesta di nuova tessera, correzione dei dati, cancellazione di dati o utenza, problema con la colonnina, altro. Massimo 5 richieste aperte, una sola richiesta di tessera; finché la richiesta è aperta si possono aggiungere informazioni. L'amministratore le gestisce dalla scheda **Ticket** (badge con le aperte): approva, rifiuta o chiude, con una nota; l'utente riceve l'esito per mail.

@@ -2663,6 +2663,24 @@ export default {
         const bot = await leggiMeta(env, "telegram_bot", null);
         return json({ telegram: { attivo: telegramAttivo(), bot: bot ? bot.username : null, attivato: bot ? bot.quando : null } });
       }
+      if (url.pathname === "/api/comunicazione" && req.method === "POST") {   // email (and message) to every active user (admin)
+        if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
+        const b = await req.json();
+        const oggetto = String(b.oggetto || "").trim().slice(0, 120), it = String(b.it || "").trim().slice(0, 4000), en = String(b.en || "").trim().slice(0, 4000);
+        if (!oggetto || !it || !en) return json({ errore: "Servono oggetto, testo italiano e testo inglese" }, 400);
+        const dest = (await env.DB.prepare("SELECT nome FROM utenti WHERE ruolo<>'admin' AND hash IS NOT NULL AND hash<>'' AND verifica_hash IS NULL ORDER BY nome").all()).results.map((x) => x.nome).filter((n) => EMAIL_OK.test(n));
+        const righeIt = it.split(/\r?\n/), righeEn = en.split(/\r?\n/), html = mailBil(oggetto, righeIt, oggetto, righeEn);
+        if (b.azione !== "invia") return json({ destinatari: dest.length, anteprima: html });
+        let inviate = 0, errori = 0, saltate = 0; const coda = [];
+        for (const n of dest) {
+          if (inviate + errori >= 44) { saltate++; continue; }          // free plan: 50 outbound calls per request
+          const m = await inviaMail(env, n, `${oggetto} - ${TITOLO}`, html);
+          if (m === "inviata") inviate++; else errori++;
+          if (b.messaggi === true) coda.push(await codaVoce(env, n, [oggetto + ".", ...righeIt], [oggetto + ".", ...righeEn]));
+        }
+        if (coda.length) await accodaMessaggi(env, coda);
+        return json({ ok: true, inviate, errori, saltate, messaggi: coda.length });
+      }
       if (url.pathname === "/api/me") {
         const reg = await env.DB.prepare("SELECT registrato_il, profilo_il FROM utenti WHERE nome=?").bind(me.nome).first();
         const t = me.tessera ? await env.DB.prepare("SELECT tag, nome FROM tessere WHERE tag=?").bind(me.tessera).first() : null;
@@ -2722,7 +2740,7 @@ export default {
         if (req.method === "GET") {
           try { await migraCifratura(env); } catch (_) { /* retry at the next run */ }
           const righe = (await env.DB.prepare(
-            "SELECT u.nome, u.ruolo, u.permessi, u.hash, u.invito_exp, u.tessera, u.cognome, u.nome_proprio, u.tel1, u.tel2, u.verifica_hash, u.verifica_exp, u.consensi, u.registrato_il, u.profilo_il, u.tessere_altre, t.nome AS tessera_nome " +
+            "SELECT u.nome, u.ruolo, u.permessi, u.hash, u.invito_exp, u.tessera, u.cognome, u.nome_proprio, u.tel1, u.tel2, u.verifica_hash, u.verifica_exp, u.consensi, u.registrato_il, u.profilo_il, u.tessere_altre, u.tg_chat, t.nome AS tessera_nome " +
             "FROM utenti u LEFT JOIN tessere t ON t.tag = u.tessera ORDER BY u.ruolo, u.nome").all()).results;
           const nomiTess = Object.fromEntries((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((x) => [x.tag, x.nome]));
           const lista = [];
@@ -2730,8 +2748,9 @@ export default {
             let an = null;
             if (u.registrato_il || u.profilo_il) {
               const d = {}; for (const c of CAMPI_CIFRATI) d[c] = await decifra(env, u[c], u.nome + "|" + c);
-              let msg = false; try { const cc = JSON.parse(d.consensi || "{}"); msg = !!(cc.whatsapp || cc.telegram || (cc.whatsapp === undefined && cc.messaggi)); } catch (_) { /* unreadable */ }
-              an = { nome: d.nome_proprio, cognome: d.cognome, tel1: d.tel1, tel2: d.tel2, data: u.registrato_il || u.profilo_il, messaggi: msg, da_confermare: !!u.verifica_hash };
+              let wa = false, tg = false; try { const cc = JSON.parse(d.consensi || "{}"); wa = !!(cc.whatsapp !== undefined ? cc.whatsapp : cc.messaggi); tg = !!(cc.telegram !== undefined ? cc.telegram : cc.messaggi); } catch (_) { /* unreadable */ }
+              an = { nome: d.nome_proprio, cognome: d.cognome, tel1: d.tel1, tel2: d.tel2, data: u.registrato_il || u.profilo_il, messaggi: wa || tg, da_confermare: !!u.verifica_hash,
+                canali: { wa, tg, tg_chat: (await chatTelegram(env, u)).length, tel2: !!d.tel2 } };
             }
             lista.push({ nome: u.nome, ruolo: u.ruolo, perm: permessiDi(u), attivo: !!u.hash && !u.verifica_hash && !(u.registrato_il && !u.tessera), in_attesa_tessera: !!u.registrato_il && !u.tessera && !u.verifica_hash,
               tessera: u.tessera, tessera_nome: u.tessera_nome, tessere_altre: tessereDi({ tessere_altre: u.tessere_altre }).map((tag) => ({ tag, nome: nomiTess[tag] || "" })), anagrafica: an, invito_scaduto: !u.hash && u.invito_exp < Date.now() / 1000 });

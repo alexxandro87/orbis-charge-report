@@ -217,6 +217,8 @@ Requires Resend for the registration emails: without email, registration is refu
 
 With "Edit" on a user who already has a profile (self-registered or completed), the form also shows first name, last name, phone and optional phone: "Save permissions and details" updates them with the same checks as the registration (number in international format, encrypted with `DATA_KEY`). For invited users who have not completed their profile yet the fields do not appear. The "Data correction" request from the Support tab keeps working.
 
+"Contact channels" in the Users tab counts the users with a profile by Telegram consent, Telegram linked (and with two chats) and no consent. "Message to all users" sends an email (subject, Italian and English text, one line per line) to every active account with a confirmed email except the admin, with a preview first and a confirmation on send; the checkbox also sends the same text on Telegram to those who linked it, through the queue. At most 44 emails per send (free-plan limit).
+
 ## Support tickets
 
 From the **Support** tab a user opens a request: lost or damaged card, new card request, data correction, deletion of data or account, charger problem, other. Up to 5 open requests, one open card request; details can be added while the request is open. The administrator handles them from the **Tickets** tab (badge with the open count): approve, reject or close, with a note; the user gets the outcome by email.
