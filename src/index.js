@@ -1104,24 +1104,37 @@ async function notifica(env, titolo, dett, ts = Date.now()) {
   l.length = Math.min(l.length, 50);
   await salvaMeta(env, "notifiche", l);
 }
+const potenzaKw = (m) => { const x = m && m.dati && m.dati["Power.Active.Import"]; if (!x) return null; const v = parseFloat(x.v); return isNaN(v) ? null : /^k/i.test(x.u) ? v : v / 1000; };
 const energiaKwh = (m) => { const x = m && m.dati && m.dati["Energy.Active.Import.Register"]; if (!x) return null; const v = parseFloat(x.v); return isNaN(v) ? null : /^k/i.test(x.u) ? v : v / 1000; };
 // ------------------------------------------------ reminder to users: charge finished but car still plugged in
 const AVVISI_DEF = { on: true, attesa: 10, sollecito: 60 };      // minutes after the end of the charge; sollecito 0 = no second reminder
 async function leggiAvvisi(env) { return { ...AVVISI_DEF, ...(await leggiMeta(env, "avvisi_utenti_cfg", {})) }; }
 async function avvisiUtenti(env, live, ora) {
-  const cfg = await leggiAvvisi(env), pr = live.prese && live.prese["1"], tx = live.ultima_tx;
-  const fermo = cfg.on && live.connessa && pr && /^(Finishing|SuspendedEV|SuspendedEVSE)$/.test(pr.status) && tx;
-  if (!fermo) { await env.DB.prepare("DELETE FROM meta WHERE chiave='avvisi_utenti'").run(); return; }
+  const cfg = await leggiAvvisi(env), pr = live.prese && live.prese["1"], tx = live.ultima_tx, st = pr ? pr.status : "";
+  const attiva = cfg.on && live.connessa && pr && tx;
+  const sospesa = attiva && /^(Finishing|SuspendedEV|SuspendedEVSE)$/.test(st);
+  // Orbis 7.2.53 keeps the socket in Charging until the cable is unplugged: a full car shows as a new meter sample
+  // with the same counter and no power. That counts as "charging finished" too, from the first stalled sample.
+  const kwh = attiva && st === "Charging" ? energiaKwh(live.meter) : null, inCarica = kwh !== null;
+  if (!sospesa && !inCarica) { await env.DB.prepare("DELETE FROM meta WHERE chiave='avvisi_utenti'").run(); return; }
   let rec = await leggiMeta(env, "avvisi_utenti", null);
   if (!rec || rec.chiave !== tx.id) {
     const t = Date.parse(pr.ts);                          // from the socket's timestamp if plausible, otherwise from when it was first seen
-    rec = { chiave: tx.id, da: t && t <= ora + 120000 && ora - t < 6 * 3600e3 ? t : ora };
+    rec = { chiave: tx.id, da: sospesa ? (t && t <= ora + 120000 && ora - t < 6 * 3600e3 ? t : ora) : null };
   }
+  if (inCarica) {
+    const mts = live.meter.ts || null, kw = potenzaKw(live.meter);
+    if ("ets" in rec && rec.ets !== mts) rec.eda = kwh === rec.e && !(kw > 0.1) ? (rec.eda || ora) : null;   // new sample: same counter and no power = stalled
+    rec.e = kwh; rec.ets = mts;
+    if (!rec.m1) rec.da = rec.eda || null;                // counter moving again before any notice: nothing to report
+  } else if (!rec.da) rec.da = ora;
+  if (!rec.da) { await salvaMeta(env, "avvisi_utenti", rec); return; }
   const like = `%"${tx.tag}"%`;
   const u = await env.DB.prepare("SELECT nome FROM utenti WHERE (tessera=? OR tessere_altre LIKE ?) AND ruolo!='admin' LIMIT 1").bind(tx.tag, like).first()
     || await env.DB.prepare("SELECT nome FROM utenti WHERE tessera=? OR tessere_altre LIKE ? LIMIT 1").bind(tx.tag, like).first();
   if (u && EMAIL_OK.test(u.nome)) {
-    const kwh = tx.meter_fin != null && tx.meter_ini != null ? ((tx.meter_fin - tx.meter_ini) / 1000).toFixed(1).replace(".", ",") + " kWh" : "";
+    const wh = tx.meter_fin != null ? tx.meter_fin : (rec.e != null ? rec.e * 1000 : null);   // open transaction: energy from the last meter sample
+    const kwh = wh != null && tx.meter_ini != null ? ((wh - tx.meter_ini) / 1000).toFixed(1).replace(".", ",") + " kWh" : "";
     const invia = async (promemoria) => {                 // email and, for those who allowed it, Telegram message
       const a = [promemoria ? "Promemoria: ricarica terminata, auto ancora collegata" : "Ricarica terminata", [
         "La ricarica con la tessera " + tx.tag + " è terminata" + (tx.fine ? " alle " + new Date(tx.fine).toLocaleTimeString("it-IT", { timeZone: TZ, timeStyle: "short" }) : "") + (kwh ? " (" + kwh + ")" : "") + ".",
