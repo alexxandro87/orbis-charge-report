@@ -1172,8 +1172,10 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
   };
   // energy not increasing: the meter does not rise while the socket is charging
   if (tx && stP === "Charging" && kwhTot !== null) {
-    const st = stato.energia;
-    cond.energia = { da: st && st.e === kwhTot ? st.da : ora, extra: { e: kwhTot }, dett: "Contatore fermo a " + kwhTot.toFixed(2) + " kWh durante la ricarica della tessera " + tx.tag };
+    const st = stato.energia || {}, mts = (live.meter && live.meter.ts) || null;
+    const nuova = st.ts !== mts;                             // a new meter sample arrived since the last check
+    const ferma = nuova && st.e === kwhTot;                   // new sample, same meter reading: stuck (an old reading proves nothing)
+    cond.energia = { da: ferma ? (st.da || ora) : (nuova ? null : (st.da || null)), extra: { e: kwhTot, ts: mts }, dett: "Contatore fermo a " + kwhTot.toFixed(2) + " kWh durante la ricarica della tessera " + tx.tag };
   } else cond.energia = { da: null };
   // measure thresholds (fire at once)
   const ora1h = ora - 3600e3, cadute = (live.cadute || []).filter((t) => t > ora1h).length;
@@ -1255,6 +1257,7 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
       }
       delete stato[id];
     } else if (c.da != null && r.on) stato[id] = { da: c.da, notificato: null, ...(c.extra || {}) };
+    else if (c.extra && r.on) stato[id] = { ...c.extra };   // no episode, but the last sample is needed by the next check
     else delete stato[id];
   }
   // single events: unexpected restart (from the charger), public IP change, firmware change
