@@ -2149,6 +2149,7 @@ async function accettaInvito(req, env) {
 
 // ------------------------------------------------ OCPP 1.6J server
 // The charger opens the connection to us; a Durable Object keeps it open (hibernating between messages).
+const EVENTI_ORE = 48;                                     // OCPP log kept for this long (cap 6000 rows)
 export class Colonnina {
   constructor(state, env) {
     this.state = state; this.env = env; this.sql = state.storage.sql;
@@ -2156,13 +2157,14 @@ export class Colonnina {
     this.sql.exec("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)");
     this.sql.exec("CREATE TABLE IF NOT EXISTS transazioni (id INTEGER PRIMARY KEY AUTOINCREMENT, tag TEXT, connettore INTEGER, inizio INTEGER, meter_ini INTEGER, fine INTEGER, meter_fin INTEGER, motivo TEXT)");
     this.sql.exec("CREATE TABLE IF NOT EXISTS campioni (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, tx INTEGER, dati TEXT)");
+    this.sql.exec("CREATE INDEX IF NOT EXISTS eventi_ts ON eventi (ts)");
   }
   put(k, v) { this.sql.exec("INSERT OR REPLACE INTO kv VALUES (?, ?)", k, JSON.stringify(v)); }
   get(k) { const r = [...this.sql.exec("SELECT v FROM kv WHERE k=?", k)][0]; return r ? JSON.parse(r.v) : null; }
   log(dir, testo) {
     const ora = Date.now();
     this.sql.exec("INSERT INTO eventi (ts, dir, testo) VALUES (?, ?, ?)", ora, dir, String(testo).slice(0, 2000));
-    this.sql.exec("DELETE FROM eventi WHERE id < (SELECT MAX(id) FROM eventi) - 300");
+    this.sql.exec("DELETE FROM eventi WHERE ts < ? OR id < (SELECT MAX(id) FROM eventi) - 6000", ora - EVENTI_ORE * 3600e3);
     if (dir !== "sys") this.put("ultimo_msg", ora);
     if (dir === "<") this.put("ultimo_in", ora);          // only messages coming from the charger (for the monitoring check)
   }
@@ -2197,6 +2199,9 @@ export class Colonnina {
         if (!this.get("lista_on")) return json({ errore: "Invio della lista tessere disattivato: attivalo prima dalla scheda OCPP" }, 400);
         await this.avviaComandi(); return json({ ok: true });                                                                                          // "sync": sends config and card list again
       }
+      const q = new URL(req.url).searchParams;
+      if (q.has("prima")) return json({ eventi: this.eventiBrevi(+q.get("prima")) });                                   // older page of the log
+      if (q.has("dopo")) return json({ ...this.stato(false), eventi: this.eventiBrevi(null, +q.get("dopo")) });        // refresh: state and new rows only
       return json(this.stato());
     }
     for (const w of this.state.getWebSockets()) { try { w.close(1012, "sostituita da una nuova connessione"); } catch (_) { /* already closed */ } }
@@ -2236,7 +2241,9 @@ export class Colonnina {
     try { r = await this.chiamata(azione, payload || {}); }
     catch (e) { this.log("sys", "errore in " + azione + ": " + (e.message || e)); ws.send(JSON.stringify([4, id, "InternalError", msgErrore(e).slice(0, 100), {}])); return; }
     const out = r === undefined ? [4, id, "NotImplemented", "", {}] : [3, id, r];
-    this.log(">", JSON.stringify(out)); ws.send(JSON.stringify(out));
+    // empty acknowledgements ([3, id, {}] or just the time) are not logged: they say nothing and are most of the rows
+    if (out[0] !== 3 || Object.keys(out[2] || {}).some((k) => k !== "currentTime")) this.log(">", JSON.stringify(out));
+    ws.send(JSON.stringify(out));
     if (azione === "BootNotification") await this.avviaComandi(true);   // after the start send the offline settings and the card list
     else if (azione === "Heartbeat" && this.get("nomi_pendenti")) this.state.waitUntil(this.rimettiNomi());
     if (azione === "BootNotification") { /* already handled */ }
@@ -2405,9 +2412,12 @@ export class Colonnina {
     }
   }
   // readable rows instead of raw messages: the server's answers (->) are not shown, except errors
-  eventiBrevi() {
+  eventiBrevi(prima, dopo) {                               // prima: older page (id < prima); dopo: only new rows (id > dopo)
     const out = [];
-    const righe = [...this.sql.exec("SELECT ts, dir, testo FROM eventi ORDER BY id DESC LIMIT 120")];
+    const righe = dopo ? [...this.sql.exec("SELECT id, ts, dir, testo FROM eventi WHERE id > ? ORDER BY id DESC LIMIT 300", dopo)]
+      : [...this.sql.exec("SELECT id, ts, dir, testo FROM eventi WHERE id < ? ORDER BY id DESC LIMIT 300", prima || 9e15)];
+    const richDi = {};                                       // charger request id -> action, to say what the server replied to
+    for (const r of righe) { const k = /^\[2,"([^"]+)","([A-Za-z]+)"/.exec(r.testo); if (r.dir === "<" && k) richDi[k[1]] = k[2]; }
     const cmdDi = {};                                        // command id -> name, to say what the charger is answering
     for (const r of righe) { const k = /^\[2,"([^"]+)","([A-Za-z]+)"/.exec(r.testo); if (r.dir === ">" && k) cmdDi[k[1]] = k[2]; }
     const NOMI_CMD = { Reset: "riavvio", GetConfiguration: "lettura configurazione", ChangeConfiguration: "modifica impostazione", SendLocalList: "invio lista tessere",
@@ -2423,7 +2433,7 @@ export class Colonnina {
       return JSON.stringify(p || {}).slice(0, 100);
     };
     for (const r of righe) {
-      if (out.length >= 25) break;
+      if (out.length >= 100) break;
       let t = r.testo;
       let m; try { m = JSON.parse(r.testo); } catch (_) { m = null; }
       if (r.dir === "<") {
@@ -2436,12 +2446,23 @@ export class Colonnina {
         else t = m ? this.sintesi(m[2], m[3] || {}) : r.testo.slice(0, 120);
       } else if (r.dir === ">") {
         if (m && m[0] === 2) t = "Comando alla colonnina: " + (NOMI_CMD[m[2]] || m[2]) + (m[2] === "ChangeConfiguration" ? " " + m[3].key + "=" + m[3].value : m[2] === "SendLocalList" ? " (" + m[3].localAuthorizationList.length + " tessere)" : "");
+        else if (m && m[0] === 3) { const a = richDi[m[1]]; t = "Risposta del server" + (a ? " a " + this.nomeMsg(a) : "") + ": " + this.esitoRisposta(m[2] || {}); }
         else if (!r.testo.startsWith('[4,')) continue;
         else t = "Errore inviato alla colonnina: " + r.testo.slice(0, 120);
       }
-      out.push({ ts: r.ts, dir: r.dir, testo: t, raw: r.testo.slice(0, 600) });
+      out.push({ id: r.id, ts: r.ts, dir: r.dir, testo: t, raw: r.testo.slice(0, 600) });
     }
     return out;
+  }
+  nomeMsg(a) { return { BootNotification: "avvio", Authorize: "tessera", StartTransaction: "inizio ricarica", StopTransaction: "fine ricarica", Heartbeat: "conferma collegamento", StatusNotification: "stato presa", MeterValues: "misura", DataTransfer: "dati" }[a] || a; }
+  esitoRisposta(p) {                                      // server replies that carry an outcome (card, charge, boot): in words
+    const TAG = { Accepted: "tessera accettata", Blocked: "tessera bloccata", Invalid: "tessera non valida", Expired: "tessera scaduta", ConcurrentTx: "tessera gia' in uso" };
+    const x = [];
+    if (p.idTagInfo && p.idTagInfo.status) x.push(TAG[p.idTagInfo.status] || p.idTagInfo.status);
+    if (p.transactionId !== undefined) x.push("ricarica n. " + p.transactionId);
+    if (p.status && !p.idTagInfo) x.push(p.status === "Accepted" ? "accettato" : p.status);
+    if (p.interval) x.push("conferma ogni " + p.interval + " s");
+    return x.join(", ") || JSON.stringify(p).slice(0, 100);
   }
   sintesi(a, p) {
     const kwh = (wh) => (parseFloat(wh) / 1000).toFixed(2) + " kWh";
@@ -2464,7 +2485,7 @@ export class Colonnina {
       default: return a;
     }
   }
-  stato() {
+  stato(conEventi = true) {
     const aperta = [...this.sql.exec("SELECT * FROM transazioni WHERE fine IS NULL ORDER BY id DESC LIMIT 1")][0] || null;
     const prese = {};
     for (const r of this.sql.exec("SELECT k, v FROM kv WHERE k LIKE 'presa_%'")) prese[r.k.slice(6)] = JSON.parse(r.v);
@@ -2474,7 +2495,7 @@ export class Colonnina {
       meter: this.get("meter"), transazione_aperta: aperta, lista: this.get("lista"), lista_on: !!this.get("lista_on"), sync_pendente: !!this.get("sync_pendente"),
       heartbeat: { voluto: this.hbVoluto(), inviato: this.get("hb") || null },
       parametri: { def: PARAMETRI, voluti: this.get("par_voluti") || {}, inviati: this.get("par_inviati") || {} },
-      eventi: this.eventiBrevi(),
+      eventi: conEventi ? this.eventiBrevi() : [],
       spazio: this.sql.databaseSize,                                  // bytes used by the Durable Object database
     };
   }
@@ -2922,7 +2943,7 @@ export default {
           if (b.azione === "sincronizza") { const r = await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/sync", { method: "POST" }); if (!r.ok) return json(await r.json(), 400); }
         }
         const token = await tokenOcpp(env);
-        const live = await (await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/stato")).json();
+        const live = await (await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/stato" + url.search)).json();
         return json({ ...live, host: url.host, percorso: `/ocpp/${token}/${(await leggiConfig(env)).charger_id}` });
       }
       if (url.pathname === "/api/reinvia" && req.method === "POST") {

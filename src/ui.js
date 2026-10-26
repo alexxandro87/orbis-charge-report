@@ -148,6 +148,7 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
     <div class="bar"><label>Conferma collegamento ogni <input id="oHb" type="number" min="1" max="60" style="width:5em"> minuti</label> <button id="bOHb">Salva</button> <span class="sub" id="oHbTxt"></span></div>
 <label class="sub"><input type="checkbox" id="oRaw"> Mostra i messaggi grezzi</label>
     <div style="overflow:auto;height:240px;border:1px solid var(--line);border-radius:6px"><table id="tabO" style="table-layout:fixed;width:100%"></table></div>
+    <div class="bar"><button id="bOPrec">Mostra precedenti</button> <span class="sub" id="oPrecTxt"></span></div>
     <div class="sub">Il server riceve e registra i messaggi della colonnina e le manda solo le impostazioni scelte qui sotto (e la lista tessere, se attivata). Il codice dentro l'indirizzo è segreto, chi non lo conosce non può collegarsi. Se lo rigeneri devi aggiornare l'indirizzo sulla colonnina.</div>
   </div>
   <div class="card">
@@ -576,7 +577,7 @@ var EN={"una tantum":"one-off","costo":"cost",
 "Porta non valida":"Invalid port",
 "Tessere RFID della colonnina":"Charger RFID cards",
 "Impostazioni OCPP":"OCPP settings","Il server manda alla colonnina solo i valori che cambi, subito o al primo messaggio utile, e li rimanda a ogni riavvio. Per vedere i valori letti dalla colonnina usa GetConfiguration.":"The server sends the charger only the values you change, right away or with its next message, and sends them again at every restart. Use GetConfiguration to see the values read from the charger.",
-"Mostra i messaggi grezzi":"Show raw messages",
+"Mostra i messaggi grezzi":"Show raw messages","Mostra precedenti":"Show earlier","Fine del registro (conservato 48 ore)":"End of the log (48 hours kept)",
 "Avvio colonnina":"Charger start",
 "Conferma collegamento":"Connection check",
 "Misura":"Reading",
@@ -1069,8 +1070,9 @@ $("bTesti").onclick=function(){var o={};TL.forEach(function(k){o[k]=$("tl_"+k).v
   post("/api/testi",o).then(function(r){$("tlEsito").classList.toggle("err",!!r.errore);$("tlEsito").textContent=r.errore?T(r.errore):T("Testi salvati")})};
 function oraTxt(ms){return ms?new Date(ms).toLocaleString(LOC,{dateStyle:"short",timeStyle:"medium"}):"-"}
 function misura(m,k,div,dec,u){var x=m&&m.dati&&m.dati[k];if(!x)return null;var v=parseFloat(x.v);if(isNaN(v))return null;if(/^k/i.test(x.u))div=1;return (v/div).toFixed(dec)+" "+u}
-function caricaOcpp(){
-  return api("/api/ocpp").then(function(r){
+function caricaOcpp(leggero){
+  var dopo=leggero&&OEV.length?OEV[0].id:null;
+  return api("/api/ocpp"+(dopo?"?dopo="+dopo:"")).then(function(r){
     if(r.errore){$("oEsito").textContent=T(r.errore);return}
     $("oEsito").textContent="";$("oUrl").value="wss://"+r.host+r.percorso;
     var t=(r.connessa?T("Colonnina collegata"):T("Colonnina non collegata"))+" · "+T("ultimo messaggio: ")+oraTxt(r.ultimo_msg);
@@ -1083,7 +1085,7 @@ function caricaOcpp(){
     $("oStato").textContent=t;if(document.activeElement!==$("oListaOn"))$("oListaOn").checked=!!r.lista_on;$("bOSync").disabled=!r.lista_on;$("oLista").textContent=listaTxt(r);
     var hb=r.heartbeat;if(hb){if(document.activeElement!==$("oHb"))$("oHb").value=Math.round(hb.voluto/60);
       $("oHbTxt").textContent=hb.inviato===hb.voluto?T("impostato sulla colonnina"):T("in attesa: viene mandato alla colonnina al prossimo messaggio")}
-    disegnaPar(r.parametri);OEV=r.eventi||[];disegnaOcpp()});
+    disegnaPar(r.parametri);OEV=dopo?(r.eventi||[]).concat(OEV):(r.eventi||[]);disegnaOcpp()});
 }
 var PAR_ET={ConnectionTimeOut:["Attesa tessera dopo il collegamento del cavo","secondi"],WebSocketPingInterval:["Controllo della connessione col sito ogni","secondi"],
   TransactionMessageRetryInterval:["Nuovo tentativo se un messaggio di ricarica non arriva dopo","secondi"],TransactionMessageAttempts:["Numero di tentativi per ogni messaggio di ricarica","volte"],
@@ -1130,9 +1132,11 @@ function disegnaOcpp(){
   $("tabO").innerHTML=h;
 }
 $("oRaw").onchange=disegnaOcpp;
+$("bOPrec").onclick=function(){if(!OEV.length)return;$("bOPrec").disabled=true;api("/api/ocpp?prima="+OEV[OEV.length-1].id).then(function(r){$("bOPrec").disabled=false;
+  var e=(r&&r.eventi)||[];if(!e.length){$("bOPrec").classList.add("hide");$("oPrecTxt").textContent=T("Fine del registro (conservato 48 ore)");return}OEV=OEV.concat(e);disegnaOcpp()})};
 $("bOAgg").onclick=caricaOcpp;
 $("bORig").onclick=function(){if(confirm(T("Rigenerare il codice? La colonnina smette di collegarsi finché non aggiorni l'indirizzo.")))post("/api/ocpp",{azione:"rigenera"}).then(function(){caricaOcpp()})};
-setInterval(function(){if(!document.hidden&&!$("t8").classList.contains("hide"))caricaOcpp()},10000);
+setInterval(function(){if(!document.hidden&&!$("t8").classList.contains("hide"))caricaOcpp(true)},10000);
 function ocStato(){return api("/api/ocpp").then(function(r){
   if(r.errore){$("ocStato").textContent=T(r.errore);return}
   var pr=r.prese&&r.prese["1"];
