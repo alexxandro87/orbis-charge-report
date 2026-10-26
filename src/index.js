@@ -824,7 +824,7 @@ const NOREPLY = `<p style="margin-top:20px"><b>Per contattarci usa la sezione As
 // The D1 binding is wrapped in a proxy that counts the queries of the request; outbound calls are counted by wrapping fetch.
 // Accumulated in memory and saved at most once a minute (2 queries), 7 days; requests above the threshold go to "pesanti".
 let CHI = {}, CHI_PESANTI = [], CHI_ULTIMO = 0, CHI_F = null;
-const SOGLIA_PESANTE = 25;
+const SOGLIA_PESANTE = 35;
 function contaDb(DB, c) {
   const orig = new WeakMap();
   const wrapS = (s) => { const p = new Proxy(s, { get(t, k) { const v = t[k];

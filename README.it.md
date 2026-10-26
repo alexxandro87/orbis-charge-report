@@ -259,7 +259,7 @@ L'apertura di una richiesta di assistenza non crea più una notifica qui: la sch
 
 Il riquadro «Consumi Cloudflare» inizia con la tabella «Mail e messaggi inviati dal sito»: per ogni mese le mail (con la quota del limite gratuito di Resend, 3.000 al mese e 100 al giorno), i messaggi Telegram e gli errori, più i messaggi in coda. È il conteggio del sito (`contatori` in `meta`, 13 mesi), separato dai consumi Cloudflare sotto.
 
-Sotto, «Cosa consuma (conteggio del sito)»: per oggi e ieri (UTC) ogni pagina o API e i due cron con chiamate, query D1 e chiamate in uscita, più le ultime richieste pesanti (oltre 25 query o chiamate). Serve a capire da dove vengono i consumi che Cloudflare riporta solo come totali; le query del server OCPP non sono incluse. Dalla 2.8.0, 7 giorni.
+Sotto, «Cosa consuma (conteggio del sito)»: per oggi e ieri (UTC) ogni pagina o API e i due cron con chiamate, query D1 e chiamate in uscita, più le ultime richieste pesanti (oltre 35 query o chiamate). Serve a capire da dove vengono i consumi che Cloudflare riporta solo come totali; le query del server OCPP non sono incluse. Dalla 2.8.0, 7 giorni.
 
 
 La scheda **Monitoraggio** mostra a tutti la ricarica in corso. Per l'amministratore contiene anche:
