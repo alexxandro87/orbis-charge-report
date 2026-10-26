@@ -906,12 +906,12 @@ async function utenteDaChat(env, chat) {
   return null;
 }
 // sends the message to the user's linked chats if they gave the consent. Returns { telegram }: "inviato", "errore: ..." or null.
-async function inviaMessaggio(env, nomeUtente, righeIt, righeEn) {
+async function inviaMessaggio(env, nomeUtente, righeIt, righeEn, canali) {   // canali: optional { wa, tg } filter, both by default
   const out = { telegram: null };
   const u = await env.DB.prepare("SELECT nome, consensi, tg_chat FROM utenti WHERE nome=?").bind(nomeUtente).first();
   if (!u) return out;
   let c = {}; try { c = JSON.parse((await decifra(env, u.consensi, u.nome + "|consensi")) || "{}"); } catch (_) { /* empty */ }
-  const tg = c.telegram !== undefined ? !!c.telegram : !!c.messaggi;
+  const tg = (c.telegram !== undefined ? !!c.telegram : !!c.messaggi) && (!canali || canali.tg !== false);
   const chats = tg && telegramAttivo() ? await chatTelegram(env, u) : [];
   if (chats.length) {                                     // consent given but Telegram not linked: nothing to do
     const testo = msgBil(righeIt, righeEn), via = [];
@@ -931,8 +931,8 @@ async function inviaMessaggio(env, nomeUtente, righeIt, righeEn) {
 // queue of messages to users: saving the price fills it, the 5-minute check empties it, so one request stays under the
 // 50 outbound calls of the free plan. The lines are encrypted: they contain the user's amounts.
 const MAX_CODA_GIRO = 15;                                   // messages per run: at most 30 outbound calls (two chats each)
-async function codaVoce(env, utente, righeIt, righeEn) {
-  return { utente, righe: await cifra(env, JSON.stringify([righeIt, righeEn]), "coda|" + utente), quando: Date.now() };
+async function codaVoce(env, utente, righeIt, righeEn, canali) {
+  return { utente, righe: await cifra(env, JSON.stringify([righeIt, righeEn]), "coda|" + utente), quando: Date.now(), ...(canali ? { canali } : {}) };
 }
 async function accodaMessaggi(env, voci) {
   const coda = await leggiMeta(env, "coda_messaggi", []);
@@ -945,7 +945,7 @@ async function inviaCodaMessaggi(env) {
   const giro = coda.splice(0, MAX_CODA_GIRO);
   await salvaMeta(env, "coda_messaggi", coda);             // saved before sending: if the run is cut short nothing is sent twice
   for (const v of giro) {
-    try { const [it, en] = JSON.parse(await decifra(env, v.righe, "coda|" + v.utente)); await inviaMessaggio(env, v.utente, it, en); }
+    try { const [it, en] = JSON.parse(await decifra(env, v.righe, "coda|" + v.utente)); await inviaMessaggio(env, v.utente, it, en, v.canali); }
     catch (_) { /* unreadable entry: skipped */ }
   }
 }
@@ -2676,7 +2676,7 @@ export default {
           if (inviate + errori >= 44) { saltate++; continue; }          // free plan: 50 outbound calls per request
           const m = await inviaMail(env, n, `${oggetto} - ${TITOLO}`, html);
           if (m === "inviata") inviate++; else errori++;
-          if (b.messaggi === true) coda.push(await codaVoce(env, n, [oggetto + ".", ...righeIt], [oggetto + ".", ...righeEn]));
+          if (b.telegram === true) coda.push(await codaVoce(env, n, [oggetto + ".", ...righeIt], [oggetto + ".", ...righeEn], { wa: false, tg: true }));
         }
         if (coda.length) await accodaMessaggi(env, coda);
         return json({ ok: true, inviate, errori, saltate, messaggi: coda.length });

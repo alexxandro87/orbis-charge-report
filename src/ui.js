@@ -293,21 +293,6 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
     <p class="sub" id="cifraInfo"></p>
   </div>
   <div class="card">
-    <h2>Canali di contatto</h2>
-    <div class="w"><table id="tabCanali"></table></div>
-    <p class="sub">Conteggio sugli utenti con profilo. I messaggi inviati per canale, mese per mese, sono nel Monitoraggio (Consumi).</p>
-  </div>
-  <div class="card">
-    <h2>Comunicazione a tutti gli utenti</h2>
-    <div class="bar"><label>Oggetto (italiano / inglese) <input id="cmOgg" size="48" autocomplete="off"></label></div>
-    <div class="bar"><label style="flex:1">Testo italiano<textarea id="cmIt" rows="5" style="width:100%;display:block"></textarea></label></div>
-    <div class="bar"><label style="flex:1">Testo inglese<textarea id="cmEn" rows="5" style="width:100%;display:block"></textarea></label></div>
-    <div class="bar"><label><input type="checkbox" id="cmMsg"> Anche su Telegram a chi lo ha collegato</label></div>
-    <div class="bar"><button id="bCmAnteprima">Anteprima</button> <button class="p hide" id="bCmInvia">Invia</button> <span class="sub" id="cmEsito"></span></div>
-    <div id="cmPrev" class="hide" style="border:1px solid var(--line);border-radius:6px;padding:10px;margin-top:8px"></div>
-    <div class="sub">Va a tutti gli account attivi con email confermata, tranne l'admin; al massimo 44 mail per invio. L'anteprima mostra quanti sono i destinatari e la mail come arriverà. Ogni riga del testo diventa una riga della mail.</div>
-  </div>
-  <div class="card">
     <h2>Invita un utente o modifica i permessi</h2>
     <div class="bar"><input id="uNome" type="email" size="32" placeholder="email dell'utente" autocomplete="off"></div>
     <div class="bar"><label>Tipo di utente
@@ -331,6 +316,21 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
     <div class="sub">L'utente riceve una mail con un link monouso (valido 48 ore) per scegliere la propria password al primo accesso.</div>
     <div class="sub err" id="uEsito"></div>
     <input id="uLink" class="hide" readonly size="60">
+  </div>
+  <div class="card">
+    <h2>Canali di contatto</h2>
+    <div class="w"><table id="tabCanali"></table></div>
+    <p class="sub">Conteggio sugli utenti con profilo. I messaggi inviati per canale, mese per mese, sono nel Monitoraggio (Consumi).</p>
+  </div>
+  <div class="card">
+    <h2>Comunicazione a tutti gli utenti</h2>
+    <div class="bar"><label>Oggetto (italiano / inglese) <input id="cmOgg" size="48" autocomplete="off"></label></div>
+    <div class="bar"><label style="flex:1">Testo italiano<textarea id="cmIt" rows="5" style="width:100%;display:block"></textarea></label></div>
+    <div class="bar"><label style="flex:1">Testo inglese<textarea id="cmEn" rows="5" style="width:100%;display:block"></textarea></label></div>
+    <div class="bar"><label><input type="checkbox" id="cmTg"> Anche su Telegram a chi lo ha collegato</label></div>
+    <div class="bar"><button id="bCmAnteprima">Anteprima</button> <button class="p hide" id="bCmInvia">Invia</button> <span class="sub" id="cmEsito"></span></div>
+    <div id="cmPrev" class="hide" style="border:1px solid var(--line);border-radius:6px;padding:10px;margin-top:8px"></div>
+    <div class="sub">Va a tutti gli account attivi con email confermata, tranne l'admin; al massimo 44 mail per invio. L'anteprima mostra quanti sono i destinatari e la mail come arriverà. Ogni riga del testo diventa una riga della mail.</div>
   </div>
 </section>
 
@@ -1558,7 +1558,7 @@ $("bUPerm").onclick=function(){
   post("/api/utenti",{azione:"permessi",nome:$("uNome").value,permessi:d.perm,tessera:d.tess,tessere_altre:d.altre,anagrafica:d.an}).then(function(r){
     $("uEsito").textContent=T(r.errore)||T(d.an?"Permessi e dati salvati":"Permessi salvati");caricaUtenti()});
 };
-function cmDati(){return {oggetto:$("cmOgg").value,it:$("cmIt").value,en:$("cmEn").value,messaggi:$("cmMsg").checked}}
+function cmDati(){return {oggetto:$("cmOgg").value,it:$("cmIt").value,en:$("cmEn").value,telegram:$("cmTg").checked}}
 $("bCmAnteprima").onclick=function(){$("cmEsito").textContent="";post("/api/comunicazione",Object.assign(cmDati(),{azione:"anteprima"})).then(function(r){
   if(r.errore){$("cmEsito").textContent=T(r.errore);$("bCmInvia").classList.add("hide");return}
   $("cmPrev").innerHTML=r.anteprima;$("cmPrev").classList.remove("hide");$("bCmInvia").classList.remove("hide");$("bCmInvia").textContent=T("Invia a ")+r.destinatari+T(" utenti")})};
