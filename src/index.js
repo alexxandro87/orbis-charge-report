@@ -659,7 +659,8 @@ function permessiDi(u) {
   return Object.fromEntries(PERMESSI.map((k) => [k, !!p[k]]));
 }
 const ITER = 5000;                       // PBKDF2: kept low to stay inside the free plan's CPU limit
-const DURATA_SESSIONE = 30 * 24 * 3600;  // seconds
+const DURATA_SESSIONE = 10 * 60;           // seconds of inactivity: the cookie is renewed on every request and expires when the site is not in use
+const RINNOVI = new WeakMap();             // requests whose session cookie is to be renewed in the response
 const enc = (t) => new TextEncoder().encode(t);
 const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 const unhex = (h) => Uint8Array.from(h.match(/../g) || [], (x) => parseInt(x, 16));
@@ -730,11 +731,15 @@ async function utenteCorrente(req, env) {
     let val = "";
     try { val = decodeURIComponent(ck[1]); } catch (_) { /* malformed cookie */ }
     const p = (/^(.+)~(\d+)~([0-9a-f]{16})~([0-9a-f]{64})$/.exec(val) || []).slice(1);
-    if (p.length === 4 && +p[1] > Date.now() / 1000) {
+    const adesso = Date.now() / 1000;
+    if (p.length === 4 && +p[1] > adesso && +p[1] <= adesso + DURATA_SESSIONE + 60) {   // old 30-day cookies are no longer valid
       const u = await env.DB.prepare("SELECT nome, hash, ruolo, permessi, tessera, tessere_altre, verifica_hash FROM utenti WHERE nome=?").bind(p[0]).first();
       if (u && u.hash && !u.verifica_hash && uguali(p[3], await firma(env, `${u.nome}|${p[1]}|${p[2]}|${u.hash.slice(0, 16)}`))) {
         const rev = await env.DB.prepare("SELECT 1 FROM revocati WHERE sig=?").bind(p[3]).first();
-        if (!rev) return { nome: u.nome, ruolo: u.ruolo, perm: permessiDi(u), tessera: u.tessera || null, tessere: tessereDi(u) };
+        if (!rev) {
+          if (+p[1] - adesso < DURATA_SESSIONE - 120) RINNOVI.set(req, { nome: u.nome, hash: u.hash });   // cookie older than 2 minutes: renew it
+          return { nome: u.nome, ruolo: u.ruolo, perm: permessiDi(u), tessera: u.tessera || null, tessere: tessereDi(u) };
+        }
       }
     }
   }
@@ -2574,6 +2579,8 @@ export default {
     }
     const TS = "https://challenges.cloudflare.com";
     out.headers.set("content-security-policy", `default-src 'self'; script-src 'nonce-${nonce}' ${TS}; style-src 'unsafe-inline'; style-src-elem 'nonce-${nonce}'; style-src-attr 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${TS}; frame-src ${TS}; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'`);
+    const rin = RINNOVI.get(req);                                   // sliding session expiry (not over login, logout and password change, which already set the cookie)
+    if (rin && !out.headers.has("set-cookie")) out.headers.append("set-cookie", cookie(await creaToken(env, rin), DURATA_SESSIONE));
     if (u.protocol === "https:") out.headers.set("strict-transport-security", "max-age=31536000");
     out.headers.set("x-frame-options", "DENY");                       // never inside someone else's iframe
     out.headers.set("x-content-type-options", "nosniff");
@@ -2585,6 +2592,7 @@ export default {
     const url = new URL(req.url);
     const q = url.searchParams;
     try {
+      if (/\/\./.test(url.pathname)) return new Response("Not found", { status: 404 });   // bots probing for .env, .git and the like: no queries
       if (url.pathname.startsWith("/ocpp/")) return await ocppConnessione(req, env, url);
       const cfg = await leggiConfig(env);            // also sets TITOLO, TZ and VALUTA for this request
       if (await setupAperto(env)) {                  // first run: no administrator created yet
