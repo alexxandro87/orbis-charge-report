@@ -687,6 +687,7 @@ async function preparaTabelle(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS tentativi (nome TEXT NOT NULL, ts INTEGER NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS revocati (sig TEXT PRIMARY KEY, exp INTEGER NOT NULL)"),   // sessions closed with "Log out"
     env.DB.prepare("CREATE TABLE IF NOT EXISTS ticket (id INTEGER PRIMARY KEY AUTOINCREMENT, utente TEXT, tipo TEXT, testo TEXT, extra TEXT, stato TEXT, creato TEXT, gestito TEXT, nota TEXT)"),   // requests from the reserved area
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS prepagate (tag TEXT PRIMARY KEY, prezzo_cent INTEGER NOT NULL, credito_cent INTEGER NOT NULL DEFAULT 0, dal INTEGER NOT NULL, soglia_cent INTEGER NOT NULL DEFAULT 500, storico TEXT, avvisata INTEGER DEFAULT 0, bloccata INTEGER DEFAULT 0, residuo_wh INTEGER, residuo_cent INTEGER, calcolato INTEGER, aperta TEXT)"),   // prepaid cards: credit deducted with a per-card price
   ]);
   const col = (await env.DB.prepare("PRAGMA table_info(utenti)").all()).results.map((c) => c.name);
   for (const [nome, tipo] of [["permessi", "TEXT"], ["invito_hash", "TEXT"], ["invito_exp", "INTEGER"], ["tessera", "TEXT"], ["cognome", "TEXT"], ["nome_proprio", "TEXT"], ["tel1", "TEXT"], ["tel2", "TEXT"], ["verifica_hash", "TEXT"], ["verifica_exp", "INTEGER"], ["consensi", "TEXT"], ["registrato_il", "TEXT"], ["profilo_il", "TEXT"], ["tessere_altre", "TEXT"], ["tg_chat", "TEXT"], ["tg_codice", "TEXT"], ["tg_exp", "INTEGER"]])
@@ -1166,6 +1167,7 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
   let live;
   try { live = await (await DO.fetch("https://do/stato")).json(); } catch (_) { return; }
   try { await avvisiUtenti(env, live, ora); } catch (_) { /* optional */ }
+  try { await controlloPrepagate(env, ora); } catch (_) { /* optional */ }
   let eventiDO = [];
   try { eventiDO = await (await DO.fetch("https://do/malf-eventi", { method: "POST" })).json(); } catch (_) { /* no events */ }
   const on = (id) => cfg.regole[id].on, v = (id) => cfg.regole[id].min;
@@ -1657,11 +1659,115 @@ async function bloccaTessera(env, tag, blocca) {
 // card list for the admin: those on the charger plus those blocked by the site (the charger removes them from its list), with state "1" (blocked)
 async function conBloccate(env, lista) {
   const reg = await leggiMeta(env, "tessere_bloccate", []);
-  return lista.concat(reg.filter((r) => !lista.some((x) => x.id === r.tag)).map((r) => ({ id: r.tag, scad: r.scad || "", nome: r.nome || "", stato: "1", bloccata_sito: true })));
+  const out = lista.concat(reg.filter((r) => !lista.some((x) => x.id === r.tag)).map((r) => ({ id: r.tag, scad: r.scad || "", nome: r.nome || "", stato: "1", bloccata_sito: true })));
+  const pre = (await env.DB.prepare("SELECT tag, residuo_cent, bloccata FROM prepagate").all()).results;   // "prepaid" label in the list
+  for (const x of out) { const p = pre.find((y) => y.tag === x.id); if (p) x.prepagata = { residuo_cent: p.residuo_cent, bloccata: p.bloccata }; }
+  return out;
 }
 async function applicaBlocchiPendenti(env) {
   const pend = await leggiMeta(env, "blocchi_pendenti", []);
   for (const p of pend.slice(0, 5)) await bloccaTessera(env, p.tag, p.stato === "1");
+}
+
+// ------------------------------------------------ prepaid cards: a credit in euros deducted with an indicative per-card price.
+// Consumption comes from the card's charges since activation: those downloaded from the charger (sessioni table) merged with
+// those seen by the OCPP server (the ongoing one too), without duplicates. When the credit is used up the card is blocked and
+// the ongoing charge is stopped remotely; the OCPP server stops the charge by itself at the first sample beyond the cached residuo_wh.
+const PREP_TOLL_WH = 20;                                   // same charge seen by charger and OCPP server: start counter equal within 20 Wh
+const eurC = (c) => (c / 100).toFixed(2).replace(".", ",");
+async function prepagateDO(env, dal) {                     // OCPP server state plus the charges seen through OCPP since the oldest activation
+  try { return await (await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/stato?tx=" + dal)).json(); } catch (_) { return null; }
+}
+async function prepagateCalcola(env, lista, st) {
+  const out = [];
+  for (const p of lista) {
+    const righe = (await env.DB.prepare("SELECT cont_ini_wh AS ini, energia_wh AS wh FROM sessioni WHERE tag=? AND inizio_utc>=?").bind(p.tag, Math.floor(p.dal / 1000)).all()).results.map((r) => ({ ...r, aperta: false }));
+    let aperta = null;
+    for (const x of (st && st.tx) || []) {
+      if (x.tag !== p.tag || x.inizio < p.dal || x.meter_ini == null) continue;
+      let wh = x.meter_fin != null ? x.meter_fin - x.meter_ini : null;
+      if (wh === null) {                                   // ongoing charge: energy from the last meter sample
+        const e = st.meter && st.meter.tx === x.id ? energiaKwh(st.meter) : null;
+        wh = e !== null ? Math.round(e * 1000) - x.meter_ini : 0;
+        aperta = { id: x.id, wh: Math.max(0, wh) };
+      }
+      righe.push({ ini: x.meter_ini, wh: Math.max(0, wh), aperta: x.meter_fin == null });
+    }
+    righe.sort((a, b) => a.ini - b.ini);
+    let cons = 0, inCorso = 0, prec = null;
+    for (const r of righe) {
+      if (prec && Math.abs(r.ini - prec.ini) <= PREP_TOLL_WH) { if (r.wh > prec.wh) { cons += r.wh - prec.wh; prec.wh = r.wh; } continue; }   // duplicate: the higher value wins
+      cons += r.wh; if (r.aperta) inCorso = r.wh; prec = r;
+    }
+    const consC = Math.round(cons / 1000 * p.prezzo_cent), resC = p.credito_cent - consC;
+    let storico = []; try { storico = JSON.parse(p.storico || "[]"); } catch (_) { /* empty */ }
+    out.push({ ...p, storico, consumato_wh: cons, in_corso_wh: inCorso, consumato_cent: consC, residuo_cent: resC, residuo_wh: Math.max(0, Math.floor(resC * 1000 / p.prezzo_cent)), aperta_tx: aperta });
+  }
+  return out;
+}
+async function utenteDiTessera(env, tag) {
+  const like = `%"${tag}"%`;
+  return await env.DB.prepare("SELECT nome FROM utenti WHERE (tessera=? OR tessere_altre LIKE ?) AND ruolo!='admin' LIMIT 1").bind(tag, like).first()
+    || await env.DB.prepare("SELECT nome FROM utenti WHERE tessera=? OR tessere_altre LIKE ? LIMIT 1").bind(tag, like).first();
+}
+// email and message to the card's user: credit used up (blocked), credit low, credit topped up
+async function avvisaPrepagata(env, c, tipo, extra = {}) {
+  const u = await utenteDiTessera(env, c.tag);
+  if (!u || !EMAIL_OK.test(u.nome)) return;
+  const kwh = (wh) => (wh / 1000).toFixed(1), pr = eurC(c.prezzo_cent), res = eurC(Math.max(0, c.residuo_cent)), en = (s) => s.replace(",", ".");
+  let titIt, rIt, titEn, rEn;
+  if (tipo === "esaurito") {
+    titIt = "Credito esaurito: tessera bloccata"; titEn = "Credit used up: card blocked";
+    rIt = [`Il credito della tessera ${c.tag} è esaurito: consumati ${kwh(c.consumato_wh).replace(".", ",")} kWh per ${eurC(c.consumato_cent)} € a ${pr} €/kWh.`,
+      `La tessera è stata bloccata${extra.fermata ? " e la ricarica in corso è stata fermata" : ""}. Per ricaricare il credito contatta l'amministratore.`];
+    rEn = [`The credit of card ${c.tag} is used up: ${kwh(c.consumato_wh)} kWh for €${en(eurC(c.consumato_cent))} at €${en(pr)}/kWh.`,
+      `The card has been blocked${extra.fermata ? " and the charge in progress has been stopped" : ""}. To top up the credit contact the administrator.`];
+  } else if (tipo === "basso") {
+    titIt = "Credito in esaurimento"; titEn = "Credit running low";
+    rIt = [`Sulla tessera ${c.tag} restano ${res} €, circa ${kwh(c.residuo_wh).replace(".", ",")} kWh a ${pr} €/kWh.`,
+      "Quando il credito arriva a zero la ricarica si ferma e la tessera viene bloccata. Per ricaricare il credito contatta l'amministratore."];
+    rEn = [`Card ${c.tag} has €${en(res)} left, about ${kwh(c.residuo_wh)} kWh at €${en(pr)}/kWh.`,
+      "When the credit reaches zero the charge stops and the card is blocked. To top up the credit contact the administrator."];
+  } else {
+    titIt = "Credito ricaricato"; titEn = "Credit topped up";
+    rIt = [`Sulla tessera ${c.tag} sono stati aggiunti ${eurC(extra.aggiunto || 0)} €: il credito disponibile è ${res} €, circa ${kwh(c.residuo_wh).replace(".", ",")} kWh a ${pr} €/kWh.`]
+      .concat(extra.sbloccata ? ["La tessera è di nuovo attiva."] : []);
+    rEn = [`€${en(eurC(extra.aggiunto || 0))} were added to card ${c.tag}: the available credit is €${en(res)}, about ${kwh(c.residuo_wh)} kWh at €${en(pr)}/kWh.`]
+      .concat(extra.sbloccata ? ["The card is active again."] : []);
+  }
+  await inviaMail(env, u.nome, `${titIt} - ${TITOLO}`, mailBil(titIt, rIt, titEn, rEn));
+  await inviaMessaggio(env, u.nome, [titIt + ".", ...rIt], [titEn + ".", ...rEn]);
+}
+// recompute all prepaid cards (or one): cache for the OCPP server, block/unblock, notices. opz.aggiunto = credit just added to opz.tag
+async function controlloPrepagate(env, ora, opz = {}) {
+  const lista = (await env.DB.prepare("SELECT * FROM prepagate" + (opz.tag ? " WHERE tag=?" : "")).bind(...(opz.tag ? [opz.tag] : [])).all()).results;
+  if (!lista.length) return [];
+  const st = await prepagateDO(env, Math.min(...lista.map((p) => p.dal)));
+  const DO = env.COLONNINA.get(env.COLONNINA.idFromName("colonnina"));
+  const out = await prepagateCalcola(env, lista, st);
+  for (const c of out) {
+    const stor = c.storico;
+    let bloccata = c.bloccata, avvisata = c.avvisata, sbloccata = false;
+    const stop = st && st.credito_stop && st.credito_stop.tag === c.tag && st.credito_stop.ts >= c.dal && !stor.some((s) => s.tipo === "stop" && s.ts === st.credito_stop.ts) ? st.credito_stop : null;
+    if (stop) stor.push({ ts: stop.ts, tipo: "stop", v: stop.wh });
+    if (c.residuo_cent <= 0 && !bloccata) {
+      try { await bloccaTessera(env, c.tag, true); } catch (_) { /* stays in blocchi_pendenti */ }
+      bloccata = 1; stor.push({ ts: ora, tipo: "blocco", v: c.residuo_cent });
+      const ap = st && st.transazione_aperta;
+      let fermata = !!stop;
+      if (ap && ap.tag === c.tag) { try { await DO.fetch("https://do/comando", { method: "POST", body: JSON.stringify({ azione: "RemoteStopTransaction", payload: { transactionId: ap.id } }) }); fermata = true; } catch (_) { /* not connected */ } }
+      await avvisaPrepagata(env, c, "esaurito", { fermata });
+    } else if (c.residuo_cent > 0 && bloccata) {           // credit added: unblock
+      try { await bloccaTessera(env, c.tag, false); } catch (_) { /* stays in blocchi_pendenti */ }
+      bloccata = 0; avvisata = 0; sbloccata = true; stor.push({ ts: ora, tipo: "sblocco", v: c.residuo_cent });
+    }
+    if (opz.aggiunto && opz.tag === c.tag) await avvisaPrepagata(env, c, "ricaricato", { aggiunto: opz.aggiunto, sbloccata });
+    else if (c.residuo_cent > 0 && c.residuo_cent <= c.soglia_cent && !avvisata && !bloccata) { await avvisaPrepagata(env, c, "basso"); avvisata = 1; stor.push({ ts: ora, tipo: "avviso", v: c.residuo_cent }); }
+    c.bloccata = bloccata; c.avvisata = avvisata; c.storico = stor.slice(-50);
+    await env.DB.prepare("UPDATE prepagate SET residuo_wh=?, residuo_cent=?, calcolato=?, aperta=?, bloccata=?, avvisata=?, storico=? WHERE tag=?")
+      .bind(c.residuo_wh, c.residuo_cent, ora, c.aperta_tx ? JSON.stringify(c.aperta_tx) : null, bloccata, avvisata, JSON.stringify(c.storico), c.tag).run();
+  }
+  return out;
 }
 
 // ------------------------------------------------ tickets: user requests to the admin (card, data, deletion, charger, other)
@@ -2205,6 +2311,8 @@ export class Colonnina {
         await this.avviaComandi(); return json({ ok: true });                                                                                          // "sync": sends config and card list again
       }
       const q = new URL(req.url).searchParams;
+      if (q.has("tx")) return json({ ...this.stato(false), credito_stop: this.get("credito_stop") || null,   // prepaid cards: state and charges seen through OCPP since a date
+        tx: [...this.sql.exec("SELECT id, tag, inizio, meter_ini, meter_fin, fine FROM transazioni WHERE inizio >= ? ORDER BY id", +q.get("tx"))] });
       if (q.has("prima")) return json({ eventi: this.eventiBrevi(+q.get("prima")) });                                   // older page of the log
       if (q.has("dopo")) return json({ ...this.stato(false), eventi: this.eventiBrevi(null, +q.get("dopo")) });        // refresh: state and new rows only
       return json(this.stato());
@@ -2270,6 +2378,35 @@ export class Colonnina {
   }
   // server commands to the charger, one at a time (the answer is awaited before the next one)
   // single admin command: sends it and waits for the answer (max 15 s)
+  // prepaid card: Wh still available for this charge = cached value from the check (residuo_wh, computed at "calcolato") minus the
+  // charges finished later; for the one ongoing at computation time only the part not yet counted (aperta) is deducted
+  async limiteCredito(tag, id, meterStart) {
+    this.put("limite_tx", null);
+    const p = await this.env.DB.prepare("SELECT residuo_wh, calcolato, aperta FROM prepagate WHERE tag=?").bind(tag).first();
+    if (!p || p.residuo_wh === null) return;
+    let wh = p.residuo_wh, ap = null; try { ap = p.aperta ? JSON.parse(p.aperta) : null; } catch (_) { /* empty */ }
+    for (const x of this.sql.exec("SELECT id, inizio, meter_ini, meter_fin FROM transazioni WHERE tag=? AND id<>? AND fine>=?", tag, id, p.calcolato || 0)) {
+      if (x.meter_fin == null || x.meter_ini == null) continue;
+      const tot = x.meter_fin - x.meter_ini;
+      wh -= x.inizio >= (p.calcolato || 0) ? tot : (ap && ap.id === x.id ? Math.max(0, tot - ap.wh) : 0);
+    }
+    this.put("limite_tx", { id, tag, meter_ini: meterStart, wh: Math.max(0, wh) });
+    if (wh <= 0) this.fermaPerCredito(id, tag, 0);          // started with no credit (stale cache): stop it at once
+  }
+  controllaLimite(txId, dati) {                            // meter sample during a prepaid charge: beyond the limit send the remote stop
+    const l = this.get("limite_tx");
+    if (!l || l.id !== txId || l.stop || l.meter_ini == null) return;
+    const e = energiaKwh({ dati }); if (e === null) return;
+    const usati = Math.round(e * 1000) - l.meter_ini;
+    if (usati >= l.wh) this.fermaPerCredito(txId, l.tag, usati - l.wh);
+  }
+  fermaPerCredito(txId, tag, oltre) {
+    const l = this.get("limite_tx") || { id: txId, tag };
+    this.put("limite_tx", { ...l, stop: Date.now() });
+    this.put("credito_stop", { tag, ts: Date.now(), wh: oltre });   // the 5-minute check reads it: card block and notice to the user
+    this.log("sys", "Credito esaurito: stop della ricarica, tessera " + tag);
+    this.state.waitUntil(new Promise((r) => setTimeout(r, 3000)).then(() => this.inviaComando("RemoteStopTransaction", { transactionId: txId })));
+  }
   async inviaComando(azione, payload) {
     const ws = this.state.getWebSockets()[0];
     if (!ws) return { errore: "Colonnina non collegata al server" };
@@ -2357,10 +2494,14 @@ export class Colonnina {
       if (x.stato === "2") return "Expired";
       if (x.stato !== "0") return "Invalid";
       if (x.scad && Date.parse(x.scad) <= Date.now()) return "Expired";
-      return "Accepted";
+      return await this.creditoOk(tag);
     }
     const r = await this.env.DB.prepare("SELECT * FROM tessere WHERE tag=?").bind(tag).first();   // no known state: site db
-    return r && r.attiva !== 0 ? "Accepted" : "Invalid";
+    return r && r.attiva !== 0 ? await this.creditoOk(tag) : "Invalid";
+  }
+  async creditoOk(tag) {                                  // prepaid card with no credit left (cached by the check): refused
+    const p = await this.env.DB.prepare("SELECT residuo_wh FROM prepagate WHERE tag=?").bind(tag).first();
+    return p && p.residuo_wh !== null && p.residuo_wh <= 0 ? "Blocked" : "Accepted";
   }
   async chiamata(azione, p) {
     const adesso = new Date().toISOString();
@@ -2384,6 +2525,7 @@ export class Colonnina {
         this.sql.exec("UPDATE transazioni SET fine=? WHERE fine IS NULL", Date.parse(p.timestamp) || Date.now());   // a new charge closes any left open
         const r = [...this.sql.exec("INSERT INTO transazioni (tag, connettore, inizio, meter_ini) VALUES (?, ?, ?, ?) RETURNING id",
           String(p.idTag || "").toUpperCase(), p.connectorId || 1, Date.parse(p.timestamp) || Date.now(), p.meterStart ?? null)][0];
+        await this.limiteCredito(String(p.idTag || "").toUpperCase(), r.id, p.meterStart ?? null);
         return { transactionId: r.id, idTagInfo: { status: st } };
       }
       case "StopTransaction":
@@ -2395,6 +2537,7 @@ export class Colonnina {
           id = r ? r.id : null;
         }
         if (id !== null) this.sql.exec("UPDATE transazioni SET fine=?, meter_fin=?, motivo=? WHERE id=?", ts, p.meterStop ?? null, p.reason || null, id);
+        this.put("limite_tx", null);
       }
         return { idTagInfo: { status: "Accepted" } };
       case "MeterValues": {
@@ -2407,6 +2550,7 @@ export class Colonnina {
           const ts = Date.parse(mv.timestamp) || Date.now(); this.sfasamento(mv.timestamp);
           this.sql.exec("INSERT INTO campioni (ts, tx, dati) VALUES (?, ?, ?)", ts, p.transactionId ?? null, JSON.stringify(dati));
           this.put("meter", { ts, tx: p.transactionId ?? null, dati });
+          this.controllaLimite(p.transactionId ?? null, dati);
         }
         this.sql.exec("DELETE FROM campioni WHERE id < (SELECT MAX(id) FROM campioni) - 5000");
         return {};
@@ -3063,6 +3207,59 @@ export default {
           await env.DB.prepare("UPDATE tessere_nomi SET dal=?, al=? WHERE tag=? AND dal=?").bind(nd, na, String(q2.tag), +q2.dal).run();
         } catch (e) { return json({ errore: "Esiste gia' un periodo con quella data" }, 400); }
         return json({ ok: true });
+      }
+      if (url.pathname === "/api/prepagate") {             // prepaid cards (admin only): list with credit and usage, activation, credit, price, threshold, removal
+        if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
+        const cent = (v) => Math.round(parseFloat(String(v ?? "").replace(",", ".")) * 100), ora = Date.now();
+        if (req.method === "POST") {
+          const b = await req.json(), tag = String(b.tag || "").toUpperCase().trim();
+          const p = await env.DB.prepare("SELECT * FROM prepagate WHERE tag=?").bind(tag).first();
+          let stor = []; try { stor = JSON.parse((p && p.storico) || "[]"); } catch (_) { /* empty */ }
+          let aggiunto = 0;
+          if (b.azione === "attiva") {
+            if (!RFID_ID_OK.test(tag)) return json({ errore: "Codice tessera non valido" }, 400);
+            if (p) return json({ errore: "Tessera già prepagata" }, 400);
+            const prezzo = cent(b.prezzo), credito = cent(b.credito || 0), soglia = cent(b.soglia ?? 5);
+            if (!(prezzo > 0) || !(credito >= 0) || !(soglia >= 0)) return json({ errore: "Valori non validi" }, 400);
+            stor.push({ ts: ora, tipo: "attivata", v: credito }, { ts: ora, tipo: "prezzo", v: prezzo });
+            await env.DB.prepare("INSERT INTO prepagate (tag, prezzo_cent, credito_cent, dal, soglia_cent, storico) VALUES (?,?,?,?,?,?)").bind(tag, prezzo, credito, ora, soglia, JSON.stringify(stor)).run();
+          } else if (!p) return json({ errore: "Tessera non trovata" }, 404);
+          else if (b.azione === "credito") {
+            aggiunto = cent(b.importo); if (!(aggiunto > 0)) return json({ errore: "Valori non validi" }, 400);
+            stor.push({ ts: ora, tipo: "credito", v: aggiunto });
+            await env.DB.prepare("UPDATE prepagate SET credito_cent=credito_cent+?, avvisata=0, storico=? WHERE tag=?").bind(aggiunto, JSON.stringify(stor.slice(-50)), tag).run();
+          } else if (b.azione === "prezzo") {
+            const prezzo = cent(b.prezzo); if (!(prezzo > 0)) return json({ errore: "Valori non validi" }, 400);
+            stor.push({ ts: ora, tipo: "prezzo", v: prezzo });
+            await env.DB.prepare("UPDATE prepagate SET prezzo_cent=?, storico=? WHERE tag=?").bind(prezzo, JSON.stringify(stor.slice(-50)), tag).run();
+          } else if (b.azione === "soglia") {
+            const soglia = cent(b.soglia); if (!(soglia >= 0)) return json({ errore: "Valori non validi" }, 400);
+            stor.push({ ts: ora, tipo: "soglia", v: soglia });
+            await env.DB.prepare("UPDATE prepagate SET soglia_cent=?, avvisata=0, storico=? WHERE tag=?").bind(soglia, JSON.stringify(stor.slice(-50)), tag).run();
+          } else if (b.azione === "rimuovi") {              // back to pay-per-use: if it was blocked for the credit, unblock it
+            if (p.bloccata) { try { await bloccaTessera(env, tag, false); } catch (_) { /* pending */ } }
+            await env.DB.prepare("DELETE FROM prepagate WHERE tag=?").bind(tag).run();
+          } else return json({ errore: "Azione non valida" }, 400);
+          if (b.azione !== "rimuovi") await controlloPrepagate(env, ora, { tag, aggiunto });   // recompute at once: unblock and "credit topped up" notice
+        }
+        const lista = (await env.DB.prepare("SELECT * FROM prepagate ORDER BY tag").all()).results;
+        const nomi = Object.fromEntries((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((x) => [x.tag, x.nome]));
+        const st = lista.length ? await prepagateDO(env, Math.min(...lista.map((p) => p.dal))) : null;
+        const calc = await prepagateCalcola(env, lista, st);
+        const rfid = (await leggiMeta(env, "rfid_stato", [])) || [];
+        const disponibili = rfid.filter((x) => x.id && !lista.some((p) => p.tag === x.id)).map((x) => ({ tag: x.id, nome: nomi[x.id] || x.nome || "" }));
+        return json({ prepagate: calc.map((c) => ({ tag: c.tag, nome: nomi[c.tag] || "", prezzo_cent: c.prezzo_cent, credito_cent: c.credito_cent, soglia_cent: c.soglia_cent, dal: c.dal,
+          consumato_wh: c.consumato_wh, consumato_cent: c.consumato_cent, residuo_cent: c.residuo_cent, residuo_wh: c.residuo_wh, in_corso_wh: c.in_corso_wh,
+          bloccata: !!c.bloccata, avvisata: !!c.avvisata, storico: c.storico.slice(-20) })), disponibili });
+      }
+      if (url.pathname === "/api/mieprepagata") {          // the user with a prepaid card: credit, price, usage
+        if (!me.tessera) return json([]);
+        const lista = (await env.DB.prepare("SELECT * FROM prepagate").all()).results.filter((p) => me.tessere.includes(p.tag));
+        if (!lista.length) return json([]);
+        const nomi = Object.fromEntries((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((x) => [x.tag, x.nome]));
+        const calc = await prepagateCalcola(env, lista, await prepagateDO(env, Math.min(...lista.map((p) => p.dal))));
+        return json(calc.map((c) => ({ tag: c.tag, nome: nomi[c.tag] || "", prezzo_cent: c.prezzo_cent, credito_cent: c.credito_cent, soglia_cent: c.soglia_cent, dal: c.dal,
+          consumato_wh: c.consumato_wh, consumato_cent: c.consumato_cent, residuo_cent: c.residuo_cent, residuo_wh: c.residuo_wh, bloccata: !!c.bloccata })));
       }
       if (url.pathname === "/api/tessere") {
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);

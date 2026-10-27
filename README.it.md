@@ -54,6 +54,7 @@ Nel codice non c'è nulla di una installazione specifica: indirizzo della colonn
 - **Intestatari con date**: i report usano chi aveva la tessera al momento di ogni sessione, così passare una tessera a un altro non riscrive i mesi passati.
 - **Monitoraggio**: 24 controlli (connessione, presa e ricariche, tessere, impostazioni, sito e sicurezza), ognuno spento finché non lo accendi, con soglie, mail all'inizio e alla fine del problema, notifiche nel sito e storico degli episodi.
 - **Avvisi agli utenti**: mail a chi ha caricato quando la ricarica è finita ma l'auto è ancora collegata.
+- **Tessere prepagate**: un credito in euro scalato con un prezzo per tessera; a credito esaurito la tessera viene bloccata e la ricarica fermata da remoto.
 - **Cifratura dei dati personali** (AES-256-GCM, chiave in un secret del Worker) e backup cifrato dalla pagina.
 - **Consumi Cloudflare**: richieste, righe D1, uso OCPP e spazio rispetto ai limiti del piano gratuito, con riepilogo mensile e avviso a ridosso del limite.
 - **Interfaccia in italiano e inglese**, tema giorno / notte / automatico, niente scorrimento orizzontale, tabelle che diventano schede su telefono.
@@ -218,6 +219,9 @@ Serve Resend per le mail di registrazione: senza mail la registrazione è rifiut
 Con «Modifica» su un utente che ha già un profilo (registrato o completato) il modulo mostra anche nome, cognome, telefono e telefono facoltativo: «Salva permessi e dati» li aggiorna con gli stessi controlli della registrazione (numero in formato internazionale, cifratura con `DATA_KEY`). Per gli utenti invitati che non hanno ancora completato il profilo i campi non compaiono. La richiesta «Correzione dati» dall'Assistenza continua a funzionare.
 
 «Canali di contatto», nella scheda Utenti, conta gli utenti con profilo per consenso Telegram, Telegram collegato (e con due chat) e nessun consenso. «Comunicazione a tutti gli utenti» manda una mail (oggetto, testo italiano e inglese, una riga per riga) a tutti gli account attivi con email confermata tranne l'admin, con anteprima prima e conferma all'invio; la spunta manda lo stesso testo anche su Telegram a chi lo ha collegato, tramite la coda. Massimo 44 mail per invio (limite del piano gratuito).
+
+## Tessere prepagate
+La scheda **Prepagate** (admin) gestisce le tessere con un credito in euro, scalato con un prezzo indicativo scelto tessera per tessera (modificabile), con una soglia di avviso e uno storico. Il consumo conta le ricariche della tessera dall'attivazione (scaricate dalla colonnina e viste via OCPP, senza doppioni, compresa quella in corso). A credito esaurito la tessera viene bloccata sulla colonnina, la ricarica in corso viene fermata da remoto (il server OCPP la ferma alla prima misura oltre l'energia residua, quindi entro l'intervallo delle misure) e l'utente riceve mail e messaggio; aggiungere credito sblocca la tessera. Le tessere nuove si creano da Utenti > Tessere RFID con il tipo «Prepagata»; quelle esistenti si rendono prepagate dalla scheda Prepagate. L'utente vede residuo, prezzo e kWh disponibili in «Le mie ricariche». Le ricariche delle prepagate restano nei report come le altre.
 
 ## Assistenza (ticket)
 

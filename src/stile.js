@@ -28,6 +28,15 @@ export const STILE = [
   ".verM{display:none}",                                    // copy for phones, where the title is hidden
   // ---------- phone (up to 700 px): app-like look ----------
   "#titoloM,nav .ico,nav .lbM,#navAltro,#altroM{display:none}",
+  // prepaid cards: number tiles, credit bar, status labels
+  ".metri{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:8px 0}",
+  ".metri div{border:1px solid var(--line);border-radius:10px;padding:8px 12px}",
+  ".metri small{display:block;color:var(--mut);font-size:12px}",
+  ".metri b{font-size:20px;font-weight:600}",
+  ".barra{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:8px 0}",
+  ".barra div{height:100%;background:var(--acc)}.barra div.warn{background:#b8780a}.barra div.err{background:var(--esci)}",
+  ".pst{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;border:1px solid var(--line);white-space:nowrap}",
+  ".pst.ok{color:#2a8a55}.pst.warn,b.warn{color:#b8780a}.pst.err{color:var(--esci)}",
   "@media (max-width:700px){" + [
     "html,body{overflow-x:clip}body{background:var(--bg)}",
     // tables not turned into cards (e.g. Information): wrap instead of widening the page

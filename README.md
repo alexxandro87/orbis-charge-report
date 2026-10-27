@@ -54,6 +54,7 @@ Nothing about a specific installation is in the code: charger address, title, ti
 - **Card holders with dates**: reports use the holder at the time of each session, so handing a card to someone else never rewrites past months.
 - **Monitoring**: 24 checks (connection, socket and charges, cards, settings, site and security), each off until you enable it, with thresholds, email when a problem starts and ends, in-site notifications and a history of episodes.
 - **Reminders to users**: email to whoever charged when the charge is over but the car is still plugged in.
+- **Prepaid cards**: a credit in euros deducted at a per-card price; when it runs out the card is blocked and the charge is stopped remotely.
 - **Encryption of personal data** (AES-256-GCM, key in a Worker secret) and encrypted backup from the page.
 - **Cloudflare usage** box: requests, D1 rows, OCPP usage and storage against the free-plan limits, with a monthly summary and an alert near the limit.
 - **English and Italian interface**, day / night / auto theme, no horizontal scrolling, tables that become cards on phones.
@@ -218,6 +219,9 @@ Requires Resend for the registration emails: without email, registration is refu
 With "Edit" on a user who already has a profile (self-registered or completed), the form also shows first name, last name, phone and optional phone: "Save permissions and details" updates them with the same checks as the registration (number in international format, encrypted with `DATA_KEY`). For invited users who have not completed their profile yet the fields do not appear. The "Data correction" request from the Support tab keeps working.
 
 "Contact channels" in the Users tab counts the users with a profile by Telegram consent, Telegram linked (and with two chats) and no consent. "Message to all users" sends an email (subject, Italian and English text, one line per line) to every active account with a confirmed email except the admin, with a preview first and a confirmation on send; the checkbox also sends the same text on Telegram to those who linked it, through the queue. At most 44 emails per send (free-plan limit).
+
+## Prepaid cards
+The **Prepaid** tab (admin) manages cards with a credit in euros, deducted at an indicative price chosen card by card (editable), with a warning threshold and a history. Usage counts the card's charges since activation (downloaded from the charger and seen through OCPP, without duplicates, including the ongoing one). When the credit is used up the card is blocked on the charger, the ongoing charge is stopped remotely (the OCPP server stops it at the first meter sample beyond the remaining energy, so within the MeterValues interval) and the user gets an email and a message; adding credit unblocks the card. New cards are created from Users > RFID cards with the type "Prepaid"; existing cards are made prepaid from the Prepaid tab. The user sees remaining credit, price and available kWh in "My charges". Prepaid charges stay in the reports like the others.
 
 ## Support tickets
 

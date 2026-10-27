@@ -87,6 +87,7 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
   <button data-t="t3">Tutte le sessioni</button>
   <button data-t="t2">Storico annuale</button>
   <button data-t="t4" id="navUt" class="hide">Utenti<span id="navUN"></span></button>
+  <button data-t="t13" id="navPre" class="hide">Prepagate</button>
   <button data-t="t9" id="navL">Monitoraggio<span id="navN"></span></button>
   <button data-t="t5" id="navM" class="hide">Le mie ricariche</button>
   <button data-t="t10" id="navP" class="hide">Il mio profilo</button>
@@ -176,6 +177,7 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
 
 <section id="t5" class="hide">
   <div class="bar noprint"><select id="selAnnoM"></select> <select id="selMeseM"></select> <button class="p" id="bPdfM">Scarica PDF</button></div>
+  <div id="cPre"></div>
   <div class="card">
     <h2 id="mieTit">Le mie ricariche</h2>
     <div class="w"><table id="tabM"></table></div>
@@ -233,6 +235,25 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
       <tr><th>Licenza</th><td><a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">GNU AGPL-3.0</a></td></tr>
     </table>
     <div class="sub">Il contatto del gestore si imposta nella scheda Impostazioni. Per errori del software o proposte usa il codice sorgente (issue su GitHub).</div>
+  </div>
+</section>
+
+<section id="t13" class="hide">
+  <div class="card">
+    <h2>Tessere prepagate</h2>
+    <div class="w"><table id="tabPre"></table></div>
+    <div class="sub">Il prezzo serve solo a scalare il credito e lo decidi tu, tessera per tessera. Il consumo conta le ricariche dalla data di attivazione, compresa quella in corso. A credito esaurito la tessera viene bloccata sulla colonnina e la ricarica in corso viene fermata da remoto; l'utente riceve mail e messaggio. Aggiungere credito sblocca la tessera. Tocca una riga per sceglierla.</div>
+  </div>
+  <div class="card">
+    <h2>Aggiungi credito o modifica</h2>
+    <div class="bar" style="flex-wrap:wrap"><label>Tessera <select id="prSel"></select></label> <label>Importo da aggiungere <input id="prImp" type="number" min="0" step="0.01" style="width:6em"> €</label> <label>Prezzo €/kWh <input id="prPr" type="number" min="0.01" step="0.01" style="width:6em"></label> <label>Avviso sotto <input id="prSo" type="number" min="0" step="1" style="width:5em"> €</label></div>
+    <div class="bar"><button class="p" id="bPrSalva">Salva</button> <button id="bPrTogli">Torna a consumo</button> <span class="sub err" id="prEsito"></span></div>
+    <div class="sub" id="prStor"></div>
+  </div>
+  <div class="card">
+    <h2>Rendi prepagata una tessera esistente</h2>
+    <div class="bar" style="flex-wrap:wrap"><label>Tessera <select id="prNuova"></select></label> <label>Prezzo €/kWh <input id="prNPr" type="number" min="0.01" step="0.01" placeholder="0,40" style="width:6em"></label> <label>Credito iniziale <input id="prNCr" type="number" min="0" step="0.01" style="width:6em"> €</label> <label>Avviso sotto <input id="prNSo" type="number" min="0" step="1" value="5" style="width:5em"> €</label> <button class="p" id="bPrNuova">Attiva prepagata</button> <span class="sub err" id="prNEsito"></span></div>
+    <div class="sub">Tessere già presenti sulla colonnina. Da questo momento le loro ricariche scalano il credito. Le tessere nuove si aggiungono dalla scheda Utenti scegliendo il tipo «Prepagata».</div>
   </div>
 </section>
 
@@ -391,7 +412,8 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
   </div>
   <div class="card">
     <h2>Tessere RFID della colonnina</h2>
-    <div class="bar"><label>Codice tessera <input id="rId" size="12" autocomplete="off"></label> <label>Nome <input id="rNome" size="28" maxlength="25" autocomplete="off"></label> <label>Scadenza <input id="rScad" type="date"></label> <label id="rDalL">Assegnata dal <input id="rDal" type="date"></label> <label>Stato <select id="rStato"><option value="0">Attiva</option><option value="1">Bloccata</option><option value="2">Scaduta</option><option value="3">Non valida</option></select></label> <button class="p" id="bRAgg">Aggiungi</button> <button id="bRAnn" class="hide">Annulla</button></div>
+    <div class="bar"><label>Codice tessera <input id="rId" size="12" autocomplete="off"></label> <label>Nome <input id="rNome" size="28" maxlength="25" autocomplete="off"></label> <label>Scadenza <input id="rScad" type="date"></label> <label id="rDalL">Assegnata dal <input id="rDal" type="date"></label> <label>Stato <select id="rStato"><option value="0">Attiva</option><option value="1">Bloccata</option><option value="2">Scaduta</option><option value="3">Non valida</option></select></label> <label id="rTipoL">Tipo <select id="rTipo"><option value="consumo">A consumo</option><option value="prepagata">Prepagata</option></select></label> <button class="p" id="bRAgg">Aggiungi</button> <button id="bRAnn" class="hide">Annulla</button></div>
+    <div class="bar hide" id="rPreBox" style="flex-wrap:wrap"><label>Prezzo €/kWh <input id="rPPr" type="number" min="0.01" step="0.01" placeholder="0,40" style="width:6em"></label> <label>Credito iniziale <input id="rPCr" type="number" min="0" step="0.01" style="width:6em"> €</label> <label>Avviso sotto <input id="rPSo" type="number" min="0" step="1" value="5" style="width:5em"> €</label> <span class="sub">Prepagata: il credito scala con questo prezzo; a zero la tessera viene bloccata. Con credito 0 resta bloccata finché non aggiungi credito dalla scheda Prepagate.</span></div>
     <div class="bar"><button id="bRDis" disabled>Disattivazione Permanente</button> <button id="bRImp">Importa file</button><input id="rFile" type="file" accept=".csv,.txt" class="hide"> <button id="bREsp">Esporta lista</button> <button id="bRLeggi">Rileggi dalla colonnina</button> <button id="bRRip" class="hide">Ripristina lista precedente</button> <span class="sub err" id="rEsito"></span></div>
     <table id="tabR"></table>
     <div class="sub">Clicca su una tessera per selezionarla: Disattivazione Permanente la toglie dalla colonnina (lo storico resta), Modifica cambia nome, stato o data di assegnazione. In grigio le tessere disattivate: le loro ricariche restano attribuite a chi le aveva in quel periodo.</div>
@@ -457,7 +479,7 @@ var EN={"una tantum":"one-off","costo":"cost",
 "Report mensile":"Monthly report",
 "Storico annuale":"Yearly history",
 "Tutte le sessioni":"All sessions",
-"Utenti":"Users",
+"Utenti":"Users","Prepagate":"Prepaid","Tessere prepagate":"Prepaid cards","Il prezzo serve solo a scalare il credito e lo decidi tu, tessera per tessera. Il consumo conta le ricariche dalla data di attivazione, compresa quella in corso. A credito esaurito la tessera viene bloccata sulla colonnina e la ricarica in corso viene fermata da remoto; l'utente riceve mail e messaggio. Aggiungere credito sblocca la tessera. Tocca una riga per sceglierla.":"The price only serves to deduct the credit and you choose it card by card. Usage counts the charges since activation, including the ongoing one. When the credit is used up the card is blocked on the charger and the ongoing charge is stopped remotely; the user gets an email and a message. Adding credit unblocks the card. Tap a row to select it.","Aggiungi credito o modifica":"Add credit or edit","Importo da aggiungere":"Amount to add","Prezzo €/kWh":"Price €/kWh","Avviso sotto":"Warn below","Torna a consumo":"Back to pay-per-use","Rendi prepagata una tessera esistente":"Make an existing card prepaid","Credito iniziale":"Initial credit","Attiva prepagata":"Activate prepaid","Tessere già presenti sulla colonnina. Da questo momento le loro ricariche scalano il credito. Le tessere nuove si aggiungono dalla scheda Utenti scegliendo il tipo «Prepagata».":"Cards already on the charger. From now on their charges are deducted from the credit. New cards are added from the Users tab choosing the type \u201cPrepaid\u201d.","Tipo":"Type","A consumo":"Pay-per-use","Prepagata":"Prepaid","Prepagata: il credito scala con questo prezzo; a zero la tessera viene bloccata. Con credito 0 resta bloccata finché non aggiungi credito dalla scheda Prepagate.":"Prepaid: the credit is deducted at this price; at zero the card is blocked. With credit 0 it stays blocked until you add credit from the Prepaid tab.","Indica il prezzo al kWh della prepagata":"Enter the price per kWh of the prepaid card","Tessera aggiunta e attivata come prepagata":"Card added and activated as prepaid","prepagata":"prepaid","Caricato":"Loaded","Consumato":"Used","Residuo":"Remaining","bloccata":"blocked","credito esaurito":"credit used up","credito basso, avvisato":"low credit, notified","attiva":"active","in ricarica":"charging","Nessuna tessera prepagata":"No prepaid card","Storico: ":"History: ","attivata":"activated","credito +":"credit +","prezzo ":"price ","soglia ":"threshold ","blocco":"blocked","sblocco":"unblocked","avviso":"notified","stop ricarica":"charge stopped","Niente da salvare":"Nothing to save","Riportare la tessera a consumo? Il credito residuo non viene più controllato e la tessera, se bloccata per il credito, viene sbloccata.":"Set the card back to pay-per-use? The remaining credit is no longer checked and the card, if blocked for the credit, is unblocked.","Tessera attivata come prepagata":"Card activated as prepaid","Tessera già prepagata":"Card already prepaid","Valori non validi":"Invalid values","Codice tessera non valido":"Invalid card code","Azione non valida":"Invalid action","Tessera prepagata":"Prepaid card","Credito residuo":"Remaining credit","Prezzo":"Price","Ancora disponibili":"Still available","Consumato dal ":"Used since ","Credito esaurito: la tessera è bloccata. Per ricaricare il credito contatta l'amministratore.":"Credit used up: the card is blocked. To top up the credit contact the administrator.","Credito quasi esaurito. ":"Credit almost used up. ","Quando il credito arriva a zero la ricarica si ferma e la tessera viene bloccata. Per ricaricare il credito contatta l'amministratore.":"When the credit reaches zero the charge stops and the card is blocked. To top up the credit contact the administrator.",
 "Backup del database":"Database backup",
 "Scarica backup (.sql)":"Download backup (.sql)",
 "Il file viene cifrato nel tuo browser con la passphrase (AES-256-GCM): senza passphrase non si legge e non si può recuperare, quindi conservala. Contiene sessioni, tessere, prezzi e utenti, con gli hash delle password. Per ripristinarlo: node decifra_backup.mjs ricariche_AAAA-MM-GG.sql.enc (chiede la passphrase e crea il file .sql), poi npx wrangler d1 execute ricariche --remote --file=ricariche_AAAA-MM-GG.sql":"The file is encrypted in your browser with the passphrase (AES-256-GCM): without the passphrase it cannot be read or recovered, so keep it. It contains sessions, cards, prices and users, with password hashes. To restore it: node decifra_backup.mjs ricariche_YYYY-MM-DD.sql.enc (asks for the passphrase and creates the .sql file), then npx wrangler d1 execute ricariche --remote --file=ricariche_YYYY-MM-DD.sql",
@@ -825,8 +847,8 @@ var oggi=new Date(), rep=null, righeAnno=[];
 
 document.querySelectorAll("nav button").forEach(function(b){b.onclick=function(){
   document.querySelectorAll("nav button").forEach(function(x){x.classList.toggle("on",x===b)});
-  ["t1","t2","t3","t4","t5","t6","t8","t9","t10","t11","t12"].forEach(function(t){$(t).classList.toggle("hide",t!==b.dataset.t)});
-  if(b.dataset.t==="t2")caricaStorico();if(b.dataset.t==="t3")caricaSessioni();if(b.dataset.t==="t4")caricaUtenti();if(b.dataset.t==="t5")caricaMie();if(b.dataset.t==="t10")caricaProfilo();if(b.dataset.t==="t11")caricaTicket();if(b.dataset.t==="t9"){caricaLive();if(MONADM){caricaMal();caricaCf();caricaNot()}}if(b.dataset.t==="t8"){ocStato();caricaOcpp()}if(b.dataset.t==="t6"){caricaDest();caricaConfig();caricaTesti();caricaRfid()}
+  ["t1","t2","t3","t4","t5","t6","t8","t9","t10","t11","t12","t13"].forEach(function(t){$(t).classList.toggle("hide",t!==b.dataset.t)});
+  if(b.dataset.t==="t2")caricaStorico();if(b.dataset.t==="t3")caricaSessioni();if(b.dataset.t==="t4")caricaUtenti();if(b.dataset.t==="t13")caricaPrepagate();if(b.dataset.t==="t5")caricaMie();if(b.dataset.t==="t10")caricaProfilo();if(b.dataset.t==="t11")caricaTicket();if(b.dataset.t==="t9"){caricaLive();if(MONADM){caricaMal();caricaCf();caricaNot()}}if(b.dataset.t==="t8"){ocStato();caricaOcpp()}if(b.dataset.t==="t6"){caricaDest();caricaConfig();caricaTesti();caricaRfid()}
 }});
 
 function caricaStato(){return api("/api/stato").then(function(s){
@@ -970,7 +992,60 @@ $("bCsvAnno").onclick=function(){
   scarico(T("Storico_")+$("selAnnoS").value+".csv",L.join("\r\n"));
 };
 
+// ---------- tessere prepagate (scheda Prepagate, admin) e riquadro del credito in "Le mie ricariche"
+var PRE=[];
+function prStato(p){return p.bloccata?'<span class="pst err">'+T("bloccata")+"</span>":p.residuo_cent<=0?'<span class="pst err">'+T("credito esaurito")+"</span>":p.avvisata?'<span class="pst warn">'+T("credito basso, avvisato")+"</span>":'<span class="pst ok">'+T("attiva")+"</span>"}
+function prStorico(p){var N={attivata:"attivata",credito:"credito +",prezzo:"prezzo ",soglia:"soglia ",blocco:"blocco",sblocco:"sblocco",avviso:"avviso",stop:"stop ricarica"};
+  return (p.storico||[]).slice().reverse().map(function(s){var v=s.tipo==="credito"||s.tipo==="attivata"||s.tipo==="soglia"?it(s.v/100)+" €":s.tipo==="prezzo"?it(s.v/100)+" €/kWh":s.tipo==="stop"?"+"+it(s.v/1000,1)+" kWh":"";
+    return oraTxt(s.ts)+" "+T(N[s.tipo]||s.tipo)+(v?" "+v:"")}).join(" · ")}
+function caricaPrepagate(){
+  return api("/api/prepagate").then(function(r){
+    if(!r||r.errore)return;PRE=r.prepagate||[];
+    var h=row([th(T("Tessera")),th(T("€/kWh"),1),th(T("Caricato"),1),th(T("Consumato"),1),th(T("Residuo"),1),th(T("Stato"))]);
+    PRE.forEach(function(p){
+      h+='<tr class="ut" data-tag="'+esc(p.tag)+'">'+td(esc(p.nome||"")+'<br><span class="sub">'+esc(p.tag)+"</span>")+td(it(p.prezzo_cent/100),1)+td(it(p.credito_cent/100)+" €",1)
+        +td(it(p.consumato_wh/1000,1)+' kWh<br><span class="sub">'+it(p.consumato_cent/100)+" €</span>",1)
+        +td('<b class="'+(p.residuo_cent<=0?"err":p.residuo_cent<=p.soglia_cent?"warn":"")+'">'+it(p.residuo_cent/100)+" €</b>",1)
+        +td(prStato(p)+(p.in_corso_wh?" · "+T("in ricarica")+" "+it(p.in_corso_wh/1000,1)+" kWh":""))+"</tr>"});
+    $("tabPre").innerHTML=PRE.length?h:'<tr><td class="sub">'+T("Nessuna tessera prepagata")+"</td></tr>";
+    var sel=$("prSel"),cur=sel.value;sel.innerHTML=PRE.map(function(p){return '<option value="'+esc(p.tag)+'">'+esc((p.nome?p.nome+" · ":"")+p.tag)+"</option>"}).join("");
+    if(cur&&PRE.some(function(p){return p.tag===cur}))sel.value=cur;prMostra();
+    $("prNuova").innerHTML=(r.disponibili||[]).map(function(t){return '<option value="'+esc(t.tag)+'">'+esc((t.nome?t.nome+" · ":"")+t.tag)+"</option>"}).join("");
+  });
+}
+function prMostra(){var p=PRE.filter(function(x){return x.tag===$("prSel").value})[0];$("prImp").value="";
+  $("prPr").value=p?(p.prezzo_cent/100).toFixed(2):"";$("prSo").value=p?(p.soglia_cent/100).toFixed(0):"";$("prStor").textContent=p?T("Storico: ")+prStorico(p):""}
+$("prSel").onchange=prMostra;
+$("tabPre").onclick=function(e){var tr=e.target.closest("tr.ut");if(!tr)return;$("prSel").value=tr.dataset.tag;prMostra()};
+$("bPrSalva").onclick=function(){
+  var p=PRE.filter(function(x){return x.tag===$("prSel").value})[0];if(!p)return;var e=$("prEsito");e.classList.remove("err");e.textContent="...";
+  var az=[],imp=parseFloat($("prImp").value);if(imp>0)az.push({azione:"credito",tag:p.tag,importo:imp});
+  var pr=parseFloat($("prPr").value);if(pr>0&&Math.round(pr*100)!==p.prezzo_cent)az.push({azione:"prezzo",tag:p.tag,prezzo:pr});
+  var so=parseFloat($("prSo").value);if(so>=0&&Math.round(so*100)!==p.soglia_cent)az.push({azione:"soglia",tag:p.tag,soglia:so});
+  if(!az.length){e.textContent=T("Niente da salvare");return}
+  var k=0,err=null;function next(){if(k>=az.length||err){caricaPrepagate().then(function(){e.classList.toggle("err",!!err);e.textContent=err?T(err):T("Salvato")});return}
+    post("/api/prepagate",az[k++]).then(function(r){if(r.errore)err=r.errore;next()})}next()};
+$("bPrTogli").onclick=function(){var p=PRE.filter(function(x){return x.tag===$("prSel").value})[0];if(!p)return;
+  if(!confirm(T("Riportare la tessera a consumo? Il credito residuo non viene più controllato e la tessera, se bloccata per il credito, viene sbloccata.")))return;
+  post("/api/prepagate",{azione:"rimuovi",tag:p.tag}).then(function(r){$("prEsito").textContent=r.errore?T(r.errore):T("Salvato");caricaPrepagate()})};
+$("bPrNuova").onclick=function(){var e=$("prNEsito");e.classList.remove("err");e.textContent="...";
+  post("/api/prepagate",{azione:"attiva",tag:$("prNuova").value,prezzo:$("prNPr").value,credito:$("prNCr").value||0,soglia:$("prNSo").value}).then(function(r){
+    e.classList.toggle("err",!!r.errore);e.textContent=r.errore?T(r.errore):T("Tessera attivata come prepagata");if(!r.errore){$("prNCr").value="";caricaPrepagate()}})};
+$("rTipo").onchange=function(){$("rPreBox").classList.toggle("hide",this.value!=="prepagata")};
+function caricaMiePrepagata(){
+  api("/api/mieprepagata").then(function(L){
+    var c=$("cPre");if(!Array.isArray(L)||!L.length){c.innerHTML="";return}
+    c.innerHTML=L.map(function(p){
+      var pct=p.credito_cent>0?Math.max(0,Math.min(100,Math.round(p.residuo_cent*100/p.credito_cent))):0,cls=p.bloccata||p.residuo_cent<=0?"err":p.residuo_cent<=p.soglia_cent?"warn":"";
+      var txt=p.bloccata||p.residuo_cent<=0?T("Credito esaurito: la tessera è bloccata. Per ricaricare il credito contatta l'amministratore."):(p.residuo_cent<=p.soglia_cent?T("Credito quasi esaurito. "):"")+T("Quando il credito arriva a zero la ricarica si ferma e la tessera viene bloccata. Per ricaricare il credito contatta l'amministratore.");
+      return '<div class="card"><h2>'+T("Tessera prepagata")+(p.nome?" · "+esc(p.nome):"")+' <span class="sub">'+esc(p.tag)+'</span></h2>'
+        +'<div class="metri"><div><small>'+T("Credito residuo")+'</small><b class="'+cls+'">'+it(Math.max(0,p.residuo_cent)/100)+' €</b></div><div><small>'+T("Prezzo")+'</small><b>'+it(p.prezzo_cent/100)+' €/kWh</b></div>'
+        +'<div><small>'+T("Ancora disponibili")+'</small><b>'+it(p.residuo_wh/1000,1)+' kWh</b></div><div><small>'+T("Consumato dal ")+new Date(p.dal).toLocaleDateString(LOC)+'</small><b>'+it(p.consumato_wh/1000,1)+' kWh</b></div></div>'
+        +'<div class="barra"><div class="'+cls+'" style="width:'+pct+'%"></div></div><div class="sub">'+txt+"</div></div>"}).join("");
+  });
+}
 function caricaMie(){
+  caricaMiePrepagata();
   return api("/api/mie?anno="+$("selAnnoM").value).then(function(L){
     if(!Array.isArray(L))return;
     var t=row([th(T("Mese")),th(T("Ricariche"),1),th(T("kWh"),1),th(T("€/kWh"),1),th(T("Imponibile"),1),th(T("IVA"),1),th(T("Totale"),1)]),k=0,e=0,ok=false;
@@ -1179,7 +1254,7 @@ var MONN=0;setInterval(function(){if(!document.hidden&&!$("t9").classList.contai
 var RFID=[],RMOD=null;
 function scadIso(d){if(!d)return"";var o=-new Date(d+"T23:59:00").getTimezoneOffset(),z=o>=0?"+":"-";o=Math.abs(o);return d+"T23:59:00"+z+String(Math.floor(o/60)).padStart(2,"0")+":"+String(o%60).padStart(2,"0")}
 function scadTxt(x){if(!x.scad)return"";var d=new Date(x.scad);if(isNaN(d))return esc(x.scad);var t=d.toLocaleDateString(LOC);return d<new Date()?'<span class="err">'+t+" ("+T("scaduta")+")</span>":t}
-function modoR(m){RMOD=m;$("rDalL").classList.toggle("hide",!!(m&&m.indice!==undefined));$("bRAgg").textContent=T(m?(m.indice!==undefined?"Ripara":"Salva modifica"):"Aggiungi");$("bRAnn").classList.toggle("hide",!m);$("rId").readOnly=!!(m&&m.indice===undefined);
+function modoR(m){RMOD=m;$("rTipoL").classList.toggle("hide",!!m);if(m)$("rPreBox").classList.add("hide");$("rDalL").classList.toggle("hide",!!(m&&m.indice!==undefined));$("bRAgg").textContent=T(m?(m.indice!==undefined?"Ripara":"Salva modifica"):"Aggiungi");$("bRAnn").classList.toggle("hide",!m);$("rId").readOnly=!!(m&&m.indice===undefined);
   if(!m){$("rId").value="";$("rNome").value="";$("rScad").value="";$("rDal").value="";$("rStato").value="0"}}
 var STATI=["Attiva","Bloccata","Scaduta","Non valida"];
 function statoTxt(v){var t=STATI[+v];return t===undefined?esc(v):(v==="0"?T(t):'<span class="err">'+T(t)+"</span>")}
@@ -1206,7 +1281,7 @@ function disegnaR(){
     var n=x.id?aperto(x.id):-1;if(n>=0)usati[n]=1;var p=n>=0?NOMI[n]:null;
     var az=x.id?'<button class="rm" data-i="'+x.i+'" data-n="'+n+'">'+T("Modifica")+'</button>'
       :'<button class="p rr" data-i="'+x.i+'">'+T("Ripara")+'</button> <button class="rd" data-i="'+x.i+'">'+T("Elimina")+'</button>';
-    t+='<tr class="rs" data-i="'+x.i+'">'+td(x.id?esc(x.id):'<span class="err">'+T("senza codice")+(x.suggerito?" ("+T("era ")+esc(x.suggerito)+")":"")+"</span>")+td(esc(x.nome))+td(p?esc(p.dal_txt):"")+td("")+tdS(scadTxt(x))+td(statoTxt(x.stato))+'<td class="n">'+az+"</td></tr>";
+    t+='<tr class="rs" data-i="'+x.i+'">'+td(x.id?esc(x.id):'<span class="err">'+T("senza codice")+(x.suggerito?" ("+T("era ")+esc(x.suggerito)+")":"")+"</span>")+td(esc(x.nome)+(x.prepagata?' <span class="pst '+(x.prepagata.bloccata?"err":"ok")+'">'+T("prepagata")+(x.prepagata.residuo_cent!=null?" · "+it(x.prepagata.residuo_cent/100)+" €":"")+"</span>":""))+td(p?esc(p.dal_txt):"")+td("")+tdS(scadTxt(x))+td(statoTxt(x.stato))+'<td class="n">'+az+"</td></tr>";
   });
   // closed periods and, if the charger does not answer, the open ones from the site database
   NOMI.map(function(p,n){return {p:p,n:n}}).filter(function(o){return !usati[o.n]&&(o.p.al_txt||RERR)})
@@ -1222,7 +1297,9 @@ function rfid(b,msg){$("rEsito").classList.remove("err");$("rEsito").textContent
   if(!r.errore){caricaRfid().then(function(){$("rEsito").classList.toggle("err",!r.ok);$("rEsito").textContent=r.ok?T(msg):T(r.avviso||"")})}else mostraRfid(r);return r})}
 $("bRAgg").onclick=function(){
   var b={id:$("rId").value,nome:$("rNome").value,scad:scadIso($("rScad").value),stato:$("rStato").value,dal:$("rDal").value};
-  if(!RMOD)rfid(Object.assign(b,{azione:"aggiungi"}),"Tessera aggiunta");
+  if(!RMOD){var pre=$("rTipo").value==="prepagata"?{azione:"attiva",tag:b.id,prezzo:$("rPPr").value,credito:$("rPCr").value||0,soglia:$("rPSo").value}:null;
+    if(pre&&!(parseFloat(String(pre.prezzo).replace(",","."))>0)){$("rEsito").classList.add("err");$("rEsito").textContent=T("Indica il prezzo al kWh della prepagata");return}
+    rfid(Object.assign(b,{azione:"aggiungi"}),"Tessera aggiunta").then(function(r){if(r&&!r.errore&&pre)post("/api/prepagate",pre).then(function(q){$("rEsito").classList.toggle("err",!!q.errore);$("rEsito").textContent=q.errore?T(q.errore):T("Tessera aggiunta e attivata come prepagata");caricaRfid()})})}
   else if(RMOD.indice!==undefined)rfid(Object.assign(b,{azione:"ripara",indice:RMOD.indice}),"Tessera riparata");
   else{
     var p=RMOD.p,nd=b.dal?b.dal.split("-").reverse().join("-"):"",cambioData=p&&nd&&nd!==p.dal_txt;
@@ -1600,6 +1677,7 @@ var ICO={t1:'<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path 
 t3:'<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
 t2:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
 t4:'<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M17 4a4 4 0 0 1 0 8"/><path d="M22 21c0-3-1.5-5-4-5.6"/>',
+t13:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/>',
 t9:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
 t5:'<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
 t10:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
@@ -1608,8 +1686,8 @@ t8:'<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6
 t11:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
 t12:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
 altro:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>'};
-var CORTO={t1:"Report",t3:"Sessioni",t2:"Storico",t4:"Utenti",t9:"Stato",t5:"Ricariche",t10:"Profilo",t6:"Impostazioni",t8:"OCPP",t12:"Info"};
-var PRI=["t9","t5","t1","t4","t11","t10","t3","t2","t6","t8","t12"];
+var CORTO={t1:"Report",t3:"Sessioni",t2:"Storico",t4:"Utenti",t13:"Prepagate",t9:"Stato",t5:"Ricariche",t10:"Profilo",t6:"Impostazioni",t8:"OCPP",t12:"Info"};
+var PRI=["t9","t5","t1","t4","t11","t13","t10","t3","t2","t6","t8","t12"];
 function svgIco(k){return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+ICO[k]+"</svg>"}
 function testoTab(b){var n=b.firstChild;return n&&n.nodeType===3?n.nodeValue.trim():""}
 function navMob(){
@@ -1661,7 +1739,7 @@ api("/api/me").then(function(m){
     $("mieTit").textContent=T("Le mie ricariche")+((m.tessere&&m.tessere.length>1)?" - "+m.tessere.map(function(t){return (t.nome?t.nome+" ":"")+"("+t.tag+")"}).join(", "):(m.tessera.nome?" - "+m.tessera.nome+" ("+m.tessera.tag+")":""));
     $("navM").click();return;
   }
-  if(m.ruolo==="admin"){MONADM=true;caricaNot();badgeUtenti();badgeTicket();$("navT").classList.remove("hide");$("navT").firstChild.nodeValue=T("Ticket");$("navI").classList.remove("hide");$("cTkNuovo").classList.add("hide");$("cPag").classList.remove("hide");api("/api/pagamento").then(function(d){if(d){$("pagPp").value=d.paypal||"";$("pagSa").value=d.satispay||"";$("pagRe").value=d.revolut||""}});$("tkTit").textContent=T("Richieste degli utenti");document.querySelectorAll(".solo-adm").forEach(function(e){e.classList.remove("hide")});$("navUt").classList.remove("hide");$("navSet").classList.remove("hide");$("navOc").classList.remove("hide")}
+  if(m.ruolo==="admin"){MONADM=true;caricaNot();badgeUtenti();badgeTicket();$("navT").classList.remove("hide");$("navT").firstChild.nodeValue=T("Ticket");$("navI").classList.remove("hide");$("navPre").classList.remove("hide");$("cTkNuovo").classList.add("hide");$("cPag").classList.remove("hide");api("/api/pagamento").then(function(d){if(d){$("pagPp").value=d.paypal||"";$("pagSa").value=d.satispay||"";$("pagRe").value=d.revolut||""}});$("tkTit").textContent=T("Richieste degli utenti");document.querySelectorAll(".solo-adm").forEach(function(e){e.classList.remove("hide")});$("navUt").classList.remove("hide");$("navSet").classList.remove("hide");$("navOc").classList.remove("hide")}
   function nasc(id,ok){var e=$(id);if(e)e.classList.toggle("hide",!ok)}
   nasc("bScarica",P.scarica);nasc("bImporta",P.scarica);
   document.querySelectorAll("#prezzo,#iva,#bPrezzo").forEach(function(e){(e.tagName==="BUTTON"?e:e.parentNode).classList.toggle("hide",!P.prezzo)});
