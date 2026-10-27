@@ -28,7 +28,7 @@ th.n,td.n{text-align:right}tr.m{cursor:pointer}tr.m:hover{background:rgba(127,12
 <div class="top"><h1 id="tit">Archivio ricariche</h1><div><button id="bLang">English</button></div></div>
 <div class="card" id="cApri">
   <h2 data-t="Apri l'archivio">Apri l'archivio</h2>
-  <div class="bar"><label><span data-t="File">File</span> <input type="file" id="file" accept=".enc"></label> <label><span data-t="Passphrase">Passphrase</span> <input type="password" id="pw" autocomplete="off"></label> <button class="p" id="bApri" data-t="Apri">Apri</button> <span class="sub err" id="esito"></span></div>
+  <div class="bar"><label><span data-t="File">File</span> <input type="file" id="file" accept=".enc"></label> <label><span data-t="Passphrase">Passphrase</span> <input type="password" id="pw" autocomplete="off"></label> <label><input type="checkbox" id="vedi"> <span data-t="mostra">mostra</span></label> <button class="p" id="bApri" data-t="Apri">Apri</button> <span class="sub err" id="esito"></span></div>
   <div class="sub" data-t="Tutto avviene in questa pagina, senza connessione: il file non viene inviato da nessuna parte. Senza la passphrase l'archivio non si apre.">Tutto avviene in questa pagina, senza connessione: il file non viene inviato da nessuna parte. Senza la passphrase l'archivio non si apre.</div>
 </div>
 <div id="vista" class="hide">
@@ -51,7 +51,7 @@ var D={"Apri l'archivio":"Open the archive","File":"File","Passphrase":"Passphra
 "Tutto avviene in questa pagina, senza connessione: il file non viene inviato da nessuna parte. Senza la passphrase l'archivio non si apre.":"Everything happens in this page, offline: the file is not sent anywhere. Without the passphrase the archive cannot be opened.",
 "Tocca un mese per vedere le tessere e le singole ricariche.":"Tap a month to see the cards and the single charges.","Ricariche avviate da app (non attribuite a una tessera)":"Charges started from the app (not attributed to a card)","Singole ricariche":"Single charges",
 "Mese":"Month","Ricariche":"Charges","kWh tessere":"Card kWh","kWh app":"App kWh","kWh":"kWh","€/kWh":"€/kWh","IVA %":"VAT %","Imponibile":"Net","IVA":"VAT","Totale":"Total","Tessera":"Card","Nome":"Name","Inizio":"Start","Fine":"End","Totale anno":"Year total",
-"Scegli il file e scrivi la passphrase":"Choose the file and type the passphrase","Passphrase sbagliata o file danneggiato":"Wrong passphrase or damaged file","Questo file non è un archivio delle ricariche":"This file is not a charges archive","Archivio ricariche":"Charges archive",
+"Scegli il file e scrivi la passphrase":"Choose the file and type the passphrase","Passphrase sbagliata o file danneggiato":"Wrong passphrase or damaged file","mostra":"show","Non riesco a leggere il file: estrai lo zip in una cartella e scegli il file da lì":"Cannot read the file: extract the zip into a folder and choose the file from there","Questo browser non permette di decifrare da un file locale: prova con Chrome, Edge o Firefox aggiornati":"This browser does not allow decrypting from a local file: try an up-to-date Chrome, Edge or Firefox","Questo file non è un archivio delle ricariche":"This file is not a charges archive","Archivio ricariche":"Charges archive",
 "(tessera non in elenco)":"(card not in the list)","Periodo":"Period","generato il":"generated on","sessioni":"sessions","Il prezzo del mese non è stato inserito: importi non disponibili":"The month price was not entered: amounts not available","Italiano":"Italiano","English":"English"};
 var MESI={it:["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"],en:["January","February","March","April","May","June","July","August","September","October","November","December"]};
 function T(s){return LANG==="en"&&D[s]!==undefined?D[s]:s}
@@ -64,6 +64,7 @@ $("bLang").onclick=function(){LANG=LANG==="en"?"it":"en";trDom();if(A)disegna()}
 function decifra(buf,pw){
   var u=new Uint8Array(buf),enc=new TextEncoder();
   if(u.length<33||String.fromCharCode(u[0],u[1],u[2],u[3])!=="ARC1")return Promise.reject(new Error("formato"));
+  if(!(window.crypto&&crypto.subtle))return Promise.reject(new Error("crypto"));
   var salt=u.slice(4,20),iv=u.slice(20,32),ct=u.slice(32);
   return crypto.subtle.importKey("raw",enc.encode(pw),"PBKDF2",false,["deriveKey"]).then(function(km){
     return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:600000,hash:"SHA-256"},km,{name:"AES-GCM",length:256},false,["decrypt"])})
@@ -72,12 +73,16 @@ function decifra(buf,pw){
 $("bApri").onclick=function(){
   var f=$("file").files[0],pw=$("pw").value,e=$("esito");e.textContent="";
   if(!f||!pw){e.textContent=T("Scegli il file e scrivi la passphrase");return}
+  if(!(window.crypto&&crypto.subtle)){e.textContent=T("Questo browser non permette di decifrare da un file locale: prova con Chrome, Edge o Firefox aggiornati");return}
   e.textContent="...";
-  f.arrayBuffer().then(function(b){return decifra(b,pw)}).then(function(j){
+  f.arrayBuffer().catch(function(){throw new Error("lettura")}).then(function(b){return decifra(b,pw)}).then(function(j){
     if(!j||j.versione!==1||!Array.isArray(j.sessioni))throw new Error("formato");
     A=j;calcola();e.textContent="";$("cApri").classList.add("hide");$("vista").classList.remove("hide");disegna();
-  }).catch(function(x){e.textContent=T(x&&x.message==="formato"?"Questo file non è un archivio delle ricariche":"Passphrase sbagliata o file danneggiato")});
+  }).catch(function(x){var m=x&&x.message;
+    e.textContent=m==="formato"?T("Questo file non è un archivio delle ricariche"):m==="lettura"?T("Non riesco a leggere il file: estrai lo zip in una cartella e scegli il file da lì")
+      :T("Passphrase sbagliata o file danneggiato")+(x&&x.name&&x.name!=="OperationError"?" ("+x.name+(m?": "+m:"")+")":"")});
 };
+$("vedi").onchange=function(){$("pw").type=this.checked?"text":"password"};
 // ---------- calcolo: stesse regole del sito (nome della tessera al momento della ricarica, prezzo e IVA del mese, centesimi ripartiti)
 function r2(x){return Math.round(x*100+1e-7)/100}
 function euro(kwh,pr){return pr==null?null:r2(kwh*pr)}
