@@ -310,6 +310,15 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
 
 <section id="t4" class="hide">
   <div class="card">
+    <h2>Tessere RFID della colonnina</h2>
+    <div class="bar"><label>Codice tessera <input id="rId" size="12" autocomplete="off"></label> <label>Nome <input id="rNome" size="28" maxlength="25" autocomplete="off"></label> <label>Scadenza <input id="rScad" type="date"></label> <label id="rDalL">Assegnata dal <input id="rDal" type="date"></label> <label>Stato <select id="rStato"><option value="0">Attiva</option><option value="1">Bloccata</option><option value="2">Scaduta</option><option value="3">Non valida</option></select></label> <label id="rTipoL">Tipo <select id="rTipo"><option value="consumo">A consumo</option><option value="prepagata">Prepagata</option></select></label> <button class="p" id="bRAgg">Aggiungi</button> <button id="bRAnn" class="hide">Annulla</button></div>
+    <div class="bar hide" id="rPreBox" style="flex-wrap:wrap"><label>Prezzo €/kWh <input id="rPPr" type="number" min="0.01" step="0.01" placeholder="0,40" style="width:6em"></label> <label>Credito iniziale <input id="rPCr" type="number" min="0" step="0.01" style="width:6em"> €</label> <label>Avviso sotto <input id="rPSo" type="number" min="0" step="1" value="5" style="width:5em"> €</label> <span class="sub">Prepagata: il credito scala con questo prezzo; a zero la tessera viene bloccata. Con credito 0 resta bloccata finché non aggiungi credito dalla scheda Prepagate.</span></div>
+    <div class="bar"><button id="bRDis" disabled>Disattivazione Permanente</button> <button id="bRImp">Importa file</button><input id="rFile" type="file" accept=".csv,.txt" class="hide"> <button id="bREsp">Esporta lista</button> <button id="bRLeggi">Rileggi dalla colonnina</button> <button id="bRRip" class="hide">Ripristina lista precedente</button> <span class="sub err" id="rEsito"></span></div>
+    <table id="tabR"></table>
+    <div class="sub">Clicca su una tessera per selezionarla: Disattivazione Permanente la toglie dalla colonnina (lo storico resta), Modifica cambia nome, stato o data di assegnazione. In grigio le tessere disattivate: le loro ricariche restano attribuite a chi le aveva in quel periodo.</div>
+    <div class="sub">Nome al massimo 25 caratteri (oltre, la colonnina lo tronca). Scadenza facoltativa: la tessera vale fino alla fine di quel giorno. Le modifiche vengono scritte subito sulla colonnina. Prima di ogni scrittura il sito tiene una copia della lista precedente. L'import aggiunge le tessere nuove e aggiorna nomi e stati, senza cancellare nulla (va bene sia il file esportato da qui sia il CSV esportato da Viaris).</div>
+  </div>
+  <div class="card">
     <h2>Utenti</h2>
     <div class="w"><table id="tabU"></table></div>
     <p class="sub" id="cifraInfo"></p>
@@ -338,15 +347,6 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
     <div class="sub">L'utente riceve una mail con un link monouso (valido 48 ore) per scegliere la propria password al primo accesso.</div>
     <div class="sub err" id="uEsito"></div>
     <input id="uLink" class="hide" readonly size="60">
-  </div>
-  <div class="card">
-    <h2>Tessere RFID della colonnina</h2>
-    <div class="bar"><label>Codice tessera <input id="rId" size="12" autocomplete="off"></label> <label>Nome <input id="rNome" size="28" maxlength="25" autocomplete="off"></label> <label>Scadenza <input id="rScad" type="date"></label> <label id="rDalL">Assegnata dal <input id="rDal" type="date"></label> <label>Stato <select id="rStato"><option value="0">Attiva</option><option value="1">Bloccata</option><option value="2">Scaduta</option><option value="3">Non valida</option></select></label> <label id="rTipoL">Tipo <select id="rTipo"><option value="consumo">A consumo</option><option value="prepagata">Prepagata</option></select></label> <button class="p" id="bRAgg">Aggiungi</button> <button id="bRAnn" class="hide">Annulla</button></div>
-    <div class="bar hide" id="rPreBox" style="flex-wrap:wrap"><label>Prezzo €/kWh <input id="rPPr" type="number" min="0.01" step="0.01" placeholder="0,40" style="width:6em"></label> <label>Credito iniziale <input id="rPCr" type="number" min="0" step="0.01" style="width:6em"> €</label> <label>Avviso sotto <input id="rPSo" type="number" min="0" step="1" value="5" style="width:5em"> €</label> <span class="sub">Prepagata: il credito scala con questo prezzo; a zero la tessera viene bloccata. Con credito 0 resta bloccata finché non aggiungi credito dalla scheda Prepagate.</span></div>
-    <div class="bar"><button id="bRDis" disabled>Disattivazione Permanente</button> <button id="bRImp">Importa file</button><input id="rFile" type="file" accept=".csv,.txt" class="hide"> <button id="bREsp">Esporta lista</button> <button id="bRLeggi">Rileggi dalla colonnina</button> <button id="bRRip" class="hide">Ripristina lista precedente</button> <span class="sub err" id="rEsito"></span></div>
-    <table id="tabR"></table>
-    <div class="sub">Clicca su una tessera per selezionarla: Disattivazione Permanente la toglie dalla colonnina (lo storico resta), Modifica cambia nome, stato o data di assegnazione. In grigio le tessere disattivate: le loro ricariche restano attribuite a chi le aveva in quel periodo.</div>
-    <div class="sub">Nome al massimo 25 caratteri (oltre, la colonnina lo tronca). Scadenza facoltativa: la tessera vale fino alla fine di quel giorno. Le modifiche vengono scritte subito sulla colonnina. Prima di ogni scrittura il sito tiene una copia della lista precedente. L'import aggiunge le tessere nuove e aggiorna nomi e stati, senza cancellare nulla (va bene sia il file esportato da qui sia il CSV esportato da Viaris).</div>
   </div>
   <div class="card">
     <h2>Canali di contatto</h2>

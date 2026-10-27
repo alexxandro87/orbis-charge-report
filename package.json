@@ -1,6 +1,6 @@
 {
   "name": "orbis-viaris-charge-report",
-  "version": "2.10.1",
+  "version": "2.10.2",
   "description": "Cloudflare Worker webapp for Orbis Viaris EV chargers: downloads sessions, splits costs per RFID card, OCPP 1.6 server, monitoring, user registration and tickets",
   "license": "AGPL-3.0-or-later",
   "private": false,
