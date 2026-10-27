@@ -961,11 +961,13 @@ async function inviaCodaMessaggi(env) {
 // card is blocked at once, as from the site); /problema <text> opens "Charger problem"; /richieste lists the user's requests;
 // /aiuto. Chats that are not linked only get an answer to /start: no outbound calls for random messages.
 const COMANDI_BOT = [
-  ["smarrita", "Tessera smarrita: /smarrita <codice tessera>"], ["danneggiata", "Tessera danneggiata o non funzionante: /danneggiata <codice tessera>"],
+  ["smarrita", "Tessera smarrita (poi scegli la tessera)"], ["danneggiata", "Tessera danneggiata o non funzionante (poi scegli la tessera)"],
   ["problema", "Problema con la colonnina (poi scrivi il testo)"], ["richieste", "Le mie richieste"], ["aiuto", "Elenco dei comandi"], ["stop", "Scollega questa chat"]];
+const MENU_BOT = [[{ text: "Tessera smarrita / Lost card", callback_data: "cmd:smarrita" }, { text: "Tessera danneggiata / Damaged card", callback_data: "cmd:danneggiata" }],
+  [{ text: "Problema con la colonnina / Charger problem", callback_data: "cmd:problema" }, { text: "Le mie richieste / My requests", callback_data: "cmd:richieste" }]];
 const AIUTO_BOT = "Comandi / Commands:\n" +
-  "/smarrita <tessera> - tessera smarrita, viene bloccata subito / lost card, blocked at once\n" +
-  "/danneggiata <tessera> - tessera danneggiata o non funzionante / damaged or faulty card\n" +
+  "/smarrita - tessera smarrita: scegli la tessera dai bottoni, viene bloccata subito / lost card: pick it from the buttons, blocked at once\n" +
+  "/danneggiata - tessera danneggiata o non funzionante: scegli dai bottoni / damaged or faulty card: pick it from the buttons\n" +
   "/problema - problema con la colonnina: poi scrivi il testo / charger problem: then write the text\n" +
   "/richieste - le mie richieste / my requests\n" +
   "/stop - scollega questa chat / unlink this chat";
@@ -973,12 +975,22 @@ async function telegramWebhook(req, env, url) {
   if (!telegramAttivo() || url.pathname !== "/api/telegram/" + TG.secret
     || req.headers.get("x-telegram-bot-api-secret-token") !== TG.secret) return new Response("", { status: 404 });
   let up = {}; try { up = await req.json(); } catch (_) { /* ignored */ }
-  const m = up.message;
-  if (!m || !m.chat || typeof m.text !== "string") return json({ ok: true });
-  const chat = String(m.chat.id), txt = m.text.trim();
-  const rispondi = (testo) => tgApi("sendMessage", { chat_id: chat, text: testo }).catch(() => null);
-  const cmd = /^\/([a-z]+)(?:@\w+)?(?:\s+([\s\S]*))?$/i.exec(txt);
-  const c = cmd ? cmd[1].toLowerCase() : "", arg = cmd && cmd[2] ? cmd[2].trim() : "";
+  const cq = up.callback_query, m = cq && cq.message ? cq.message : up.message;   // button pressed (callback) or message
+  if (!m || !m.chat || (!cq && typeof m.text !== "string")) return json({ ok: true });
+  const chat = String(m.chat.id), txt = cq ? "" : m.text.trim();
+  const tg = (metodo, corpo) => tgApi(metodo, corpo).catch(() => null);
+  const rispondi = (testo, bottoni) => tg("sendMessage", { chat_id: chat, text: testo, ...(bottoni ? { reply_markup: { inline_keyboard: bottoni } } : {}) });
+  let c = "", arg = "", cmd = null;
+  if (cq) {                                                // button: acknowledge, remove the buttons from the message and treat it as the matching command
+    await tg("answerCallbackQuery", { callback_query_id: cq.id });
+    await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } });
+    const d = /^(?:cmd:)?([a-z]+)(?::([0-9A-Z]{4,20}))?$/.exec(String(cq.data || ""));
+    if (!d) return json({ ok: true });
+    c = d[1]; arg = d[2] || ""; cmd = true;
+  } else {
+    cmd = /^\/([a-z]+)(?:@\w+)?(?:\s+([\s\S]*))?$/i.exec(txt);
+    c = cmd ? cmd[1].toLowerCase() : ""; arg = cmd && cmd[2] ? cmd[2].trim() : "";
+  }
   if (c === "start") {
     const u = /^[0-9a-f]{16,64}$/.test(arg) ? await env.DB.prepare("SELECT nome, tg_chat FROM utenti WHERE tg_codice=? AND tg_exp>?").bind(arg, Math.floor(Date.now() / 1000)).first() : null;
     if (!u) { await rispondi("Codice non valido o scaduto: genera un nuovo collegamento dal profilo del sito.\nInvalid or expired code: generate a new link from your profile on the site."); return json({ ok: true }); }
@@ -989,7 +1001,7 @@ async function telegramWebhook(req, env, url) {
     }
     await salvaChatTelegram(env, u.nome, lista);
     await env.DB.prepare("UPDATE utenti SET tg_codice=NULL, tg_exp=NULL WHERE nome=?").bind(u.nome).run();
-    await rispondi(`${TITOLO}\n\nTelegram collegato: qui riceverai i messaggi di servizio.\nTelegram linked: service messages will arrive here.\n\n${AIUTO_BOT}`);
+    await rispondi(`${TITOLO}\n\nTelegram collegato: qui riceverai i messaggi di servizio.\nTelegram linked: service messages will arrive here.\n\n${AIUTO_BOT}`, MENU_BOT);
     return json({ ok: true });
   }
   const u = await utenteDaChat(env, chat);
@@ -1009,8 +1021,11 @@ async function telegramWebhook(req, env, url) {
   } else if (c === "smarrita" || c === "danneggiata") {
     const mie = tessereDi(u), tag = arg.toUpperCase();
     if (!mie.length) await rispondi("Non hai tessere abbinate.\nYou have no cards linked.");
-    else if (!mie.includes(tag)) await rispondi(`Indica la tessera: ${mie.map((x) => "/" + c + " " + x).join(" oppure ")}` + (c === "smarrita" ? "\nLa tessera verrà bloccata subito sulla colonnina." : "") +
-      `\nSpecify the card: ${mie.map((x) => "/" + c + " " + x).join(" or ")}` + (c === "smarrita" ? "\nThe card will be blocked on the charger at once." : ""));
+    else if (!mie.includes(tag)) {                         // one button per card (code and name), plus Cancel
+      const nomi = await nomiDb(env);
+      await rispondi(c === "smarrita" ? "Quale tessera hai smarrito? Verrà bloccata subito sulla colonnina.\nWhich card did you lose? It will be blocked on the charger at once." : "Quale tessera è danneggiata o non funziona?\nWhich card is damaged or faulty?",
+        mie.map((x) => [{ text: x + (nomi.get(x) ? " · " + nomi.get(x) : ""), callback_data: c + ":" + x }]).concat([[{ text: "Annulla / Cancel", callback_data: "annulla" }]]));
+    }
     else await rispondi(await ticketDalBot(env, u, url, { azione: "apri", tipo: "tessera", tessera: tag, motivo: c }));
   } else if (c === "problema") {
     if (!arg) {
@@ -1019,9 +1034,9 @@ async function telegramWebhook(req, env, url) {
     } else await rispondi(await ticketDalBot(env, u, url, { azione: "apri", tipo: "colonnina", testo: arg }));
   } else if (c === "richieste") {
     const r = (await env.DB.prepare("SELECT id, tipo, stato, creato FROM ticket WHERE utente=? ORDER BY id DESC LIMIT 10").bind(u.nome).all()).results;
-    await rispondi(r.length ? "Le tue richieste / Your requests:\n" + r.map((x) => `#${x.id} ${TIPI_TICKET[x.tipo] || x.tipo} - ${x.stato} (${String(x.creato).slice(0, 10)})`).join("\n") : "Nessuna richiesta.\nNo requests.");
+    await rispondi(r.length ? "Le tue richieste / Your requests:\n" + r.map((x) => `#${x.id} ${TIPI_TICKET[x.tipo] || x.tipo} - ${x.stato} (${String(x.creato).slice(0, 10)})`).join("\n") : "Nessuna richiesta.\nNo requests.", MENU_BOT);
   } else if (c === "annulla") await rispondi("Annullato.\nCancelled.");
-  else await rispondi(AIUTO_BOT);
+  else await rispondi(AIUTO_BOT, MENU_BOT);
   return json({ ok: true });
 }
 // opens a request as from the site, with the same ticket() function: card block, email/notification to the admin, limit of 5 open

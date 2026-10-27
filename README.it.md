@@ -249,9 +249,9 @@ importi), una loro richiesta viene approvata/rifiutata/chiusa, la tessera viene 
    («Collega un secondo Telegram»). «Scollega Telegram» dal profilo toglie tutte le chat; `/stop` dal bot solo quella chat;
    se l'utente blocca il bot, quella chat viene tolta al primo invio fallito.
 
-Comandi del bot (solo per le chat collegate; le altre non ricevono risposta): `/smarrita <tessera>` e `/danneggiata <tessera>`
-aprono la richiesta «Tessera smarrita o danneggiata» (la tessera viene bloccata subito sulla colonnina, come dal sito; senza
-codice il bot elenca le tessere dell'utente), `/problema` chiede di scrivere il problema e il messaggio successivo apre «Problema con la colonnina» (`/annulla` per annullare; vale anche `/problema <testo>`), `/richieste` elenca le
+Comandi del bot (solo per le chat collegate; le altre non ricevono risposta): `/smarrita` e `/danneggiata` mostrano un bottone per
+ogni tessera dell'utente (più «Annulla») e aprono la richiesta «Tessera smarrita o danneggiata» (la tessera viene bloccata subito
+sulla colonnina, come dal sito; vale anche `/smarrita <tessera>`); `/aiuto` e il collegamento mostrano un menu a bottoni con i comandi; `/problema` chiede di scrivere il problema e il messaggio successivo apre «Problema con la colonnina» (`/annulla` per annullare; vale anche `/problema <testo>`), `/richieste` elenca le
 ultime richieste con lo stato, `/aiuto` i comandi. Le richieste passano dalla stessa funzione del sito: limite di 5 aperte,
 mail/notifica all'amministratore, esito via mail e messaggio.
 
