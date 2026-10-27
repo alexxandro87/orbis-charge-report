@@ -2857,7 +2857,7 @@ export default {
           if (!telegramAttivo()) return json({ errore: "Telegram non configurato: inserisci token e segreto nelle Impostazioni" }, 400);
           try {
             const bot = await tgApi("getMe");
-            await tgApi("setWebhook", { url: `${url.origin}/api/telegram/${TG.secret}`, secret_token: TG.secret, allowed_updates: ["message"], drop_pending_updates: true });
+            await tgApi("setWebhook", { url: `${url.origin}/api/telegram/${TG.secret}`, secret_token: TG.secret, allowed_updates: ["message", "callback_query"], drop_pending_updates: true });
             await tgApi("setMyCommands", { commands: COMANDI_BOT.map(([command, description]) => ({ command, description })) });
             await salvaMeta(env, "telegram_bot", { username: bot.username, id: bot.id, quando: new Date().toISOString() });
           } catch (e) { return json({ errore: "Telegram: " + msgErrore(e) }, 502); }
