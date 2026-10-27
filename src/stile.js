@@ -37,6 +37,8 @@ export const STILE = [
   ".barra div{height:100%;background:var(--acc)}.barra div.warn{background:#b8780a}.barra div.err{background:var(--esci)}",
   ".pst{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;border:1px solid var(--line);white-space:nowrap}",
   ".pst.ok{color:#2a8a55}.pst.warn,b.warn{color:#b8780a}.pst.err{color:var(--esci)}",
+  // show/hide button next to every password field (all pages)
+  ".occhio{margin-left:4px;padding:2px 8px;min-height:0;font-size:12px;line-height:1.4;background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:6px;vertical-align:middle;cursor:pointer}",
   "@media (max-width:700px){" + [
     "html,body{overflow-x:clip}body{background:var(--bg)}",
     // tables not turned into cards (e.g. Information): wrap instead of widening the page
