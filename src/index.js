@@ -1030,11 +1030,11 @@ async function telegramWebhook(req, env, url) {
   } else if (c === "problema") {
     if (!arg) {
       attese[chat] = { tipo: "colonnina", fino: ora + 10 * 60000 }; await salvaMeta(env, "tg_attesa", attese);
-      await rispondi("Scrivi il problema in un messaggio e premi invio: lo inoltro all'amministratore. Hai 10 minuti; /annulla per annullare.\nWrite the problem in a message and press send: I will forward it to the administrator. You have 10 minutes; /annulla to cancel.");
+      await rispondi("Scrivi il problema in un messaggio e premi invio: lo inoltro all'amministratore. Hai 10 minuti; /annulla per annullare.\nWrite the problem in a message and press send: I will forward it to the administrator. You have 10 minutes; /annulla to cancel.", [[{ text: "Annulla / Cancel", callback_data: "annulla" }]]);
     } else await rispondi(await ticketDalBot(env, u, url, { azione: "apri", tipo: "colonnina", testo: arg }));
   } else if (c === "richieste") {
     const r = (await env.DB.prepare("SELECT id, tipo, stato, creato FROM ticket WHERE utente=? ORDER BY id DESC LIMIT 10").bind(u.nome).all()).results;
-    await rispondi(r.length ? "Le tue richieste / Your requests:\n" + r.map((x) => `#${x.id} ${TIPI_TICKET[x.tipo] || x.tipo} - ${x.stato} (${String(x.creato).slice(0, 10)})`).join("\n") : "Nessuna richiesta.\nNo requests.", MENU_BOT);
+    await rispondi(r.length ? "Le tue richieste / Your requests:\n" + r.map((x) => `#${x.id} ${TIPI_TICKET[x.tipo] || x.tipo} - ${x.stato} (${String(x.creato).slice(0, 10)})`).join("\n") : "Nessuna richiesta.\nNo requests.", MENU_BOT.concat([[{ text: "Annulla / Cancel", callback_data: "annulla" }]]));
   } else if (c === "annulla") await rispondi("Annullato.\nCancelled.");
   else await rispondi(AIUTO_BOT, MENU_BOT);
   return json({ ok: true });
@@ -1046,8 +1046,8 @@ async function ticketDalBot(env, u, url, corpo) {
   const r = await (await ticket(req, env, me, url)).json();
   if (r.errore) return `Richiesta non aperta: ${r.errore}\nRequest not opened: ${r.errore}`;
   const tess = corpo.tipo === "tessera";
-  return `Richiesta n. ${r.id} aperta: l'amministratore la gestirà dal sito e riceverai l'esito.` + (tess ? ` La tessera ${corpo.tessera} è bloccata (se la colonnina non risponde, il blocco viene ritentato ogni 5 minuti).` : "") +
-    `\nRequest no. ${r.id} opened: the administrator will handle it on the site and you will receive the outcome.` + (tess ? ` Card ${corpo.tessera} is blocked (if the charger does not answer, the block is retried every 5 minutes).` : "");
+  return `Richiesta n. ${r.id} aperta: l'amministratore la gestirà dal sito e riceverai l'esito.` + (tess ? ` La tessera ${corpo.tessera} è bloccata (il blocco sarà effettivo entro 5-15 minuti).` : "") +
+    `\nRequest no. ${r.id} opened: the administrator will handle it on the site and you will receive the outcome.` + (tess ? ` Card ${corpo.tessera} is blocked (the block takes effect within 5 to 15 minutes).` : "");
 }
 
 // ---------------------------------------------------- price report by email
