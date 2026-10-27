@@ -6,6 +6,7 @@
 // is entered from the web page: nothing in the code is specific to one installation.
 import { HTML, LOGIN, INVITO, SETUP } from "./ui.js";
 import { STILE } from "./stile.js";
+import { ARCHIVIO_HTML } from "./archivio.js";
 // version shown next to the title, read from package.json (semver: fix -> patch, new feature -> minor)
 import pkg from "../package.json";
 const VERSIONE = "v" + pkg.version;
@@ -2944,6 +2945,47 @@ export default {
           return json(lista);
         }
         if (req.method === "POST") return await gestisciUtenti(env, me, await req.json(), url.origin);
+      }
+      if (url.pathname === "/archivio.html") {              // archive viewer: goes into the zip together with the encrypted extraction
+        if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
+        return new Response(ARCHIVIO_HTML, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
+      }
+      if (url.pathname === "/api/archivio") {               // charges archive (admin): state, extraction of a period (then encrypted by the browser), deletion of exported months
+        if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);
+        const am = (s) => { const m = /^(\d{4})-(\d{2})$/.exec(String(s || "")); return m && +m[2] >= 1 && +m[2] <= 12 ? { a: +m[1], m: +m[2] } : null; };
+        const chiave = (x) => x.a * 12 + x.m - 1, ym = (e) => { const v = annoMeseLocale(e); return Math.floor(v / 100) + "-" + String(v % 100).padStart(2, "0"); };
+        const corrente = ym(Math.floor(Date.now() / 1000)), primo = await env.DB.prepare("SELECT MIN(inizio_utc) a, MAX(inizio_utc) b FROM sessioni").first();
+        const stato = await leggiMeta(env, "archivio", { coperto: null, esportazioni: [] });
+        if (req.method === "POST") {                         // deletion: only months already exported from the start of the history, never the current month
+          const b = await req.json();
+          if (b.azione !== "elimina") return json({ errore: "Azione non valida" }, 400);
+          const f = am(b.fino), cop = am(stato.coperto);
+          if (!f) return json({ errore: "Mese non valido" }, 400);
+          if (!cop || chiave(f) > chiave(cop)) return json({ errore: "Prima esporta l'archivio dall'inizio dello storico fino a quel mese" }, 400);
+          if (chiave(f) >= chiave(am(corrente))) return json({ errore: "Il mese corrente non si può eliminare" }, 400);
+          const r = await env.DB.prepare("DELETE FROM sessioni WHERE inizio_utc < ?").bind(intervalloMese(f.a, f.m)[1]).run();
+          stato.eliminato = { fino: b.fino, ts: Date.now(), n: r.meta.changes };
+          await salvaMeta(env, "archivio", stato);
+          await notifica(env, "Sessioni eliminate dal sito", `${r.meta.changes} sessioni fino a ${b.fino} tolte dal database dopo l'archiviazione`);
+          return json({ ok: true, eliminate: r.meta.changes });
+        }
+        const da = am(q.get("da")), a = am(q.get("a"));
+        if (!da) return json({ primo: primo.a ? ym(primo.a) : null, ultimo: primo.b ? ym(primo.b) : null, corrente, coperto: stato.coperto, esportazioni: stato.esportazioni.slice(-10), eliminato: stato.eliminato || null });
+        if (!a || chiave(a) < chiave(da)) return json({ errore: "Periodo non valido" }, 400);
+        const ini = intervalloMese(da.a, da.m)[0], fin = intervalloMese(a.a, a.m)[1];
+        const sess = (await env.DB.prepare("SELECT inizio_utc, fine_utc, tag, tag_tipo, energia_wh FROM sessioni WHERE inizio_utc >= ? AND inizio_utc < ? ORDER BY inizio_utc").bind(ini, fin).all()).results;
+        const prezzi = (await env.DB.prepare("SELECT anno, mese, eur_kwh, iva FROM prezzi WHERE anno*12+mese-1 BETWEEN ? AND ? ORDER BY anno, mese").bind(chiave(da), chiave(a)).all()).results;
+        await syncNomi(env);
+        const nomi = (await env.DB.prepare("SELECT tag, nome, dal, al FROM tessere_nomi ORDER BY tag, dal").all()).results;
+        const tessere = (await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results;
+        const prepagate = (await env.DB.prepare("SELECT tag, dal FROM prepagate").all()).results;
+        // coverage: an export starting at the beginning of the history (or right after an already covered one) extends the deletable period
+        const cop = am(stato.coperto);
+        if (!primo.a || chiave(da) <= chiave(am(ym(primo.a))) || (cop && chiave(da) <= chiave(cop) + 1)) { if (!cop || chiave(a) > chiave(cop)) stato.coperto = q.get("a"); }
+        stato.esportazioni = (stato.esportazioni || []).concat([{ da: q.get("da"), a: q.get("a"), ts: Date.now(), n: sess.length }]).slice(-20);
+        await salvaMeta(env, "archivio", stato);
+        return json({ versione: 1, titolo: TITOLO, tz: TZ, da: q.get("da"), a: q.get("a"), generato: Date.now(), escludi_prepagate: false, prepagate,
+          sessioni: sess.map((s) => [s.inizio_utc, s.fine_utc, s.tag, s.tag_tipo, s.energia_wh]), prezzi, nomi, tessere, coperto: stato.coperto });
       }
       if (url.pathname === "/api/backup") {
         if (me.ruolo !== "admin") return json({ errore: "non autorizzato" }, 403);

@@ -55,6 +55,7 @@ Nel codice non c'è nulla di una installazione specifica: indirizzo della colonn
 - **Monitoraggio**: 24 controlli (connessione, presa e ricariche, tessere, impostazioni, sito e sicurezza), ognuno spento finché non lo accendi, con soglie, mail all'inizio e alla fine del problema, notifiche nel sito e storico degli episodi.
 - **Avvisi agli utenti**: mail a chi ha caricato quando la ricarica è finita ma l'auto è ancora collegata.
 - **Tessere prepagate**: un credito in euro scalato con un prezzo per tessera; a credito esaurito la tessera viene bloccata e la ricarica fermata da remoto.
+- **Archivio delle ricariche**: esportazione cifrata di un periodo in uno zip con visualizzatore HTML offline, ed eliminazione dei mesi esportati per liberare spazio.
 - **Cifratura dei dati personali** (AES-256-GCM, chiave in un secret del Worker) e backup cifrato dalla pagina.
 - **Consumi Cloudflare**: richieste, righe D1, uso OCPP e spazio rispetto ai limiti del piano gratuito, con riepilogo mensile e avviso a ridosso del limite.
 - **Interfaccia in italiano e inglese**, tema giorno / notte / automatico, niente scorrimento orizzontale, tabelle che diventano schede su telefono.
@@ -329,6 +330,9 @@ Un secret si imposta con `npx wrangler secret put NOME`.
 ## Backup
 
 Dalla pagina: **Impostazioni > Backup del database** (amministratore): backup cifrato con passphrase, oppure il dump in chiaro su `/api/backup`. Da terminale: `npx wrangler d1 export ricariche --remote --output backup.sql`. Ripristino con `npx wrangler d1 execute ricariche --remote --file=backup.sql`. D1 conserva anche 7 giorni di storia (Time Travel). Il dump contiene la password della colonnina e la chiave Resend salvate: tienilo privato. Il controllo "backup non fatto da molto" te lo ricorda.
+
+## Archivio delle ricariche
+Impostazioni > «Archivio delle ricariche»: scegli da mese/anno a mese/anno e una passphrase, scarichi uno zip con l'estrazione cifrata (sessioni, prezzi, nomi delle tessere) e `archivio.html`, che la apre in qualunque browser senza connessione: storico annuale, dettaglio mensile per tessera, singole ricariche, CSV, italiano e inglese. Cifratura AES-256-GCM con chiave da passphrase (PBKDF2, 600.000 iterazioni), tutto nel browser: la passphrase non è salvata da nessuna parte. «Elimina dal sito le sessioni fino a» libera spazio su Cloudflare e vale solo per i mesi già esportati dall'inizio dello storico, mai per il mese corrente: le sessioni tolte restano solo negli archivi.
 
 ## Sviluppo in locale
 

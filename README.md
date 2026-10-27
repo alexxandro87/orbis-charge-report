@@ -55,6 +55,7 @@ Nothing about a specific installation is in the code: charger address, title, ti
 - **Monitoring**: 24 checks (connection, socket and charges, cards, settings, site and security), each off until you enable it, with thresholds, email when a problem starts and ends, in-site notifications and a history of episodes.
 - **Reminders to users**: email to whoever charged when the charge is over but the car is still plugged in.
 - **Prepaid cards**: a credit in euros deducted at a per-card price; when it runs out the card is blocked and the charge is stopped remotely.
+- **Charges archive**: encrypted export of a period as a zip with an offline HTML viewer, and deletion of exported months to free space.
 - **Encryption of personal data** (AES-256-GCM, key in a Worker secret) and encrypted backup from the page.
 - **Cloudflare usage** box: requests, D1 rows, OCPP usage and storage against the free-plan limits, with a monthly summary and an alert near the limit.
 - **English and Italian interface**, day / night / auto theme, no horizontal scrolling, tables that become cards on phones.
@@ -329,6 +330,9 @@ Set a secret with `npx wrangler secret put NAME`.
 ## Backups
 
 From the page: **Settings > Database backup** (administrator): encrypted backup with a passphrase, or the plain dump at `/api/backup`. From a terminal: `npx wrangler d1 export ricariche --remote --output backup.sql`. Restore with `npx wrangler d1 execute ricariche --remote --file=backup.sql`. D1 also keeps 7 days of point-in-time history. The dump contains the saved charger password and Resend key: keep it private. The "backup too old" monitoring check reminds you.
+
+## Charges archive
+Settings > "Charges archive": pick from month/year to month/year and a passphrase, and download a zip with the encrypted extraction (sessions, prices, card names) and `archivio.html`, which opens it in any browser offline: yearly history, monthly detail per card, single charges, CSV, Italian and English. AES-256-GCM encryption with a key derived from the passphrase (PBKDF2, 600,000 iterations), all in the browser: the passphrase is stored nowhere. "Delete from the site the sessions up to" frees space on Cloudflare and works only for months already exported from the start of the history, never for the current month: deleted sessions remain only in the archives.
 
 ## Local development
 
