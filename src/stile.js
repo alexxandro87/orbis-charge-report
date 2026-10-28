@@ -39,11 +39,15 @@ export const STILE = [
   ".pst.ok{color:#2a8a55}.pst.warn,b.warn{color:#b8780a}.pst.err{color:var(--esci)}",
   // show/hide button next to every password field (all pages)
   ".occhio{margin-left:4px;padding:2px 8px;min-height:0;font-size:12px;line-height:1.4;background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:6px;vertical-align:middle;cursor:pointer}",
+  // desktop: header and tabs stick to the top while scrolling (on the phone the tabs stay at the bottom)
+  "header{position:sticky;top:0;z-index:30}",
+  "html{scroll-padding-top:190px}",
   "@media (max-width:700px){" + [
     "html,body{overflow-x:clip}body{background:var(--bg)}",
     // tables not turned into cards (e.g. Information): wrap instead of widening the page
     "table:not(.tbm) th,table:not(.tbm) td{white-space:normal;overflow-wrap:anywhere}",
-    "header{padding:calc(14px + env(safe-area-inset-top)) 16px 12px;border-bottom:0;background:var(--bg)}",
+    "header{padding:calc(14px + env(safe-area-inset-top)) 16px 12px;border-bottom:0;background:var(--bg);position:static}",
+    "html{scroll-padding-top:0}",
     "header h1{display:none}",
     "#titoloM{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0}",
     "header .top:first-child{flex-direction:column-reverse;align-items:stretch;gap:6px}",

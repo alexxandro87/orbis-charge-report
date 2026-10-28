@@ -80,8 +80,6 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
     <button class="p" id="bPwOk">Salva</button>
     <span class="sub err" id="pwEsito"></span>
   </div>
-</header>
-<main>
 <nav class="noprint">
   <button class="on" data-t="t1">Report mensile</button>
   <button data-t="t3">Tutte le sessioni</button>
@@ -96,6 +94,8 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
   <button data-t="t11" id="navT" class="hide">Assistenza<span id="navTN"></span></button>
   <button data-t="t12" id="navI" class="hide">Informazioni</button>
 </nav>
+</header>
+<main>
 
 <section id="t1">
   <div class="solostampa">__TITLE__</div>
@@ -856,6 +856,7 @@ var oggi=new Date(), rep=null, righeAnno=[];
 })();
 
 document.querySelectorAll("nav button").forEach(function(b){b.onclick=function(){
+  window.scrollTo(0,0);
   document.querySelectorAll("nav button").forEach(function(x){x.classList.toggle("on",x===b)});
   ["t1","t2","t3","t4","t5","t6","t8","t9","t10","t11","t12","t13"].forEach(function(t){$(t).classList.toggle("hide",t!==b.dataset.t)});
   if(b.dataset.t==="t2")caricaStorico();if(b.dataset.t==="t3")caricaSessioni();if(b.dataset.t==="t4"){caricaUtenti();caricaRfid()}if(b.dataset.t==="t13")caricaPrepagate();if(b.dataset.t==="t5")caricaMie();if(b.dataset.t==="t10")caricaProfilo();if(b.dataset.t==="t11")caricaTicket();if(b.dataset.t==="t9"){caricaLive();if(MONADM){caricaMal();caricaCf();caricaNot()}}if(b.dataset.t==="t8"){ocStato();caricaOcpp()}if(b.dataset.t==="t6"){caricaDest();caricaConfig();caricaTesti();caricaArchivio()}
