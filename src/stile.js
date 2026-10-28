@@ -42,6 +42,8 @@ export const STILE = [
   // desktop: header and tabs stick to the top while scrolling (on the phone the tabs stay at the bottom)
   "header{position:sticky;top:0;z-index:30}",
   "html{scroll-padding-top:190px}",
+  // controllo in tempo reale delle due password
+  ".pwm{font-size:12px;min-height:1em;margin-top:-4px}.pwm.ok{color:#2a8a55}.pwm.no{color:var(--esci)}",
   "@media (max-width:700px){" + [
     "html,body{overflow-x:clip}body{background:var(--bg)}",
     // tables not turned into cards (e.g. Information): wrap instead of widening the page

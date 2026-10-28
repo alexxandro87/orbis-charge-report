@@ -2274,6 +2274,38 @@ async function accettaInvito(req, env) {
   return r;
 }
 
+// password recovery from the login page: { nome } asks for the link (same answer whether the user exists or not),
+// { token, email, password } sets the new password. The token (1 hour) uses invito_hash/invito_exp, free for users who already have a password.
+async function recuperoPassword(req, env, url) {
+  let b; try { b = await req.json(); } catch (_) { return json({ errore: "Richiesta non valida" }, 400); }
+  await preparaTabelle(env);
+  const nome = String(b.nome || b.email || "").trim().toLowerCase(), ora = Math.floor(Date.now() / 1000);
+  if (b.token) {
+    const pw = String(b.password || "");
+    if (!PW_FORTE(pw)) return json({ errore: "La password non rispetta i requisiti" }, 400);
+    const u = await env.DB.prepare("SELECT nome, hash, invito_hash, invito_exp, verifica_hash FROM utenti WHERE nome=?").bind(nome).first();
+    if (!u || !u.hash || u.verifica_hash || !u.invito_hash || u.invito_exp < ora || !uguali(u.invito_hash, await sha256(String(b.token))))
+      return json({ errore: "Link non valido o scaduto: chiedi di nuovo il recupero della password" }, 400);
+    const c = await nuovaCredenziale(pw);
+    await env.DB.prepare("UPDATE utenti SET salt=?, hash=?, invito_hash=NULL, invito_exp=NULL WHERE nome=?").bind(c.salt, c.hash, nome).run();   // new hash: old sessions end
+    const r = json({ ok: true });
+    r.headers.append("set-cookie", cookie(await creaToken(env, { nome, hash: c.hash }), DURATA_SESSIONE));
+    return r;
+  }
+  if (await ipBloccato(env, req, "rec", 5)) return json({ errore: "Troppe richieste da questo indirizzo: riprova tra 10 minuti" }, 429);
+  await ipErrore(env, req, "rec");
+  const u = EMAIL_OK.test(nome) ? await env.DB.prepare("SELECT nome, hash, verifica_hash, invito_exp FROM utenti WHERE nome=?").bind(nome).first() : null;
+  if (u && u.hash && !u.verifica_hash && !(u.invito_exp && u.invito_exp > ora + 3000)) {   // at most one link every 10 minutes per account
+    const tok = hex(crypto.getRandomValues(new Uint8Array(32)));
+    await env.DB.prepare("UPDATE utenti SET invito_hash=?, invito_exp=? WHERE nome=?").bind(await sha256(tok), ora + 3600, nome).run();
+    const link = `${url.origin}/?recupero=${tok}&e=${encodeURIComponent(nome)}`;
+    await inviaMail(env, nome, `Nuova password / New password - ${TITOLO}`, mailBil("Recupero della password",
+      ["Hai chiesto di scegliere una nuova password per l'accesso " + nome + ".", "Apri questo link entro un'ora:", link, "Se non sei stato tu, ignora questa mail: la password attuale resta valida."],
+      "Password recovery", ["You asked to choose a new password for the account " + nome + ".", "Open this link within one hour:", link, "If it was not you, ignore this email: your current password stays valid."]));
+  }
+  return json({ ok: true });
+}
+
 // ------------------------------------------------ OCPP 1.6J server
 // The charger opens the connection to us; a Durable Object keeps it open (hibernating between messages).
 const EVENTI_ORE = 48;                                     // OCPP log kept for this long (cap 6000 rows)
@@ -2784,9 +2816,10 @@ export default {
       }
       if (url.pathname === "/api/login" && req.method === "POST") return await login(req, env);
       if (url.pathname === "/api/invito" && req.method === "POST") return await accettaInvito(req, env);
+      if (url.pathname === "/api/recupero" && req.method === "POST") return await recuperoPassword(req, env, url);
       if (url.pathname === "/api/registrazione" && req.method === "POST") return await registrazione(req, env);
       if (url.pathname === "/" && req.method === "GET" && q.get("verifica")) return await confermaEmail(url, env);
-      if (url.pathname === "/" && req.method === "GET" && q.get("invito"))
+      if (url.pathname === "/" && req.method === "GET" && (q.get("invito") || q.get("recupero")))
         return new Response(pagina(P_INVITO), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
       if (url.pathname.startsWith("/api/telegram/") && req.method === "POST") return await telegramWebhook(req, env, url);
       const me = await utenteCorrente(req, env);
