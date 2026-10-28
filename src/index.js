@@ -1202,7 +1202,7 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
     presa_ferma: { da: /^(Preparing|SuspendedEV|SuspendedEVSE|Finishing)$/.test(stP) ? prima("presa_ferma") : null, dett: "Stato della presa: " + stP + " (cavo collegato, nessuna ricarica in corso)" },
     lunga: { da: tx ? tx.inizio : null, dett: tx ? "Ricarica della tessera " + tx.tag + " iniziata il " + dataIt(tx.inizio) : "" },
     aperta: { da: tx && stP === "Available" ? prima("aperta") : null, dett: "Risulta una ricarica aperta ma la presa e' libera" },
-    nomi: { da: live.nomi_pendenti ? (live.nomi_pendenti_da || prima("nomi")) : null, dett: "I nomi delle tessere non sono stati rimessi sulla colonnina dopo l'invio della lista" },
+    nomi: { da: live.nomi_pendenti && !tx && !/^(Charging|Preparing|SuspendedEV|SuspendedEVSE|Finishing)$/.test(stP) ? prima("nomi") : null, dett: "I nomi delle tessere non sono stati rimessi sulla colonnina dopo l'invio della lista" },
     lista: { da: live.lista && live.lista.ok === false && !live.sync_pendente ? prima("lista") : null, dett: "L'ultimo invio della lista tessere alla colonnina non e' andato a buon fine" },
     scarico: { da: sc ? Date.parse(sc.valore) : null, dett: "Ultimo scarico riuscito: " + (sc ? dataIt(Date.parse(sc.valore)) : "-") + (er ? ". Ultimo errore: " + er.valore.slice(0, 200) : "") },
   };
@@ -2358,8 +2358,16 @@ export class Colonnina {
         if (a.azione === "SendLocalList") {                     // keep track of the outcome of the offline list send
           const l = this.get("lista") || {};
           if (tipo === 3 && azione && azione.status === "Accepted") l.inviate = (l.inviate || 0) + a.n; else l.ok = false;
-          if (!(this.get("coda") || []).length && l.ok !== false) { l.ok = true; this.put("nomi_pendenti", true); this.put("nomi_pendenti_da", Date.now()); this.state.waitUntil(this.rimettiNomi()); }
+          if (!(this.get("coda") || []).length && l.ok !== false) { l.ok = true; this.put("lista_v", this.get("lista_v_attesa")); this.put("nomi_pendenti", true); this.put("nomi_pendenti_da", Date.now()); this.state.waitUntil(this.rimettiNomi()); }
           this.put("lista", l);
+        }
+        if (a.azione === "GetLocalListVersion") {               // the charger already has this version: no resend, the names stay
+          const vc = tipo === 3 && azione ? azione.listVersion : null;
+          if (vc != null && vc === this.get("lista_v")) {
+            this.put("coda", (this.get("coda") || []).filter((x) => x.azione !== "SendLocalList"));
+            const l = this.get("lista") || {}; this.put("lista", { ...l, inviate: l.n, ok: true, invariata: true });
+            this.log("sys", "Lista tessere gia' aggiornata sulla colonnina (versione " + vc + "): non la rimando");
+          }
         }
         await this.prossimo();
       }
@@ -2458,7 +2466,8 @@ export class Colonnina {
     const aperta = [...this.sql.exec("SELECT 1 FROM transazioni WHERE fine IS NULL LIMIT 1")].length > 0;
     const occupata = [...this.sql.exec("SELECT v FROM kv WHERE k LIKE 'presa_%'")].some((r) => /Charging|Suspended|Preparing|Finishing/.test(r.v));   // also a car plugged in and waiting: sending the list makes it attempt an empty start
     if (!conConfig && (aperta || occupata)) { this.put("sync_pendente", true); return; }
-    this.put("sync_pendente", false);
+    const soloConfig = conConfig && (aperta || occupata);   // restart during a charge: settings now, list when the socket is free
+    this.put("sync_pendente", !!soloConfig);
     let tessere = [];
     if (listaOn) {
       const c = await this.env.DB.prepare("SELECT valore FROM meta WHERE chiave='rfid_stato'").first();
@@ -2475,11 +2484,13 @@ export class Colonnina {
     ] : [];
     if (conConfig) { this.put("hb", this.hbVoluto()); this.put("par_inviati", { ...pv }); }
     if (listaOn) {
-      for (let i = 0; i < Math.max(1, Math.ceil(tessere.length / 10)); i++) {   // max 10 cards per send (SendLocalListMaxLength): first Full, then Differential
+      const nChunk = Math.max(1, Math.ceil(tessere.length / 10));
+      if (conConfig && !soloConfig) cmd.push({ azione: "GetLocalListVersion", payload: {} });   // the list is resent only if the charger does not already have the latest version (every send wipes its names)
+      for (let i = 0; i < (soloConfig ? 0 : nChunk); i++) {   // max 10 cards per send (SendLocalListMaxLength): first Full, then Differential
         cmd.push({ azione: "SendLocalList", payload: { listVersion: v + i, updateType: i === 0 ? "Full" : "Differential",
           localAuthorizationList: tessere.slice(i * 10, i * 10 + 10).map((t) => ({ idTag: t.id, idTagInfo: t.scad ? { status: "Accepted", expiryDate: new Date(t.scad).toISOString() } : { status: "Accepted" } })) } });
       }
-      this.put("lista", { quando: Date.now(), n: tessere.length, inviate: 0, ok: null });
+      if (!soloConfig) { this.put("lista", { quando: Date.now(), n: tessere.length, inviate: 0, ok: null }); this.put("lista_v_attesa", v + nChunk - 1); }
     }
     this.put("coda", cmd);
     this.put("attesa", null);
