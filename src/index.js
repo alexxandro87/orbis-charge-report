@@ -1253,7 +1253,9 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
     const e = ext.parametri || (ext.parametri = {});
     if (!e.ultimo || ora - e.ultimo > 3600e3) {
       try {
-        const r = await (await DO.fetch("https://do/comando", { method: "POST", body: JSON.stringify({ azione: "GetConfiguration", payload: {} }) })).json();
+        const r0 = await (await DO.fetch("https://do/comando", { method: "POST", body: JSON.stringify({ azione: "GetConfiguration", payload: {} }) })).json();
+        const r = r0 && r0.risposta ? r0.risposta : r0;   // the command reply comes as { ok, risposta }
+        e.ultimo = ora;                                   // one read per hour even if the charger does not answer
         if (r && r.configurationKey) {
           const letti = Object.fromEntries(r.configurationKey.map((k) => [k.key, String(k.value)]));
           const voluti = { ...(live.lista_on ? { LocalAuthListEnabled: "true" } : {}), HeartbeatInterval: String((live.heartbeat && live.heartbeat.voluto) || 300),
@@ -3160,8 +3162,10 @@ export default {
             let payload = null;
             if (b.comando === "RemoteStopTransaction") {       // acts: stops the open charge (the server takes the id, not the user)
               const st = await (await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/stato")).json();
-              if (!st.transazione_aperta) return json({ errore: "Nessuna ricarica in corso da fermare" }, 400);
-              payload = { transactionId: st.transazione_aperta.id };
+              const pr = st.prese && st.prese["1"], ult = st.ultima_tx;
+              const tx = st.transazione_aperta || (ult && ult.meter_fin == null && pr && pr.status !== "Available" && st.meter && st.meter.tx === ult.id ? ult : null);   // restart with the socket in Finishing: the server closes it, the charger does not
+              if (!tx) return json({ errore: "Nessuna ricarica in corso da fermare" }, 400);
+              payload = { transactionId: tx.id };
             } else if (b.comando === "Reset") {                // restart (soft): only when the charger is free, never during a charge
               const st = await (await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/stato")).json();
               const occ = Object.values(st.prese || {}).some((p) => /Charging|Suspended|Preparing|Finishing/.test(p.status));
