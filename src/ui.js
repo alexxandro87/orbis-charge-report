@@ -1960,7 +1960,7 @@ $("f").onsubmit=function(ev){
   fetch("/api/login",{method:"POST",headers:{"content-type":"application/json"},
     body:JSON.stringify({nome:$("n").value,password:$("p").value})})
   .then(function(r){return r.json()}).then(function(r){
-    if(r.ok)location.reload();else $("e").textContent=T(r.errore||"Errore")})
+    if(r.ok)location.replace("/");else $("e").textContent=T(r.errore||"Errore")})
   .catch(function(){$("e").textContent=T("Errore di rete")});
 };
 
