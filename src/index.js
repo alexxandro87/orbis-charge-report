@@ -1138,48 +1138,68 @@ async function notifica(env, titolo, dett, ts = Date.now()) {
 }
 const potenzaKw = (m) => { const x = m && m.dati && m.dati["Power.Active.Import"]; if (!x) return null; const v = parseFloat(x.v); return isNaN(v) ? null : /^k/i.test(x.u) ? v : v / 1000; };
 const energiaKwh = (m) => { const x = m && m.dati && m.dati["Energy.Active.Import.Register"]; if (!x) return null; const v = parseFloat(x.v); return isNaN(v) ? null : /^k/i.test(x.u) ? v : v / 1000; };
-// ------------------------------------------------ reminder to users: charge finished but car still plugged in
-const AVVISI_DEF = { on: true, attesa: 10, sollecito: 60 };      // minutes after the end of the charge; sollecito 0 = no second reminder
+// ------------------------------------------------ notices to users: summary at the end of the charge, then reminders while the car stays plugged in
+const AVVISI_DEF = { on: true, attesa: 10, sollecito: 60 };      // minutes after the end of the charge for the reminders (0 = none)
 async function leggiAvvisi(env) { return { ...AVVISI_DEF, ...(await leggiMeta(env, "avvisi_utenti_cfg", {})) }; }
+const durataBreve = (ms) => { const m = Math.max(0, Math.round(ms / 60000)), h = Math.floor(m / 60); return h ? h + " h " + (m % 60) + " min" : m + " min"; };
+const dataOra = (ms, en) => new Date(ms).toLocaleString(en ? "en-GB" : "it-IT", { timeZone: TZ, dateStyle: "short", timeStyle: "short" });
 async function avvisiUtenti(env, live, ora) {
   const cfg = await leggiAvvisi(env), pr = live.prese && live.prese["1"], tx = live.ultima_tx, st = pr ? pr.status : "";
-  const attiva = cfg.on && live.connessa && pr && tx;
-  const sospesa = attiva && /^(Finishing|SuspendedEV|SuspendedEVSE)$/.test(st);
+  if (!cfg.on || !tx) return;
+  let rec = await leggiMeta(env, "avvisi_utenti", null);
+  if (!rec || rec.chiave !== tx.id) rec = { chiave: tx.id };
+  if (rec.m1 && !rec.m0) rec.m0 = rec.m1;                   // record from before v2.19.0: the first notice counts as the summary
+  const vista = live.connessa && pr, aperta = tx.fine == null;
+  const sospesa = vista && aperta && /^(Finishing|SuspendedEV|SuspendedEVSE)$/.test(st);
   // Orbis 7.2.53 keeps the socket in Charging until the cable is unplugged: a full car shows as a new meter sample
   // with the same counter and no power. That counts as "charging finished" too, from the first stalled sample.
-  const kwh = attiva && st === "Charging" ? energiaKwh(live.meter) : null, inCarica = kwh !== null;
-  if (!sospesa && !inCarica) { await env.DB.prepare("DELETE FROM meta WHERE chiave='avvisi_utenti'").run(); return; }
-  let rec = await leggiMeta(env, "avvisi_utenti", null);
-  if (!rec || rec.chiave !== tx.id) {
-    const t = Date.parse(pr.ts);                          // from the socket's timestamp if plausible, otherwise from when it was first seen
-    rec = { chiave: tx.id, da: sospesa ? (t && t <= ora + 120000 && ora - t < 6 * 3600e3 ? t : ora) : null };
-  }
-  if (inCarica) {
+  const kwhLive = vista && aperta && st === "Charging" ? energiaKwh(live.meter) : null;
+  if (kwhLive !== null) {
     const mts = live.meter.ts || null, kw = potenzaKw(live.meter);
-    if ("ets" in rec && rec.ets !== mts) rec.eda = kwh === rec.e && !(kw > 0.1) ? (rec.eda || ora) : null;   // new sample: same counter and no power = stalled
-    rec.e = kwh; rec.ets = mts;
-    if (!rec.m1) rec.da = rec.eda || null;                // counter moving again before any notice: nothing to report
-  } else if (!rec.da) rec.da = ora;
-  if (!rec.da) { await salvaMeta(env, "avvisi_utenti", rec); return; }
-  const like = `%"${tx.tag}"%`;
-  const u = await env.DB.prepare("SELECT nome FROM utenti WHERE (tessera=? OR tessere_altre LIKE ?) AND ruolo!='admin' LIMIT 1").bind(tx.tag, like).first()
-    || await env.DB.prepare("SELECT nome FROM utenti WHERE tessera=? OR tessere_altre LIKE ? LIMIT 1").bind(tx.tag, like).first();
-  if (u && EMAIL_OK.test(u.nome)) {
-    const wh = tx.meter_fin != null ? tx.meter_fin : (rec.e != null ? rec.e * 1000 : null);   // open transaction: energy from the last meter sample
-    const kwh = wh != null && tx.meter_ini != null ? ((wh - tx.meter_ini) / 1000).toFixed(1).replace(".", ",") + " kWh" : "";
-    const invia = async (promemoria) => {                 // email and, for those who allowed it, Telegram message
-      const a = [promemoria ? "Promemoria: ricarica terminata, auto ancora collegata" : "Ricarica terminata", [
-        "La ricarica con la tessera " + tx.tag + " è terminata" + (tx.fine ? " alle " + new Date(tx.fine).toLocaleTimeString("it-IT", { timeZone: TZ, timeStyle: "short" }) : "") + (kwh ? " (" + kwh + ")" : "") + ".",
-        "L'auto risulta ancora collegata alla colonnina: per favore scollegala per lasciare il posto agli altri utenti."],
-      promemoria ? "Reminder: charging finished, car still plugged in" : "Charging finished", [
-        "Charging with card " + tx.tag + " has finished" + (tx.fine ? " at " + new Date(tx.fine).toLocaleTimeString("en-GB", { timeZone: TZ, timeStyle: "short" }) : "") + (kwh ? " (" + kwh.replace(",", ".") + ")" : "") + ".",
-        "The car is still plugged in: please unplug it so others can use the charger."]];   // [title IT, lines IT, title EN, lines EN]
-      const m = await inviaMail(env, u.nome, `${promemoria ? "Promemoria: la ricarica" : "La ricarica"} è terminata - ${TITOLO}`, mailBil(a[0], a[1], a[2], a[3]));
-      const x = await inviaMessaggio(env, u.nome, [a[0] + ".", ...a[1]], [a[2] + ".", ...a[3]]);
-      return m === "inviata" || x.telegram === "inviato" ? "inviata" : m;
-    };
-    if (!rec.m1 && ora - rec.da >= cfg.attesa * 60000) { if ((await invia(false)) === "inviata") rec.m1 = ora; }
-    else if (rec.m1 && !rec.m2 && cfg.sollecito > 0 && ora - rec.da >= cfg.sollecito * 60000) { if ((await invia(true)) === "inviata") rec.m2 = ora; }
+    if ("ets" in rec && rec.ets !== mts) rec.eda = kwhLive === rec.e && !(kw > 0.1) ? (rec.eda || ora) : null;   // new sample: same counter and no power = stalled
+    rec.e = kwhLive; rec.ets = mts;
+  }
+  // since when the charge appears finished: closed by the charger, socket suspended or counter stalled
+  let fine = null;
+  if (!aperta) fine = tx.fine;
+  else if (sospesa) { const t = Date.parse(pr.ts); fine = rec.da || (t && t <= ora + 120000 && ora - t < 6 * 3600e3 ? t : ora); }   // from the socket's timestamp if plausible, otherwise from when it was first seen
+  else if (kwhLive !== null && rec.eda) fine = rec.eda;
+  rec.da = fine;                                            // charging resuming resets the reminder countdown
+  const u = fine ? await utenteDiTessera(env, tx.tag) : null;
+  if (!u || !EMAIL_OK.test(u.nome)) { await salvaMeta(env, "avvisi_utenti", rec); return; }
+  const collegata = vista && /^(Charging|Finishing|SuspendedEV|SuspendedEVSE|Preparing)$/.test(st);   // car still plugged in
+  const eLive = live.meter && live.meter.tx === tx.id ? energiaKwh(live.meter) : rec.e;   // open transaction: energy from the last meter sample of this charge
+  const wh = tx.meter_ini == null ? null : tx.meter_fin != null ? tx.meter_fin - tx.meter_ini : (eLive != null ? Math.round(eLive * 1000) - tx.meter_ini : null);
+  const kwh = wh === null ? null : Math.max(0, wh) / 1000, kwhTxt = (en) => kwh === null ? "" : (en ? kwh.toFixed(1) : kwh.toFixed(1).replace(".", ","));
+  const stacca = ["L'auto risulta ancora collegata alla colonnina: scollega il cavo e sposta l'auto, per lasciare il posto agli altri utenti.",
+    "The car is still plugged in: unplug the cable and move the car, so others can use the charger."];
+  const invia = async (tit, titEn, rIt, rEn) => {           // email and, for those who enabled it, Telegram message
+    const m = await inviaMail(env, u.nome, `${tit} - ${TITOLO}`, mailBil(tit, rIt, titEn, rEn));
+    const x = await inviaMessaggio(env, u.nome, [tit + ".", ...rIt], [titEn + ".", ...rEn]);
+    return m === "inviata" || x.telegram === "inviato";
+  };
+  if (!rec.m0) {                                            // summary, once per charge
+    if (aperta && ora - fine < 5 * 60000) { await salvaMeta(env, "avvisi_utenti", rec); return; }   // suspended or stalled counter: must last at least 5 minutes (short pauses of the car do not count)
+    if ((kwh !== null && kwh < 0.05) || ora - fine > 3600e3) rec.m0 = ora;   // empty charge, or finished more than an hour ago (e.g. after a deploy): no summary
+    else {
+      const rIt = [`La ricarica con la tessera ${tx.tag} è terminata.`, `Inizio: ${dataOra(tx.inizio)} - Fine: ${dataOra(fine)} - Durata: ${durataBreve(fine - tx.inizio)}.`];
+      const rEn = [`Charging with card ${tx.tag} has finished.`, `Start: ${dataOra(tx.inizio, true)} - End: ${dataOra(fine, true)} - Duration: ${durataBreve(fine - tx.inizio)}.`];
+      if (kwh !== null) { rIt.push(`Energia caricata: ${kwhTxt()} kWh.`); rEn.push(`Energy charged: ${kwhTxt(true)} kWh.`); }
+      const p = await env.DB.prepare("SELECT prezzo_cent, residuo_cent FROM prepagate WHERE tag=?").bind(tx.tag).first();
+      if (p && kwh !== null) {                              // prepaid card: cost of this charge and remaining credit (recomputed just before by controlloPrepagate)
+        const costo = eurC(Math.round(kwh * p.prezzo_cent)), res = eurC(Math.max(0, p.residuo_cent)), prezzo = eurC(p.prezzo_cent), en = (s) => s.replace(",", ".");
+        rIt.push(`Costo: ${costo} ${VALUTA} (${prezzo} ${VALUTA}/kWh). Credito residuo: ${res} ${VALUTA}.`);
+        rEn.push(`Cost: ${VALUTA}${en(costo)} (${VALUTA}${en(prezzo)}/kWh). Remaining credit: ${VALUTA}${en(res)}.`);
+      }
+      if (collegata) { rIt.push(stacca[0]); rEn.push(stacca[1]); } else { rIt.push("Grazie per aver liberato la colonnina."); rEn.push("Thank you for freeing the charger."); }
+      if (await invia("Ricarica terminata", "Charging finished", rIt, rEn)) rec.m0 = ora;
+    }
+  } else if (collegata) {                                   // reminders while the car stays plugged in
+    const prom = () => invia("Promemoria: ricarica terminata, auto ancora collegata", "Reminder: charging finished, car still plugged in",
+      [`La ricarica con la tessera ${tx.tag} è terminata alle ${new Date(fine).toLocaleTimeString("it-IT", { timeZone: TZ, timeStyle: "short" })}${kwh !== null ? " (" + kwhTxt() + " kWh)" : ""}.`, stacca[0]],
+      [`Charging with card ${tx.tag} finished at ${new Date(fine).toLocaleTimeString("en-GB", { timeZone: TZ, timeStyle: "short" })}${kwh !== null ? " (" + kwhTxt(true) + " kWh)" : ""}.`, stacca[1]]);
+    if (!rec.m1 && cfg.attesa > 0 && ora - fine >= cfg.attesa * 60000) { if (await prom()) rec.m1 = ora; }
+    else if (rec.m1 && !rec.m2 && cfg.sollecito > 0 && ora - fine >= cfg.sollecito * 60000) { if (await prom()) rec.m2 = ora; }
   }
   await salvaMeta(env, "avvisi_utenti", rec);
 }
@@ -1192,8 +1212,8 @@ async function verificaMalfunzionamenti(env, ora = Date.now()) {
   const DO = env.COLONNINA.get(env.COLONNINA.idFromName("colonnina"));
   let live;
   try { live = await (await DO.fetch("https://do/stato")).json(); } catch (_) { return; }
-  try { await avvisiUtenti(env, live, ora); } catch (_) { /* optional */ }
   try { await controlloPrepagate(env, ora); } catch (_) { /* optional */ }
+  try { await avvisiUtenti(env, live, ora); } catch (_) { /* optional */ }   // after the prepaid check: the summary carries the updated remaining credit
   let eventiDO = [];
   try { eventiDO = await (await DO.fetch("https://do/malf-eventi", { method: "POST" })).json(); } catch (_) { /* no events */ }
   const on = (id) => cfg.regole[id].on, v = (id) => cfg.regole[id].min;
@@ -3117,8 +3137,8 @@ export default {
           }
           if (b.azione === "avvisi") {
             const at = Math.round(Number(b.attesa)), so = Math.round(Number(b.sollecito));
-            if (!(at >= 0 && at <= 240)) return json({ errore: "Attesa non valida: da 0 a 240 minuti" }, 400);
-            if (!(so === 0 || (so >= 5 && so <= 1440))) return json({ errore: "Secondo avviso non valido: 0 (nessuno) oppure da 5 a 1440 minuti" }, 400);
+            if (!(at === 0 || (at >= 5 && at <= 240))) return json({ errore: "Promemoria non valido: 0 (nessuno) oppure da 5 a 240 minuti" }, 400);
+            if (!(so === 0 || (so >= 5 && so <= 1440))) return json({ errore: "Secondo promemoria non valido: 0 (nessuno) oppure da 5 a 1440 minuti" }, 400);
             await salvaMeta(env, "avvisi_utenti_cfg", { on: !!b.on, attesa: at, sollecito: so });
             return json({ ok: true, avvisi: await leggiAvvisi(env) });
           }

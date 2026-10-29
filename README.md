@@ -44,7 +44,7 @@ Nothing about a specific installation is in the code: charger address, title, ti
 - **Sessions started from the app** (no RFID card) are kept in a separate section that only authorised users see.
 - **Monthly price entry** (price per kWh and VAT); once saved, the month is locked.
 - **Monthly report by email** with a PDF of every session attached (via Resend), to the recipients you choose. Each charger user also gets a personal email with their own amounts.
-- **Telegram bot** (optional): service notices to the users who consent (charging finished and car still plugged in, monthly amounts, request outcomes, card reactivated), up to two chats per account, and support commands (`/smarrita`, `/danneggiata`, `/problema`, `/richieste`).
+- **Telegram bot** (optional): service notices to the users who consent (end-of-charge summary and reminders, monthly amounts, request outcomes, card reactivated), up to two chats per account, and support commands (`/smarrita`, `/danneggiata`, `/problema`, `/richieste`).
 - **Users and permissions**: administrator, managers with per-feature permissions, charger users bound to one or more cards who see only their own sessions and can download them as PDF.
 - **Self-registration**: users can register by themselves (strong password, phone numbers, acceptance of the rules and privacy notice with the edition recorded), confirm their email, and are activated when the administrator links their card. A "My profile" tab lets them change or withdraw consents.
 - **Support tickets**: lost or damaged card (the card is blocked on the charger at once), new card request with the fee and payment options you configure (PayPal.me, Satispay, Revolut, cash), data correction, deletion of data or account, charger problems. The administrator approves or rejects; the user gets the outcome by email.
@@ -53,7 +53,7 @@ Nothing about a specific installation is in the code: charger address, title, ti
 - **Cards on the charger**: read, add, edit, block, remove, import, export and restore the cards the charger accepts, straight from the page. Card names are put back after the charger rewrites its list.
 - **Card holders with dates**: reports use the holder at the time of each session, so handing a card to someone else never rewrites past months.
 - **Monitoring**: 24 checks (connection, socket and charges, cards, settings, site and security), each off until you enable it, with thresholds, email when a problem starts and ends, in-site notifications and a history of episodes.
-- **Reminders to users**: email to whoever charged when the charge is over but the car is still plugged in.
+- **Notices to users**: at the end of a charge the user gets a summary (times, duration, kWh; cost and remaining credit for prepaid cards) and, while the car stays plugged in, reminders to free the charger.
 - **Prepaid cards**: a credit in euros deducted at a per-card price; when it runs out the card is blocked and the charge is stopped remotely.
 - **Charges archive**: encrypted export of a period as a zip with an offline HTML viewer, and deletion of exported months to free space.
 - **Encryption of personal data** (AES-256-GCM, key in a Worker secret) and encrypted backup from the page.
@@ -239,8 +239,8 @@ From the **Support** tab a user opens a request: lost or damaged card, new card 
 For card, charger and new-card tickets the administrator also gets an email (monitoring recipients); the others only an in-site notification.
 
 ## Telegram messages and bot
-Optional. Users who give the consent (registration or "My profile") get, besides the email, a Telegram message when: charging
-finishes and the car stays plugged in (and the reminder), the monthly price is entered (their amounts), one of their requests
+Optional. Users who give the consent (registration or "My profile") get, besides the email, a Telegram message when: a charge
+finishes (the summary, then the reminders while the car stays plugged in), the monthly price is entered (their amounts), one of their requests
 is approved/rejected/closed, their card is reactivated. Text in Italian and English, no HTML.
 
 1. On Telegram open BotFather, `/newbot`, choose a name and a username; copy the token.
@@ -276,7 +276,9 @@ The **Monitoring** tab shows the charge in progress to everyone. For the adminis
 
 - **Malfunction recipients and checks**: 24 checks grouped by area (connection, socket and charges, cards, settings, site and security), for example charger not connected, no messages, too many reconnections, unexpected restart, clock drift, public IP changed, socket in error or unavailable, cable plugged without charging, energy not increasing, charge too long or too big, charge left open, same card refused repeatedly, cards on the charger differing from the site, names not restored, card list send failed, setting different from the wanted one, firmware changed, data not downloaded, backup too old, too many failed sign-ins, OCPP connections with a wrong token, Cloudflare usage near the limit. **Every check is off until you enable it**, each with Mail and Notification boxes and a threshold. The checks run every 5 minutes (second cron in `wrangler.toml`). An email goes out when a problem starts and another when it ends; single events (restart, IP, firmware) once. "Send test email" checks the recipients.
 - **Notifications**: in-site alerts (unread counter on the tab) for checks set to "Notification", for emails that could not be sent, for registrations to activate and new tickets.
-- **Reminders to users**: email to the user whose card charged when the charge is over but the car is still plugged in, including when the charger stays in Charging with a full car (counter still and zero power; first after 10 minutes, a reminder after 60; both configurable, can be turned off). One email per charge.
+- **Notices to users** (Monitoring): at the end of a charge the user whose card charged gets a summary (start, end, duration, kWh; for prepaid cards also the cost and the remaining credit) with a request to unplug the cable and move the car if it is still plugged in.
+  It goes out at once if the cable was unplugged or the card swiped, after 5 minutes if the socket is suspended or the counter is still with a full car (the charger stays in Charging); no summary for 0 kWh charges. Then, while the car stays plugged in, up to two reminders (minutes configurable, 0 = none; defaults 10 and 60).
+  All by email and, for those who enabled it, Telegram, in Italian and English.
 - **Last episodes**: history with start and end of each problem.
 
 ## Cloudflare usage

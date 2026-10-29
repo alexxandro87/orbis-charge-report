@@ -44,7 +44,7 @@ Nel codice non c'è nulla di una installazione specifica: indirizzo della colonn
 - **Ricariche avviate da app** (senza tessera) in una sezione a parte, visibile solo a chi ha il permesso.
 - **Prezzo mensile** (prezzo al kWh e IVA); una volta salvato, il mese è bloccato.
 - **Report mensile via mail** con il PDF di tutte le sessioni allegato (Resend), ai destinatari che scegli. Ogni utente della colonnina riceve anche una mail personale con i suoi importi.
-- **Bot Telegram** (facoltativo): avvisi di servizio agli utenti che danno il consenso (ricarica terminata con auto ancora collegata, importi del mese, esito delle richieste, tessera riattivata), fino a due chat per account, e comandi di assistenza (`/smarrita`, `/danneggiata`, `/problema`, `/richieste`).
+- **Bot Telegram** (facoltativo): avvisi di servizio agli utenti che danno il consenso (riepilogo a fine ricarica e promemoria, importi del mese, esito delle richieste, tessera riattivata), fino a due chat per account, e comandi di assistenza (`/smarrita`, `/danneggiata`, `/problema`, `/richieste`).
 - **Utenti e permessi**: amministratore, gestori con permessi per funzione, utenti della colonnina legati a una o più tessere che vedono solo le proprie ricariche e le scaricano in PDF.
 - **Registrazione autonoma**: gli utenti si registrano da soli (password forte, telefoni, accettazione di regolamento e informativa con l'edizione registrata), confermano l'email e vengono attivati quando l'amministratore abbina la tessera. La scheda "Il mio profilo" permette di cambiare o revocare i consensi.
 - **Assistenza (ticket)**: tessera smarrita o danneggiata (bloccata subito sulla colonnina), richiesta di nuova tessera con costo e metodi di pagamento configurabili (PayPal.me, Satispay, Revolut, contanti), correzione dei dati, cancellazione di dati o utenza, problemi con la colonnina. L'amministratore approva o rifiuta; l'utente riceve l'esito per mail.
@@ -53,7 +53,7 @@ Nel codice non c'è nulla di una installazione specifica: indirizzo della colonn
 - **Tessere sulla colonnina**: lettura, aggiunta, modifica, blocco, eliminazione, import, export e ripristino delle tessere accettate dalla colonnina, dalla pagina. I nomi vengono rimessi dopo che la colonnina riscrive il proprio elenco.
 - **Intestatari con date**: i report usano chi aveva la tessera al momento di ogni sessione, così passare una tessera a un altro non riscrive i mesi passati.
 - **Monitoraggio**: 24 controlli (connessione, presa e ricariche, tessere, impostazioni, sito e sicurezza), ognuno spento finché non lo accendi, con soglie, mail all'inizio e alla fine del problema, notifiche nel sito e storico degli episodi.
-- **Avvisi agli utenti**: mail a chi ha caricato quando la ricarica è finita ma l'auto è ancora collegata.
+- **Avvisi agli utenti**: a fine ricarica l'utente riceve un riepilogo (orari, durata, kWh; costo e credito residuo per le prepagate) e, finché l'auto resta collegata, promemoria per liberare la colonnina.
 - **Tessere prepagate**: un credito in euro scalato con un prezzo per tessera; a credito esaurito la tessera viene bloccata e la ricarica fermata da remoto.
 - **Archivio delle ricariche**: esportazione cifrata di un periodo in uno zip con visualizzatore HTML offline, ed eliminazione dei mesi esportati per liberare spazio.
 - **Cifratura dei dati personali** (AES-256-GCM, chiave in un secret del Worker) e backup cifrato dalla pagina.
@@ -240,7 +240,7 @@ Per tessera, colonnina e nuova tessera l'amministratore riceve anche la mail (de
 
 ## Messaggi e bot Telegram
 Facoltativo. Gli utenti che danno il consenso (registrazione o «Il mio profilo») ricevono, oltre alla mail, un messaggio
-Telegram quando: la ricarica finisce e l'auto resta collegata (e il promemoria), viene inserito il prezzo del mese (i loro
+Telegram quando: la ricarica finisce (il riepilogo, poi i promemoria finché l'auto resta collegata), viene inserito il prezzo del mese (i loro
 importi), una loro richiesta viene approvata/rifiutata/chiusa, la tessera viene riattivata. Testo in italiano e inglese.
 
 1. Su Telegram apri BotFather, `/newbot`, scegli nome e username; copia il token.
@@ -276,7 +276,9 @@ La scheda **Monitoraggio** mostra a tutti la ricarica in corso. Per l'amministra
 
 - **Destinatari malfunzionamenti e controlli**: 24 controlli divisi per area (connessione, presa e ricariche, tessere, impostazioni, sito e sicurezza), per esempio colonnina non collegata, senza messaggi, troppe riconnessioni, riavvio imprevisto, orologio sfasato, IP pubblico cambiato, presa in errore o non disponibile, cavo collegato senza ricarica, energia ferma, ricarica troppo lunga o troppo grande, ricarica rimasta aperta, stessa tessera rifiutata più volte, tessere colonnina/sito diverse, nomi non ripristinati, invio lista non riuscito, impostazione diversa da quella voluta, firmware cambiato, dati non scaricati, backup vecchio, troppi accessi falliti, collegamenti OCPP con codice sbagliato, consumi Cloudflare vicini al limite. **Tutti i controlli sono spenti finché non li accendi**, ognuno con le caselle Mail e Notifica e una soglia. Il controllo gira ogni 5 minuti (secondo cron in `wrangler.toml`). Una mail parte all'inizio del problema e una quando rientra; gli eventi singoli (riavvio, IP, firmware) una volta sola. "Invia mail di prova" verifica i destinatari.
 - **Notifiche**: avvisi nel sito (contatore delle non lette sulla scheda) per i controlli impostati su "Notifica", per le mail non inviate, per le registrazioni da attivare e i nuovi ticket.
-- **Avvisi agli utenti**: mail all'utente della tessera che ha caricato quando la ricarica è finita ma l'auto è ancora collegata, anche quando la colonnina resta in Charging ad auto piena (contatore fermo e potenza zero; la prima dopo 10 minuti, un sollecito dopo 60; entrambi modificabili e disattivabili). Una mail per ricarica.
+- **Avvisi agli utenti** (Monitoraggio): a fine ricarica, all'utente della tessera che ha caricato arriva un riepilogo (inizio, fine, durata, kWh; per le prepagate anche costo e credito residuo) con l'invito a scollegare il cavo e spostare l'auto se è ancora collegata.
+  Parte subito se il cavo è stato staccato o la tessera passata, dopo 5 minuti se la presa è in sospeso o il contatore è fermo ad auto piena (la colonnina resta in Charging); niente riepilogo per le ricariche a 0 kWh. Poi, finché l'auto resta collegata, fino a due promemoria (minuti impostabili, 0 = nessuno; di serie 10 e 60).
+  Tutto per mail e, per chi lo ha attivato, Telegram, in italiano e inglese.
 - **Ultimi episodi**: storico con inizio e fine di ogni problema.
 
 ## Consumi Cloudflare
