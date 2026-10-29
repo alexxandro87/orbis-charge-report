@@ -55,7 +55,7 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
 <header class="noprint">
   <div class="top">
     <div id="titoloM"></div>
-    <h1>__TITLE__ <span class="ver">__VERSION__</span></h1>
+    <div class="marca"><span class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></span><h1>__TITLE__ <span class="ver">__VERSION__</span></h1></div>
     <div class="utente">
       <span class="ver verM">__VERSION__</span>
       <span id="chi"></span>
@@ -80,6 +80,7 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
     <button class="p" id="bPwOk">Salva</button>
     <span class="sub err" id="pwEsito"></span>
   </div>
+</header>
 <nav class="noprint">
   <button class="on" data-t="t1">Report mensile</button>
   <button data-t="t3">Tutte le sessioni</button>
@@ -94,7 +95,6 @@ nav{flex-wrap:wrap}button{white-space:nowrap}.top h1{min-width:0;overflow-wrap:a
   <button data-t="t11" id="navT" class="hide">Assistenza<span id="navTN"></span></button>
   <button data-t="t12" id="navI" class="hide">Informazioni</button>
 </nav>
-</header>
 <main>
 
 <section id="t1">
@@ -1846,7 +1846,7 @@ details h4{margin:10px 0 3px;font-size:13px}details p,details li{margin:3px 0}
 <body>
 <div class="card">
   <button type="button" id="bLang" style="float:right;background:none;border:0;color:var(--acc);padding:0;cursor:pointer"></button><button type="button" id="bTema" style="float:right;margin-right:12px;background:none;border:0;color:var(--acc);padding:0;cursor:pointer"></button>
-  <h1>__TITLE__ <span class="ver">__VERSION__</span></h1>
+  <div class="marca"><span class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></span><h1>__TITLE__ <span class="ver">__VERSION__</span></h1></div>
   <div class="sub">Accedi o registrati per consultare le tue ricariche</div>
   <div class="tabs"><button type="button" id="tA" class="on">Accedi</button><button type="button" id="tR">Registrati</button></div>
 
@@ -2048,7 +2048,7 @@ details h4{margin:10px 0 3px;font-size:13px}details p,details li{margin:3px 0}
 <body>
 <div class="card">
   <button type="button" id="bLang" style="float:right;background:none;border:0;color:var(--acc);padding:0;cursor:pointer"></button><button type="button" id="bTema" style="float:right;margin-right:12px;background:none;border:0;color:var(--acc);padding:0;cursor:pointer"></button>
-  <h1>__TITLE__ <span class="ver">__VERSION__</span></h1>
+  <div class="marca"><span class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></span><h1>__TITLE__ <span class="ver">__VERSION__</span></h1></div>
   <div class="sub" id="tit"></div>
   <div class="sub" id="chi"></div>
   <form id="g" autocomplete="on" novalidate>
@@ -2225,7 +2225,7 @@ pre{white-space:pre-wrap;font-size:12px;max-height:140px;overflow:auto;border:1p
 <body>
 <div class="card">
   <button type="button" id="bLang" style="float:right;background:none;border:0;color:var(--acc);padding:0;cursor:pointer"></button>
-  <h1>Prima configurazione <span class="ver">__VERSION__</span></h1>
+  <div class="marca"><span class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></span><h1>Prima configurazione <span class="ver">__VERSION__</span></h1></div>
   <div class="sub">Crea l'amministratore e indica la colonnina. Tutto si può cambiare dopo dalla scheda Impostazioni.</div>
   <form id="f">
     <h2>Amministratore</h2>

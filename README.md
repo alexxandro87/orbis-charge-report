@@ -59,7 +59,8 @@ Nothing about a specific installation is in the code: charger address, title, ti
 - **Encryption of personal data** (AES-256-GCM, key in a Worker secret) and encrypted backup from the page.
 - **Cloudflare usage** box: requests, D1 rows, OCPP usage and storage against the free-plan limits, with a monthly summary and an alert near the limit.
 - **English and Italian interface**, day / night / auto theme, no horizontal scrolling, tables that become cards on phones.
-- **App-like layout on phones** (up to 700 px wide): bottom tab bar with icons (the administrator's extra tabs go into a "More" menu), the open tab's title at the top, larger fields and buttons. Nothing changes on a computer.
+- **App-like layout on phones** (up to 700 px wide): bottom tab bar with icons (the administrator's extra tabs go into a "More" menu), the open tab's title at the top, larger fields and buttons.
+- **Clean look with an icon for each section**: rounded cards and fields, blue as the site colour, a blue brand mark next to the title. On a computer the header scrolls away and the tab bar, with the icons, stays fixed at the top.
 - **Version next to the title** (for example `v2.3.1`, from `package.json`), so you can see at a glance which release a site is running; on phones it is shown under the links at the top.
 - **First-run setup page** and **everything configurable from the web page**.
 - Optional import of the per-card CSV exports of the Viaris desktop program.
