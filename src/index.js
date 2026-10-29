@@ -425,18 +425,28 @@ function intestazioni(c) {
   return h;
 }
 const urlCompleto = (c, path) => c.url.replace(/\/$/, "") + (path.startsWith("/") ? "" : "/") + path;
-async function conTimeout(url, c, ms) {
+async function oneRequest(url, c, ms) {
   const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), ms || c.timeout * 1000);
+  const t = setTimeout(() => ctl.abort(), ms);
   try {
     const r = await fetch(url, { signal: ctl.signal, headers: intestazioni(c) });
     if (!r.ok) throw new Error("HTTP " + r.status);
     return await r.text();
   } catch (e) {
-    if (e.name === "AbortError") throw new Error(`nessuna risposta entro ${Math.round((ms || c.timeout * 1000) / 1000)} s`);
+    if (e.name === "AbortError") throw new Error(`nessuna risposta entro ${Math.round(ms / 1000)} s`);
     throw e;
   } finally {
     clearTimeout(t);
+  }
+}
+// sometimes the charger (or its router) drops every other connection: if the first try gets no answer within
+// 8 seconds (or the network refuses it) try once more with the full time; an HTTP error is not repeated
+async function conTimeout(url, c, ms) {
+  const full = ms || c.timeout * 1000;
+  try { return await oneRequest(url, c, Math.min(full, 8000)); }
+  catch (e) {
+    if (/^HTTP /.test(e.message)) throw e;
+    return await oneRequest(url, c, full);
   }
 }
 // card list paths: read and save (null = card management is not available for this charger)
