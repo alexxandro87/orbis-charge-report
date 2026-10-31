@@ -129,6 +129,21 @@ const dataLocale = (s) => {                               // accepts dd-mm-yyyy 
   m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(t);
   return m ? epochDaLocale(+m[1], +m[2], +m[3]) : null;
 };
+// consecutive periods of the same card, not retired, where one name contains the other: merged into one, with the latest name
+function unisciPeriodi(righe) {
+  const via = [], nomi = [];
+  let p = null, nomeP = null;
+  const chiudi = () => { if (p && nomeP !== p.nome) nomi.push({ tag: p.tag, dal: p.dal, nome: nomeP }); };
+  for (const r of righe) {
+    if (p && r.tag === p.tag && p.al == null && r.al == null && (norm(r.nome).includes(norm(nomeP)) || norm(nomeP).includes(norm(r.nome)))) {
+      via.push({ tag: r.tag, dal: r.dal }); nomeP = r.nome;
+      continue;
+    }
+    chiudi(); p = r; nomeP = r.nome;
+  }
+  chiudi();
+  return { via, nomi };
+}
 async function syncNomi(env) {
   if (!nomiTabellaOk) {
     await env.DB.prepare("CREATE TABLE IF NOT EXISTS tessere_nomi (tag TEXT NOT NULL, nome TEXT NOT NULL, dal INTEGER NOT NULL, al INTEGER, man INTEGER DEFAULT 0, PRIMARY KEY (tag, dal))").run();
@@ -142,6 +157,11 @@ async function syncNomi(env) {
       "WHERE dal = 0 AND EXISTS (SELECT 1 FROM sessioni WHERE sessioni.tag = tessere_nomi.tag)").run();
     // periods with no sessions still at 1970: start now
     await env.DB.prepare("UPDATE tessere_nomi SET dal = ? WHERE dal = 0").bind(Math.floor(Date.now() / 1000)).run();
+    // duplicate periods created when the charger sent back a shorter name (SMITH / A 12 SMITH): merge them
+    const u = unisciPeriodi((await env.DB.prepare("SELECT tag, nome, dal, al FROM tessere_nomi ORDER BY tag, dal").all()).results);
+    const ops = [...u.via.map((x) => env.DB.prepare("DELETE FROM tessere_nomi WHERE tag=? AND dal=?").bind(x.tag, x.dal)),
+      ...u.nomi.map((x) => env.DB.prepare("UPDATE tessere_nomi SET nome=? WHERE tag=? AND dal=?").bind(x.nome, x.tag, x.dal))];
+    if (ops.length) await env.DB.batch(ops);
     nomiTabellaOk = true;
   }
   const cor = (await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results;
@@ -164,9 +184,9 @@ async function syncNomi(env) {
     } else if (u.al != null) {                               // deactivated and now on the charger again (it was not there before): new assignment
       if (prev && !prev.has(c.tag)) st.push(env.DB.prepare("INSERT OR REPLACE INTO tessere_nomi (tag, nome, dal) VALUES (?,?,?)").bind(c.tag, c.nome, ora));
     } else if (u.nome !== c.nome) {
-      if (norm(c.nome).startsWith(norm(u.nome)))            // same name completed: not a new assignment
+      if (norm(c.nome).includes(norm(u.nome)))              // same name completed (e.g. SMITH -> A 12 SMITH): not a new assignment
         st.push(env.DB.prepare("UPDATE tessere_nomi SET nome=? WHERE tag=? AND dal=?").bind(c.nome, c.tag, u.dal));
-      else if (!norm(u.nome).startsWith(norm(c.nome)))
+      else if (!norm(u.nome).includes(norm(c.nome)))
         st.push(env.DB.prepare("INSERT OR REPLACE INTO tessere_nomi (tag, nome, dal) VALUES (?,?,?)").bind(c.tag, c.nome, ora));
     }
   }
@@ -404,9 +424,10 @@ async function salvaScarico(env, c, testoStorico, testoTessere) {
   const avvisi = [];
   if (testoTessere) {
     const st = env.DB.prepare("INSERT INTO tessere (tag, nome) VALUES (?,?) ON CONFLICT(tag) DO UPDATE SET nome = CASE WHEN excluded.nome <> '' THEN excluded.nome ELSE tessere.nome END");
-    // the charger truncates long names: if the db name is the full version of the same name, keep it
+    // the charger truncates long names or sometimes sends back an earlier, shorter name (SMITH for A 12 SMITH):
+    // if the db name contains the one read, keep it
     const vecchi = new Map((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((r) => [r.tag, r.nome]));
-    const t = parseTessere(testoTessere).filter(([tag, nome]) => !vecchi.has(tag) || !norm(vecchi.get(tag)).startsWith(norm(nome)));
+    const t = parseTessere(testoTessere).filter(([tag, nome]) => !vecchi.has(tag) || !norm(vecchi.get(tag)).includes(norm(nome)));
     const attive = rfidLeggi(testoTessere).filter((x) => x.id && x.stato === "0").map((x) => x.id);
     await env.DB.batch([...t.map((x) => st.bind(...x)), stmtTessereAttive(env, attive)]);
     if (t.length) await syncNomi(env);
@@ -594,7 +615,11 @@ async function nomiDb(env) {
   return new Map((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((r) => [r.tag, r.nome]));
 }
 function riempiNomi(lista, nomi) {
-  return lista.map((x) => (x.id && !x.nome && nomi.get(x.id) ? { ...x, nome: rfidNome(nomi.get(x.id)).slice(0, RFID_NOME_MAX) } : x));
+  return lista.map((x) => {
+    const n = x.id && nomi.get(x.id) ? rfidNome(nomi.get(x.id)).slice(0, RFID_NOME_MAX) : "";
+    // empty name (removed by the OCPP list send) or a shorter/earlier version of the same name: put back the site's one
+    return n && (!x.nome || (x.nome !== n && norm(n).includes(norm(x.nome)))) ? { ...x, nome: n } : x;
+  });
 }
 // returns: number of names put back, 0 if none was needed, -1 if postponed because the charger is busy
 async function ripristinaNomi(env) {
@@ -631,7 +656,13 @@ async function rfidScrivi(env, prima, dopo, copia = true) {
   // the site's db keeps the full name: update it only for cards that are new or really renamed
   const st = env.DB.prepare("INSERT INTO tessere (tag, nome) VALUES (?,?) ON CONFLICT(tag) DO UPDATE SET nome=excluded.nome");
   const vecchi = new Map((await env.DB.prepare("SELECT tag, nome FROM tessere").all()).results.map((r) => [r.tag, r.nome]));
-  const da = dopo.filter((x) => x.id && (!vecchi.has(x.id) || !norm(vecchi.get(x.id)).startsWith(norm(x.nome))));
+  const da = dopo.filter((x) => {
+    if (!x.id) return false;
+    if (!vecchi.has(x.id)) return true;
+    const p = prima.find((y) => y.id === x.id);
+    if (p && p.nome === x.nome) return false;                  // name not touched by this write (read from the charger): the site's one wins
+    return !norm(vecchi.get(x.id)).startsWith(norm(x.nome));
+  });
   if (da.length) { await env.DB.batch(da.map((x) => st.bind(x.id, x.nome))); await syncNomi(env); }   // removed cards stay in the db for the history
   return { ok, lista: letta };
 }
@@ -2537,12 +2568,15 @@ export class Colonnina {
   async alarm() { await this.avviaComandi(); }
 
   async rimettiNomi() {
+    if (this.rimettendo) return;                                 // already running (Heartbeat and Available arrive together)
+    this.rimettendo = true;
     await new Promise((r) => setTimeout(r, 5000));               // give the charger time to rewrite its list
     try {
       const n = await ripristinaNomi(this.env);
       if (n >= 0) { this.put("nomi_pendenti", false); if (n > 0) this.log("sys", `Nomi tessere rimessi sulla colonnina: ${n}`); }
       else this.log("sys", "Nomi tessere da rimettere: colonnina occupata, riprovo piu' tardi");
     } catch (e) { this.log("sys", "nomi tessere non rimessi: " + (e.message || e)); }
+    finally { this.rimettendo = false; }
   }
 
   // The card list (SendLocalList) goes out ONLY if the admin switched the option on in the OCPP tab (off by default):
