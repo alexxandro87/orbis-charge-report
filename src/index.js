@@ -542,14 +542,36 @@ function rfidDaFile(testo) {
   return rfidLeggi(/;/.test(righe[0]) ? "x\n" + righe.join("\n") : righe.join("\n"));
 }
 
-// card states as the OCPP server sees them: saved in the db (meta 'rfid_stato'), updated at every read of the charger file.
-// If something changes (card blocked, expired, added...) the offline list on the charger is sent again.
-async function rfidCache(env, lista) {
-  const nuovo = JSON.stringify(lista.filter((x) => x.id).map((x) => ({ id: x.id, scad: x.scad || "", stato: x.stato })).sort((a, b) => (a.id < b.id ? -1 : 1)));
+// is the offline card list sent via OCPP (SendLocalList) switched on? (OCPP tab; off by default)
+async function listaOcppOn(env) {
+  try { return !!(await (await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/?dopo=" + Date.now())).json()).lista_on; } catch (_) { return false; }
+}
+// card list of the site (meta 'rfid_stato'): the reference for the OCPP server (offline list and card check), updated at every
+// read of the charger file. With the OCPP list on, a card missing on the charger (e.g. a list send cut in half, every send
+// replaces the charger's whole list) is NOT dropped: only the site removes cards (rimosse), and the list is sent again.
+// With the OCPP list off the charger file is the reference, as before.
+async function rfidCache(env, lista, rimosse = []) {
+  const letta = lista.filter((x) => x.id).map((x) => ({ id: x.id, scad: x.scad || "", stato: x.stato }));
   const v = await env.DB.prepare("SELECT valore FROM meta WHERE chiave='rfid_stato'").first();
-  if (v && v.valore === nuovo) return;
-  await env.DB.prepare("INSERT OR REPLACE INTO meta VALUES ('rfid_stato', ?)").bind(nuovo).run();
-  try { await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/sync-differita", { method: "POST" }); } catch (_) { /* not connected: it is aligned at its next start */ }
+  let prec = [];
+  try { prec = v ? JSON.parse(v.valore) : []; } catch (_) { prec = []; }
+  const via = new Set(rimosse);
+  const tenute = (await listaOcppOn(env)) ? prec.filter((x) => x.id && !via.has(x.id) && !letta.some((y) => y.id === x.id)) : [];
+  const nuovo = JSON.stringify([...letta, ...tenute].sort((a, b) => (a.id < b.id ? -1 : 1)));
+  const sync = async () => { try { await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/sync-differita", { method: "POST" }); } catch (_) { /* not connected: it is aligned at its next start */ } };
+  if (!v || v.valore !== nuovo) { await env.DB.prepare("INSERT OR REPLACE INTO meta VALUES ('rfid_stato', ?)").bind(nuovo).run(); await sync(); return; }
+  // same list, but active cards missing on the charger: send the list again (at most every 30 minutes)
+  if (tenute.some((x) => x.stato === "0")) {
+    const u = await leggiMeta(env, "rinvio_mancanti", 0);
+    if (Date.now() - u > 1800e3) { await salvaMeta(env, "rinvio_mancanti", Date.now()); await sync(); }
+  }
+}
+// active cards of the site missing from the list read from the charger (Users/Card tab; only with the OCPP list on)
+async function rfidMancanti(env, lista) {
+  if (!(await listaOcppOn(env))) return [];
+  const c = (await leggiMeta(env, "rfid_stato", [])) || [], nomi = await nomiDb(env), reg = await leggiMeta(env, "tessere_bloccate", []);
+  return c.filter((x) => x.stato === "0" && !lista.some((y) => y.id === x.id) && !reg.some((r) => r.tag === x.id))
+    .map((x) => ({ id: x.id, scad: x.scad || "", nome: rfidNome(nomi.get(x.id) || "").slice(0, RFID_NOME_MAX), stato: "0", mancante: true }));
 }
 
 async function rfidDallaColonnina(env) {
@@ -604,7 +626,7 @@ async function rfidScrivi(env, prima, dopo, copia = true) {
   } finally { clearTimeout(t); }
   await conTimeout(per.salva, c, 20000);
   const letta = await rfidDallaColonnina(env);                 // check: read again and compare
-  await rfidCache(env, letta);
+  await rfidCache(env, letta, prima.filter((x) => x.id && !dopo.some((y) => y.id === x.id)).map((x) => x.id));   // removed by the site: they leave the list
   const ok = letta.length === dopo.length && dopo.every((x) => letta.some((y) => y.id === x.id && y.nome === x.nome && y.scad === x.scad));
   // the site's db keeps the full name: update it only for cards that are new or really renamed
   const st = env.DB.prepare("INSERT INTO tessere (tag, nome) VALUES (?,?) ON CONFLICT(tag) DO UPDATE SET nome=excluded.nome");
@@ -2422,12 +2444,13 @@ export class Colonnina {
         if (a.azione === "SendLocalList") {                     // keep track of the outcome of the offline list send
           const l = this.get("lista") || {};
           if (tipo === 3 && azione && azione.status === "Accepted") l.inviate = (l.inviate || 0) + a.n; else l.ok = false;
-          if (!(this.get("coda") || []).length && l.ok !== false) { l.ok = true; this.put("lista_v", this.get("lista_v_attesa")); this.put("nomi_pendenti", true); this.put("nomi_pendenti_da", Date.now()); this.state.waitUntil(this.rimettiNomi()); }
+          if (!(this.get("coda") || []).length && l.ok !== false) { l.ok = true; this.put("lista_v", this.get("lista_v_attesa")); this.put("lista_v_firma", this.get("lista_firma_attesa")); this.put("nomi_pendenti", true); this.put("nomi_pendenti_da", Date.now()); this.state.waitUntil(this.rimettiNomi()); }
           this.put("lista", l);
         }
         if (a.azione === "GetLocalListVersion") {               // the charger already has this version: no resend, the names stay
           const vc = tipo === 3 && azione ? azione.listVersion : null;
-          if (vc != null && vc === this.get("lista_v")) {
+          if (vc != null && (this.get("versioni_ok") || []).includes(vc)) {   // complete version (all chunks) with the same cards as now
+            this.put("lista_v", vc); this.put("lista_v_firma", this.get("lista_firma_attesa"));
             this.put("coda", (this.get("coda") || []).filter((x) => x.azione !== "SendLocalList"));
             const l = this.get("lista") || {}; this.put("lista", { ...l, inviate: l.n, ok: true, invariata: true });
             this.log("sys", "Lista tessere gia' aggiornata sulla colonnina (versione " + vc + "): non la rimando");
@@ -2549,12 +2572,21 @@ export class Colonnina {
     if (conConfig) { this.put("hb", this.hbVoluto()); this.put("par_inviati", { ...pv }); }
     if (listaOn) {
       const nChunk = Math.max(1, Math.ceil(tessere.length / 10));
+      // versions the charger may already have with these same cards: the last confirmed one and the last attempted one (reply lost to a drop).
+      // Only the version of the last chunk counts: if the connection drops halfway, the charger has an intermediate version and the list is resent.
+      const firma = JSON.stringify(tessere.map((t) => [t.id, t.scad || ""]));
+      if (!soloConfig) {
+        const ok = [];
+        if (this.get("lista_v") != null && this.get("lista_v_firma") === firma) ok.push(this.get("lista_v"));
+        if (this.get("lista_v_attesa") != null && this.get("lista_firma_attesa") === firma) ok.push(this.get("lista_v_attesa"));
+        this.put("versioni_ok", ok);
+      }
       if (conConfig && !soloConfig) cmd.push({ azione: "GetLocalListVersion", payload: {} });   // the list is resent only if the charger does not already have the latest version (every send wipes its names)
       for (let i = 0; i < (soloConfig ? 0 : nChunk); i++) {   // max 10 cards per send (SendLocalListMaxLength): first Full, then Differential
         cmd.push({ azione: "SendLocalList", payload: { listVersion: v + i, updateType: i === 0 ? "Full" : "Differential",
           localAuthorizationList: tessere.slice(i * 10, i * 10 + 10).map((t) => ({ idTag: t.id, idTagInfo: t.scad ? { status: "Accepted", expiryDate: new Date(t.scad).toISOString() } : { status: "Accepted" } })) } });
       }
-      if (!soloConfig) { this.put("lista", { quando: Date.now(), n: tessere.length, inviate: 0, ok: null }); this.put("lista_v_attesa", v + nChunk - 1); }
+      if (!soloConfig) { this.put("lista", { quando: Date.now(), n: tessere.length, inviate: 0, ok: null }); this.put("lista_v_attesa", v + nChunk - 1); this.put("lista_firma_attesa", firma); }
     }
     this.put("coda", cmd);
     this.put("attesa", null);
@@ -3263,7 +3295,7 @@ export default {
             const c = db.filter((r) => norm(r.nome).startsWith(norm(x.nome)) && !prima.some((y) => y.id === r.tag));
             return { ...x, suggerito: c.length === 1 ? c[0].tag : "", nome_completo: c.length === 1 ? c[0].nome : "" };
           });
-          return json({ lista: await conBloccate(env, lista), backup: backup ? { quando: backup.quando, n: backup.lista.length } : null });
+          return json({ lista: await conBloccate(env, [...lista, ...(await rfidMancanti(env, lista))]), backup: backup ? { quando: backup.quando, n: backup.lista.length } : null });
         }
         if (req.method !== "POST") return json({ errore: "metodo" }, 405);
         const b = await req.json();
@@ -3296,6 +3328,15 @@ export default {
           if (dopo.some((y) => y.id === id)) return json({ errore: "Tessera già presente" }, 400);
           Object.assign(x, { id, nome, scad, stato });
         } else if (b.azione === "elimina") {
+          const cache = (await leggiMeta(env, "rfid_stato", [])) || [];
+          if (id && !soloReg && !dopo.some((x) => x.id === id) && cache.some((x) => x.id === id)) {   // card only in the site's list (missing on the charger)
+            await salvaMeta(env, "rfid_stato", cache.filter((x) => x.id !== id));
+            try { await env.COLONNINA.get(env.COLONNINA.idFromName("colonnina")).fetch("https://do/sync-differita", { method: "POST" }); } catch (_) { /* aligned at the next start */ }
+            await syncNomi(env);                                   // deactivation: closes the card's open period, as below
+            await env.DB.prepare("UPDATE tessere_nomi SET al=? WHERE tag=? AND dal=(SELECT MAX(dal) FROM tessere_nomi WHERE tag=?) AND al IS NULL")
+              .bind(dataLocale(b.al) ?? Math.floor(Date.now() / 1000), id, id).run();
+            return json({ ok: true, lista: await conBloccate(env, prima) });
+          }
           if (soloReg) await salvaMeta(env, "tessere_bloccate", regB.filter((x) => x.tag !== id));
           const i = soloReg ? -2 : id ? dopo.findIndex((x) => x.id === id) : (dopo[+b.indice] && !dopo[+b.indice].id ? +b.indice : -1);
           if (i === -1) return json({ errore: "Tessera non trovata" }, 404);
